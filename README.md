@@ -1,0 +1,1 @@
+# Salak for rust
