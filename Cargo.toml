@@ -1,0 +1,13 @@
+[package]
+name = "salak"
+version = "0.1.0"
+authors = ["Daniel YU <i@icymint.me>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+clap = "2.33"
+lazy_static= "1.4"
+regex = "1.4"
