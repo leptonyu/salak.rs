@@ -2,9 +2,7 @@ use crate::*;
 use clap::{App, Arg};
 use std::collections::HashMap;
 
-pub struct SysArgs {
-    map: HashMap<String, Property>,
-}
+pub struct SysArgs(pub(crate) MapPropertySource);
 
 impl SysArgs {
     pub fn new(args: Vec<(String, Property)>) -> Self {
@@ -12,7 +10,7 @@ impl SysArgs {
         for (k, v) in args {
             map.insert(k, v);
         }
-        SysArgs { map }
+        SysArgs(MapPropertySource::new("SystemArguments".to_owned(), map))
     }
 }
 
@@ -53,17 +51,5 @@ impl Default for SysArgs {
                 })
                 .collect(),
         )
-    }
-}
-
-impl PropertySource for SysArgs {
-    fn name(&self) -> &'static str {
-        "SystemArguments"
-    }
-    fn contains_property(&self, name: &str) -> bool {
-        self.map.contains_key(name)
-    }
-    fn get_property(&self, name: &str) -> Option<Property> {
-        self.map.get(name).map(|p| p.clone())
     }
 }

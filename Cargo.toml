@@ -10,3 +10,7 @@ log = "0.4"
 clap = "3.0.0-beta.2"
 lazy_static= "1.4"
 regex = "1.4"
+
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros ="1"

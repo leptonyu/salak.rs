@@ -45,7 +45,7 @@ macro_rules! impl_from_property {
     };
 }
 
-impl_from_property!(u8, u16, u32, u64, i8, i16, i32, i64, f32, f64);
+impl_from_property!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
 
 impl FromProperty for bool {
     fn from_property(p: Property) -> Result<Self, PropertyError> {
@@ -120,6 +120,18 @@ mod tests {
         assert_eq!(
             true,
             bool::from_property(Property::Str("x".to_owned())).is_err()
+        );
+    }
+
+    #[quickcheck]
+    fn num_tests(i: i64) {
+        assert_eq!(Ok(i), i64::from_property(Property::Str(format!("{}", i))));
+        assert_eq!(Ok(i), i64::from_property(Property::Int(i as i64)));
+        assert_eq!(
+            Err(PropertyError::ParseFail(
+                "Bool value cannot convert to i64".to_owned()
+            )),
+            i64::from_property(Property::Bool(true))
         );
     }
 }

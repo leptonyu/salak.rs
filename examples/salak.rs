@@ -1,5 +1,5 @@
+use salak::environment::*;
 use salak::Environment;
-use salak::SourceRegistry;
 
 fn main() {
     let env = SourceRegistry::default();
