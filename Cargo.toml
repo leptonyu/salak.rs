@@ -9,6 +9,9 @@ documentation = "https://docs.rs/salak/"
 repository = "https://github.com/leptonyu/salak"
 homepage = "https://github.com/leptonyu/salak"
 readme = "README.md"
+exclude = [
+    "app.toml",
+]
 
 [dependencies]
 lazy_static = "1.4"
