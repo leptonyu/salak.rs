@@ -24,8 +24,8 @@
 //! hello = "world"
 //! ```
 //! means
-//! ```rust
-//! env.require::<String>("a.b.c.hello") == Ok("world".to_owned())
+//! ```toml
+//! a.b.c.hello = world
 //! ```
 //!
 //! ## Quick Example

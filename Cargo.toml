@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Daniel Yu <leptonyu@gmail.com>"]
 edition = "2018"
 license-file = "LICENSE"
+description = "A rust configuration loader"
+documentation = "https://docs.rs/salak/"
+repository = "https://github.com/leptonyu/salak"
+homepage = "https://github.com/leptonyu/salak"
+readme = "README.md"
 
 [dependencies]
 lazy_static = "1.4"

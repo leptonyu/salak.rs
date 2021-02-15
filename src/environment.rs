@@ -6,6 +6,8 @@ use crate::*;
 /// `Environment` that can resolve placeholder for values.
 ///
 /// ```
+/// use salak::environment::*;
+/// use salak::Environment;
 /// std::env::set_var("v1", "value");
 /// std::env::set_var("v2", "{v1}");
 /// std::env::set_var("v3", "{no_found:default}");
