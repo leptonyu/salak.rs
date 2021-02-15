@@ -1,9 +1,9 @@
 [package]
 name = "salak"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Daniel Yu <leptonyu@gmail.com>"]
 edition = "2018"
-license-file = "LICENSE"
+license = "MIT"
 description = "A rust configuration loader"
 documentation = "https://docs.rs/salak/"
 repository = "https://github.com/leptonyu/salak.rs"
@@ -12,6 +12,15 @@ readme = "README.md"
 exclude = [
     "app.toml",
 ]
+keywords = [
+    "configuration",
+    "config",
+    "cli",
+    "settings",
+    "env",
+    "environment"
+]
+categories = ["config"]
 
 [dependencies]
 lazy_static = "1.4"

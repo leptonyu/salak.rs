@@ -31,9 +31,10 @@
 //! ## Quick Example
 //!
 //! ```
-//! use salak::Environment;
-//! use salak::Salak;
-//! let env = Salak::default();
+//! use salak::*;
+//! let env = SalakBuilder::new()
+//!    .with_args_param(sys_args_param!())
+//!    .build();
 //!
 //! match env.require::<String>("hello") {
 //!     Ok(val) => println!("{}", val),
@@ -55,6 +56,7 @@ extern crate quickcheck_macros;
 
 /// Enable register args in environment.
 #[cfg(feature = "enable_args")]
+#[macro_use]
 pub mod args;
 pub mod env;
 pub mod environment;
@@ -152,6 +154,10 @@ pub trait Environment: Sync + Send {
 
 /// Builder for build `Salak`.
 pub struct SalakBuilder {
+    #[cfg(feature = "enable_args")]
+    args_param: Option<args::SysArgsParam>,
+    #[cfg(feature = "enable_args")]
+    custom_args: Vec<(String, Property)>,
     enable_placeholder: bool,
     enable_default_registry: bool,
 }
@@ -160,9 +166,26 @@ impl SalakBuilder {
     /// Create default builder.
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "enable_args")]
+            args_param: None,
+            #[cfg(feature = "enable_args")]
+            custom_args: vec![],
             enable_placeholder: true,
             enable_default_registry: true,
         }
+    }
+
+    /// Add default command line parser.
+    #[cfg(feature = "enable_args")]
+    pub fn with_args_param(mut self, param: args::SysArgsParam) -> Self {
+        self.args_param = Some(param);
+        self
+    }
+
+    #[cfg(feature = "enable_args")]
+    pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
+        self.custom_args = args;
+        self
     }
 
     /// Disable placeholder parsing.
@@ -180,7 +203,21 @@ impl SalakBuilder {
     /// Build a `Salak` environment.
     pub fn build(self) -> Salak {
         let sr = if self.enable_default_registry {
-            SourceRegistry::default()
+            let mut sr = SourceRegistry::new();
+            #[cfg(not(test))]
+            #[cfg(feature = "enable_args")]
+            {
+                if let Some(p) = self.args_param {
+                    sr = sr.with_args(p);
+                }
+                sr.register_source(Box::new(args::SysArgs::new(self.custom_args).0));
+            }
+            sr = sr.with_sys_env();
+            #[cfg(feature = "enable_toml")]
+            {
+                sr = sr.with_toml();
+            }
+            sr
         } else {
             SourceRegistry::new()
         };

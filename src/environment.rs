@@ -127,25 +127,33 @@ impl SourceRegistry {
         SourceRegistry { sources: vec![] }
     }
 
-    pub fn new_with_defaults(_args: Vec<(String, Property)>) -> Self {
-        let mut sr = Self::new();
-        #[cfg(feature = "enable_args")]
-        sr.register_source(Box::new(args::SysArgs::new(_args).0));
-        sr.register_source(Box::new(env::SysEnv));
-        #[cfg(feature = "enable_toml")]
+    /// Add default command line arguments parser.
+    #[cfg(feature = "enable_args")]
+    pub fn with_args(mut self, param: args::SysArgsParam) -> Self {
+        self.register_source(Box::new(args::SysArgs::new_default_args(param).0));
+        self
+    }
+
+    /// Add system environment.
+    pub fn with_sys_env(mut self) -> Self {
+        self.register_source(Box::new(env::SysEnv));
+        self
+    }
+
+    /// Add toml file.
+    #[cfg(feature = "enable_toml")]
+    pub fn with_toml(mut self) -> Self {
+        let dir: Option<String> = self.get("APP_CONF_DIR");
+        let name = self.get_or("APP_CONF_NAME", "app".to_owned());
+        #[cfg(feature = "enable_log")]
         {
-            let dir: Option<String> = sr.get("APP_CONF_DIR");
-            let name = sr.get_or("APP_CONF_NAME", "app".to_owned());
-            #[cfg(feature = "enable_log")]
-            {
-                if let Some(d) = &dir {
-                    debug!("Set APP_CONF_DIR as {}.", &d);
-                }
-                debug!("Set APP_CONF_NAME as {}.", name);
+            if let Some(d) = &dir {
+                debug!("Set APP_CONF_DIR as {}.", &d);
             }
-            sr.register_sources(Toml::new(dir, name).build());
+            debug!("Set APP_CONF_NAME as {}.", name);
         }
-        sr
+        self.register_sources(Toml::new(dir, name).build());
+        self
     }
 
     /// Register source.
@@ -169,13 +177,18 @@ impl SourceRegistry {
 
 impl Default for SourceRegistry {
     fn default() -> Self {
-        let mut _args = vec![];
+        let mut sr = SourceRegistry::new();
         #[cfg(not(test))]
         #[cfg(feature = "enable_args")]
         {
-            _args = args::SysArgs::parse_args();
+            sr = sr.with_args(sys_args_param!());
         }
-        SourceRegistry::new_with_defaults(_args)
+        sr = sr.with_sys_env();
+        #[cfg(feature = "enable_toml")]
+        {
+            sr = sr.with_toml();
+        }
+        sr
     }
 }
 

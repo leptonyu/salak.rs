@@ -6,6 +6,26 @@ use std::collections::HashMap;
 
 const NOT_POSSIBLE: &'static str = "Not possible";
 
+pub struct SysArgsParam {
+    pub name: &'static str,
+    pub version: &'static str,
+    pub author: Option<&'static str>,
+    pub about: Option<&'static str>,
+}
+
+/// Parse `SysArgsParam` from Cargo.toml.
+#[macro_export]
+macro_rules! sys_args_param {
+    () => {
+        args::SysArgsParam {
+            name: env!("CARGO_PKG_NAME"),
+            version: env!("CARGO_PKG_VERSION"),
+            author: option_env!("CARGO_PKG_AUTHORS"),
+            about: option_env!("CARGO_PKG_DESCRIPTION"),
+        }
+    };
+}
+
 /// A simple implementation of `PropertySource`.
 pub struct SysArgs(pub(crate) MapPropertySource);
 
@@ -19,11 +39,16 @@ impl SysArgs {
         SysArgs(MapPropertySource::new("SystemArguments".to_owned(), map))
     }
 
-    pub fn parse_args() -> Vec<(String, Property)> {
-        let matches = App::new(env!("CARGO_PKG_NAME"))
-            .version(env!("CARGO_PKG_VERSION"))
-            .author(env!("CARGO_PKG_AUTHORS"))
-            .about(env!("CARGO_PKG_DESCRIPTION"))
+    /// Create `SysArgs` with default parser.
+    pub fn new_default_args(param: SysArgsParam) -> Self {
+        let mut app = App::new(param.name).version(param.version);
+        if let Some(a) = param.author {
+            app = app.author(a);
+        }
+        if let Some(a) = param.about {
+            app = app.about(a);
+        }
+        let matches = app
             .arg(
                 Arg::with_name("property")
                     .short("P")
@@ -41,24 +66,26 @@ impl SysArgs {
             )
             .expect(NOT_POSSIBLE);
         }
-        matches
-            .values_of_lossy("property")
-            .unwrap_or(vec![])
-            .iter()
-            .flat_map(|k| match RE.captures(&k) {
-                Some(ref v) => Some((
-                    v.get(1).unwrap().as_str().to_owned(),
-                    Property::Str(v.get(2).unwrap().as_str().to_owned()),
-                )),
-                _ => None,
-            })
-            .collect()
+        Self::new(
+            matches
+                .values_of_lossy("property")
+                .unwrap_or(vec![])
+                .iter()
+                .flat_map(|k| match RE.captures(&k) {
+                    Some(ref v) => Some((
+                        v.get(1).unwrap().as_str().to_owned(),
+                        Property::Str(v.get(2).unwrap().as_str().to_owned()),
+                    )),
+                    _ => None,
+                })
+                .collect(),
+        )
     }
 }
 
 impl Default for SysArgs {
     /// A simple implementation using `clap`.
     fn default() -> Self {
-        Self::new(SysArgs::parse_args())
+        SysArgs::new_default_args(sys_args_param!())
     }
 }
