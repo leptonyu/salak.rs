@@ -1,6 +1,9 @@
 use crate::*;
 use clap::{App, Arg};
+use regex::Regex;
 use std::collections::HashMap;
+
+const NOT_POSSIBLE: &'static str = "Not possible";
 
 pub struct SysArgs(pub(crate) MapPropertySource);
 
@@ -21,14 +24,14 @@ impl Default for SysArgs {
             .author(env!("CARGO_PKG_AUTHORS"))
             .about(env!("CARGO_PKG_DESCRIPTION"))
             .arg(
-                Arg::new("property")
-                    .short('P')
+                Arg::with_name("property")
+                    .short("P")
                     .long("property")
                     .value_name("KEY=VALUE")
                     .multiple(true)
                     .number_of_values(1)
                     .takes_value(true)
-                    .about("Set properties"),
+                    .help("Set properties"),
             )
             .get_matches();
         lazy_static::lazy_static! {

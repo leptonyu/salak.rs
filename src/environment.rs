@@ -1,3 +1,5 @@
+#[cfg(feature = "enable_toml")]
+use crate::toml::Toml;
 use crate::*;
 
 pub struct PlaceHolderEnvironment<T: Environment> {
@@ -100,7 +102,17 @@ impl SourceRegistry {
     }
 
     pub fn register_source(&mut self, source: Box<dyn PropertySource>) {
-        self.sources.push(source);
+        if !source.is_empty() {
+            self.sources.push(source);
+        }
+    }
+
+    pub fn register_sources(&mut self, sources: Vec<Option<Box<dyn PropertySource>>>) {
+        for source in sources.into_iter() {
+            if let Some(s) = source {
+                self.register_source(s);
+            }
+        }
     }
 }
 
@@ -108,8 +120,15 @@ impl Default for SourceRegistry {
     fn default() -> Self {
         let mut sr = Self::new();
         #[cfg(not(test))]
+        #[cfg(feature = "enable_args")]
         sr.register_source(Box::new(args::SysArgs::default().0));
         sr.register_source(Box::new(env::SysEnv));
+        #[cfg(feature = "enable_toml")]
+        {
+            let dir: Option<String> = sr.get("APP_CONF_DIR");
+            let name = sr.get_or("APP_CONF_NAME", "app".to_owned());
+            sr.register_sources(Toml::new(dir, name).build());
+        }
         sr
     }
 }

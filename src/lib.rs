@@ -1,5 +1,4 @@
 use crate::property::*;
-use regex::Regex;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{Display, Error, Formatter};
@@ -8,13 +7,13 @@ use std::fmt::{Display, Error, Formatter};
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
+#[cfg(feature = "enable_args")]
 pub mod args;
 pub mod env;
 pub mod environment;
 pub mod property;
+#[cfg(feature = "enable_toml")]
 pub mod toml;
-
-const NOT_POSSIBLE: &'static str = "Not possible";
 
 #[derive(Clone)]
 pub enum Property {
@@ -45,6 +44,7 @@ pub trait PropertySource {
     fn contains_property(&self, name: &str) -> bool {
         self.get_property(name).is_some()
     }
+    fn is_empty(&self) -> bool;
 }
 
 pub struct MapPropertySource {
@@ -69,6 +69,9 @@ impl PropertySource for MapPropertySource {
     fn get_property(&self, name: &str) -> Option<Property> {
         self.map.get(name).map(|p| p.clone())
     }
+    fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
 }
 
 pub trait Environment: Sized {
@@ -78,5 +81,8 @@ pub trait Environment: Sized {
     fn require<T: FromProperty>(&self, name: &str) -> Result<T, PropertyError>;
     fn get<T: FromProperty>(&self, name: &str) -> Option<T> {
         self.require(name).ok()
+    }
+    fn get_or<T: FromProperty>(&self, name: &str, default: T) -> T {
+        self.get(name).unwrap_or(default)
     }
 }

@@ -6,11 +6,16 @@ edition = "2018"
 license-file = "LICENSE"
 
 [dependencies]
-log = "0.4"
-clap = "3.0.0-beta.2"
 lazy_static= "1.4"
 regex = "1.4"
+clap = {version="2.33", optional=true}
+toml = {version= "0.5", optional=true}
 
 [dev-dependencies]
 quickcheck = "1"
 quickcheck_macros ="1"
+
+[features]
+default = ["enable_args", "enable_toml"]
+enable_toml = ["toml"]
+enable_args = ["clap"]

@@ -9,4 +9,7 @@ impl PropertySource for SysEnv {
     fn get_property(&self, name: &str) -> Option<Property> {
         std::env::var(name).ok().map(|a| Property::Str(a))
     }
+    fn is_empty(&self) -> bool {
+        false
+    }
 }
