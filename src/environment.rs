@@ -103,6 +103,8 @@ impl SourceRegistry {
 
     pub fn register_source(&mut self, source: Box<dyn PropertySource>) {
         if !source.is_empty() {
+            #[cfg(feature = "enable_log")]
+            debug!("Load property source {}.", source.name());
             self.sources.push(source);
         }
     }
@@ -127,6 +129,13 @@ impl Default for SourceRegistry {
         {
             let dir: Option<String> = sr.get("APP_CONF_DIR");
             let name = sr.get_or("APP_CONF_NAME", "app".to_owned());
+            #[cfg(feature = "enable_log")]
+            {
+                if let Some(d) = &dir {
+                    debug!("Set APP_CONF_DIR as {}.", &d);
+                }
+                debug!("Set APP_CONF_NAME as {}.", name);
+            }
             sr.register_sources(Toml::new(dir, name).build());
         }
         sr

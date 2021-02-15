@@ -1,4 +1,6 @@
 use crate::property::*;
+#[cfg(feature = "enable_log")]
+use log::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{Display, Error, Formatter};

@@ -6,16 +6,19 @@ edition = "2018"
 license-file = "LICENSE"
 
 [dependencies]
-lazy_static= "1.4"
-regex = "1.4"
-clap = {version="2.33", optional=true}
+lazy_static = "1.4"
+regex = {version= "1.4", optional=true}
+clap = {version= "2.33", optional=true}
 toml = {version= "0.5", optional=true}
+log = {version="0.4", optional=true}
 
 [dev-dependencies]
 quickcheck = "1"
 quickcheck_macros ="1"
+env_logger= "0.8"
 
 [features]
-default = ["enable_args", "enable_toml"]
+default = ["enable_args", "enable_toml", "enable_log"]
 enable_toml = ["toml"]
-enable_args = ["clap"]
+enable_args = ["clap", "regex"]
+enable_log = ["log"]
