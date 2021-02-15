@@ -59,37 +59,34 @@ impl<E: Environment> PlaceHolderEnvironment<E> {
         let mut stack: Vec<String> = vec![];
         let mut pre = "".to_owned();
         let placeholder: &[_] = &[self.placeholder_prefix, self.placeholder_suffix];
+        let prefix = &self.placeholder_prefix.to_string();
         while let Some(left) = val.find(placeholder) {
-            match &val[left..=left] {
-                "{" => {
-                    if stack.is_empty() {
-                        pre.push_str(&val[..left]);
-                        stack.push("".to_owned());
-                    } else {
-                        stack.push(val[..left].to_string());
-                    }
+            if &val[left..=left] == prefix {
+                if stack.is_empty() {
+                    pre.push_str(&val[..left]);
+                    stack.push("".to_owned());
+                } else {
+                    stack.push(val[..left].to_string());
                 }
-                _ => {
-                    if let Some(mut name) = stack.pop() {
-                        name.push_str(&val[..left]);
-                        let mut def: Option<String> = None;
-                        let key = if let Some(k) = name.find(self.placeholder_middle) {
-                            def = Some(name[k + 1..].to_owned());
-                            &name[..k]
-                        } else {
-                            &name
-                        };
-                        let value: String =
-                            self.do_parse(&key, contains).or_else(|e| def.ok_or(e))?;
-                        if let Some(mut prefix) = stack.pop() {
-                            prefix.push_str(&value);
-                            stack.push(prefix);
-                        } else {
-                            pre.push_str(&value);
-                        }
+            } else {
+                if let Some(mut name) = stack.pop() {
+                    name.push_str(&val[..left]);
+                    let mut def: Option<String> = None;
+                    let key = if let Some(k) = name.find(self.placeholder_middle) {
+                        def = Some(name[k + 1..].to_owned());
+                        &name[..k]
                     } else {
-                        return Err(PropertyError::ParseFail(format!("Suffix not match 1")));
+                        &name
+                    };
+                    let value: String = self.do_parse(&key, contains).or_else(|e| def.ok_or(e))?;
+                    if let Some(mut prefix) = stack.pop() {
+                        prefix.push_str(&value);
+                        stack.push(prefix);
+                    } else {
+                        pre.push_str(&value);
                     }
+                } else {
+                    return Err(PropertyError::ParseFail(format!("Suffix not match 1")));
                 }
             }
             val = &val[left + 1..];
@@ -130,6 +127,27 @@ impl SourceRegistry {
         SourceRegistry { sources: vec![] }
     }
 
+    pub fn new_with_defaults(_args: Vec<(String, Property)>) -> Self {
+        let mut sr = Self::new();
+        #[cfg(feature = "enable_args")]
+        sr.register_source(Box::new(args::SysArgs::new(_args).0));
+        sr.register_source(Box::new(env::SysEnv));
+        #[cfg(feature = "enable_toml")]
+        {
+            let dir: Option<String> = sr.get("APP_CONF_DIR");
+            let name = sr.get_or("APP_CONF_NAME", "app".to_owned());
+            #[cfg(feature = "enable_log")]
+            {
+                if let Some(d) = &dir {
+                    debug!("Set APP_CONF_DIR as {}.", &d);
+                }
+                debug!("Set APP_CONF_NAME as {}.", name);
+            }
+            sr.register_sources(Toml::new(dir, name).build());
+        }
+        sr
+    }
+
     /// Register source.
     pub fn register_source(&mut self, source: Box<dyn PropertySource>) {
         if !source.is_empty() {
@@ -151,25 +169,13 @@ impl SourceRegistry {
 
 impl Default for SourceRegistry {
     fn default() -> Self {
-        let mut sr = Self::new();
+        let mut _args = vec![];
         #[cfg(not(test))]
         #[cfg(feature = "enable_args")]
-        sr.register_source(Box::new(args::SysArgs::default().0));
-        sr.register_source(Box::new(env::SysEnv));
-        #[cfg(feature = "enable_toml")]
         {
-            let dir: Option<String> = sr.get("APP_CONF_DIR");
-            let name = sr.get_or("APP_CONF_NAME", "app".to_owned());
-            #[cfg(feature = "enable_log")]
-            {
-                if let Some(d) = &dir {
-                    debug!("Set APP_CONF_DIR as {}.", &d);
-                }
-                debug!("Set APP_CONF_NAME as {}.", name);
-            }
-            sr.register_sources(Toml::new(dir, name).build());
+            _args = args::SysArgs::parse_args();
         }
-        sr
+        SourceRegistry::new_with_defaults(_args)
     }
 }
 

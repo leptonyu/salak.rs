@@ -18,11 +18,8 @@ impl SysArgs {
         }
         SysArgs(MapPropertySource::new("SystemArguments".to_owned(), map))
     }
-}
 
-impl Default for SysArgs {
-    /// A simple implementation using `clap`.
-    fn default() -> Self {
+    pub fn parse_args() -> Vec<(String, Property)> {
         let matches = App::new(env!("CARGO_PKG_NAME"))
             .version(env!("CARGO_PKG_VERSION"))
             .author(env!("CARGO_PKG_AUTHORS"))
@@ -44,19 +41,24 @@ impl Default for SysArgs {
             )
             .expect(NOT_POSSIBLE);
         }
-        Self::new(
-            matches
-                .values_of_lossy("property")
-                .unwrap_or(vec![])
-                .iter()
-                .flat_map(|k| match RE.captures(&k) {
-                    Some(ref v) => Some((
-                        v.get(1).unwrap().as_str().to_owned(),
-                        Property::Str(v.get(2).unwrap().as_str().to_owned()),
-                    )),
-                    _ => None,
-                })
-                .collect(),
-        )
+        matches
+            .values_of_lossy("property")
+            .unwrap_or(vec![])
+            .iter()
+            .flat_map(|k| match RE.captures(&k) {
+                Some(ref v) => Some((
+                    v.get(1).unwrap().as_str().to_owned(),
+                    Property::Str(v.get(2).unwrap().as_str().to_owned()),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+impl Default for SysArgs {
+    /// A simple implementation using `clap`.
+    fn default() -> Self {
+        Self::new(SysArgs::parse_args())
     }
 }
