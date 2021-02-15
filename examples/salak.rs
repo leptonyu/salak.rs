@@ -1,12 +1,12 @@
-use salak::environment::*;
 use salak::Environment;
+use salak::Salak;
 
 fn main() {
     env_logger::init();
 
-    let env = SourceRegistry::default();
+    let env = Salak::default();
 
-    match env.require::<String>("hello") {
+    match env.require::<String>("a.b.c.hello") {
         Ok(val) => println!("{}", val),
         Err(e) => println!("{}", e),
     }

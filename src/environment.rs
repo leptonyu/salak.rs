@@ -1,17 +1,37 @@
+//! Provide `Environment` implementations.
 #[cfg(feature = "enable_toml")]
 use crate::toml::Toml;
 use crate::*;
 
+/// `Environment` that can resolve placeholder for values.
+///
+/// ```
+/// std::env::set_var("v1", "value");
+/// std::env::set_var("v2", "{v1}");
+/// std::env::set_var("v3", "{no_found:default}");
+/// std::env::set_var("v4", "{no_found:{v2}}");
+/// let env = PlaceHolderEnvironment::new(true, SourceRegistry::default());
+/// assert_eq!("value", &env.require::<String>("v1").unwrap());
+/// assert_eq!("value", &env.require::<String>("v2").unwrap());
+/// assert_eq!("default", &env.require::<String>("v3").unwrap());
+/// assert_eq!("value", &env.require::<String>("v4").unwrap());
+/// ```
 pub struct PlaceHolderEnvironment<T: Environment> {
-    env: T,
-    placeholder: &'static [char],
+    enabled: bool,
+    pub(crate) env: T,
+    placeholder_prefix: char,
+    placeholder_suffix: char,
+    placeholder_middle: char,
 }
 
 impl<E: Environment> PlaceHolderEnvironment<E> {
-    pub fn new(env: E) -> Self {
+    pub fn new(enabled: bool, env: E) -> Self {
         PlaceHolderEnvironment {
+            enabled,
             env,
-            placeholder: &['{', '}'],
+            placeholder_prefix: '{',
+            placeholder_suffix: '}',
+            placeholder_middle: ':',
         }
     }
 
@@ -36,7 +56,8 @@ impl<E: Environment> PlaceHolderEnvironment<E> {
     ) -> Result<String, PropertyError> {
         let mut stack: Vec<String> = vec![];
         let mut pre = "".to_owned();
-        while let Some(left) = val.find(self.placeholder) {
+        let placeholder: &[_] = &[self.placeholder_prefix, self.placeholder_suffix];
+        while let Some(left) = val.find(placeholder) {
             match &val[left..=left] {
                 "{" => {
                     if stack.is_empty() {
@@ -50,7 +71,7 @@ impl<E: Environment> PlaceHolderEnvironment<E> {
                     if let Some(mut name) = stack.pop() {
                         name.push_str(&val[..left]);
                         let mut def: Option<String> = None;
-                        let key = if let Some(k) = name.find(':') {
+                        let key = if let Some(k) = name.find(self.placeholder_middle) {
                             def = Some(name[k + 1..].to_owned());
                             &name[..k]
                         } else {
@@ -88,19 +109,26 @@ impl<E: Environment> Environment for PlaceHolderEnvironment<E> {
     where
         T: FromProperty,
     {
-        self.do_parse(name, &mut HashSet::new())
+        if self.enabled {
+            self.do_parse(name, &mut HashSet::new())
+        } else {
+            self.env.require(name)
+        }
     }
 }
 
+/// A registry for registering `PropertySource`, which implements `Environment`.
 pub struct SourceRegistry {
     sources: Vec<Box<dyn PropertySource>>,
 }
 
 impl SourceRegistry {
+    /// Create an empty registry.
     pub fn new() -> Self {
         SourceRegistry { sources: vec![] }
     }
 
+    /// Register source.
     pub fn register_source(&mut self, source: Box<dyn PropertySource>) {
         if !source.is_empty() {
             #[cfg(feature = "enable_log")]
@@ -109,6 +137,7 @@ impl SourceRegistry {
         }
     }
 
+    /// Register multiple sources.
     pub fn register_sources(&mut self, sources: Vec<Option<Box<dyn PropertySource>>>) {
         for source in sources.into_iter() {
             if let Some(s) = source {
@@ -173,7 +202,7 @@ mod tests {
         std::env::set_var("v5", "{no_found:{no_found_2:hello}}");
         std::env::set_var("v6", "hello-{v1}-{v3}-");
         std::env::set_var("v7", "{v7}");
-        let env = PlaceHolderEnvironment::new(SourceRegistry::default());
+        let env = PlaceHolderEnvironment::new(true, SourceRegistry::default());
         assert_eq!("value", &env.require::<String>("v1").unwrap());
         assert_eq!("value", &env.require::<String>("v2").unwrap());
         assert_eq!("default", &env.require::<String>("v3").unwrap());

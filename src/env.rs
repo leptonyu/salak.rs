@@ -1,5 +1,7 @@
+//! Provide system environment property source.
 use crate::*;
 
+/// A wrapper of `PropertySource` for getting properties from system environment.
 pub struct SysEnv;
 
 impl PropertySource for SysEnv {

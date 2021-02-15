@@ -1,3 +1,4 @@
+//! Provide arguments property source.
 use crate::*;
 use clap::{App, Arg};
 use regex::Regex;
@@ -5,9 +6,11 @@ use std::collections::HashMap;
 
 const NOT_POSSIBLE: &'static str = "Not possible";
 
+/// A simple implementation of `PropertySource`.
 pub struct SysArgs(pub(crate) MapPropertySource);
 
 impl SysArgs {
+    /// Create `SysArgs` from vec.
     pub fn new(args: Vec<(String, Property)>) -> Self {
         let mut map = HashMap::new();
         for (k, v) in args {
@@ -18,6 +21,7 @@ impl SysArgs {
 }
 
 impl Default for SysArgs {
+    /// A simple implementation using `clap`.
     fn default() -> Self {
         let matches = App::new(env!("CARGO_PKG_NAME"))
             .version(env!("CARGO_PKG_VERSION"))

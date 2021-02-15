@@ -1,9 +1,11 @@
+//! Provide toml property source.
 use crate::*;
 use ::toml::*;
 use std::env::*;
 use std::fs;
 use std::path::PathBuf;
 
+/// Support read toml file as `PropertySource`.
 pub struct Toml {
     dir: Option<String>,
     name: String,

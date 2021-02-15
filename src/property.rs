@@ -1,3 +1,4 @@
+//! Property converter.
 use crate::*;
 
 /// Convert value from `Property`.
