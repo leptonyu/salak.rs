@@ -15,7 +15,6 @@ exclude = [
 keywords = [
     "configuration",
     "config",
-    "cli",
     "settings",
     "env",
     "environment"
