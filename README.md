@@ -29,5 +29,4 @@ cargo run --example salak -- -h
 
 ### TODO
 1. Generate configuration struct from salak environment.
-2. Add yaml supports.
-3. Reload configurations.
+2. Reload configurations.

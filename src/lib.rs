@@ -18,15 +18,6 @@
 //! ### Toml key conversion
 //! `salak` use the same key conversion as toml.
 //!
-//! ```toml
-//! [a.b.c]
-//! hello = "world"
-//! ```
-//! means
-//! ```toml
-//! a.b.c.hello = world
-//! ```
-//!
 //! ## Quick Example
 //!
 //! ```
