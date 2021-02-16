@@ -1,20 +1,19 @@
-//! A configuration loader inspired by spring-boot.
+//! A configuration loader.
 //!
 //! ## About
-//! `salak` is a rust version for multilayered configuration loader inspired by
+//! `salak` is a rust version for multi-layered configuration loader inspired by
 //! [spring-boot](https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-external-config).
 //! `salak` also has a [haskell version](https://hackage.haskell.org/package/salak).
 //!
-//! `salak` defines default `PropertySource`s:
-//! 1. Arguments using `clap` to parsing `-P, --propery KEY=VALUE`.
-//! 2. System Environment
+//! `salak` defines following default `PropertySource`s:
+//! 1. Command line arguments using `clap` to parsing `-P, --propery KEY=VALUE`.
+//! 2. System Environment.
 //! 3. app.toml(*) in current dir and $HOME dir. Or if you specify `APP_CONF_DIR` dir, then only load toml in this dir.
 //!
-//! \* `APP_CONF_NAME` can be specified to rename `app`.
+//! \* `APP_CONF_NAME` can be specified to replace `app`.
 //!
 //! ### Placeholder parsing
-//! Unlike spring-boot, `salak` use format `{key:default}` to parse value or use default.
-//!
+//! `salak` use format `{key:default}` to reference to other `key`, and if `key` not exists then use value `default`.
 //!
 //! ### Toml key conversion
 //! `salak` use the same key conversion as toml.
@@ -30,10 +29,10 @@
 //!
 //! ## Quick Example
 //!
-//! ```no_run
+//! ```
 //! use salak::*;
 //! let env = SalakBuilder::new()
-//!    .with_args_param(sys_args_param!())
+//!    .with_default_args(auto_read_sys_args_param!())
 //!    .build();
 //!
 //! match env.require::<String>("hello") {
@@ -155,9 +154,7 @@ pub trait Environment: Sync + Send {
 /// Builder for build `Salak`.
 pub struct SalakBuilder {
     #[cfg(feature = "enable_args")]
-    args_param: Option<args::SysArgsParam>,
-    #[cfg(feature = "enable_args")]
-    custom_args: Vec<(String, Property)>,
+    args: Option<args::SysArgsMode>,
     enable_placeholder: bool,
     enable_default_registry: bool,
 }
@@ -167,24 +164,25 @@ impl SalakBuilder {
     pub fn new() -> Self {
         Self {
             #[cfg(feature = "enable_args")]
-            args_param: None,
-            #[cfg(feature = "enable_args")]
-            custom_args: vec![],
+            args: None,
             enable_placeholder: true,
             enable_default_registry: true,
         }
     }
 
-    /// Add default command line parser.
+    /// Use default command line arguments parser.
+    /// Please use macro `auto_read_sys_args_param!()` to generate `args::SysArgsParam`.
     #[cfg(feature = "enable_args")]
-    pub fn with_args_param(mut self, param: args::SysArgsParam) -> Self {
-        self.args_param = Some(param);
+    pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
+        self.args = Some(args::SysArgsMode::Auto(param));
         self
     }
 
+    /// Use custom command line arguments parser.
+    /// Users should provide a parser to produce `Vec<(String, Property)>`.
     #[cfg(feature = "enable_args")]
     pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
-        self.custom_args = args;
+        self.args = Some(args::SysArgsMode::Custom(args));
         self
     }
 
@@ -195,6 +193,7 @@ impl SalakBuilder {
     }
 
     /// Disable register default property sources.
+    /// Users should organize `PropertySource`s themselves.
     pub fn disable_default_registry(mut self) -> Self {
         self.enable_default_registry = false;
         self
@@ -204,15 +203,14 @@ impl SalakBuilder {
     pub fn build(self) -> Salak {
         let sr = if self.enable_default_registry {
             let mut sr = SourceRegistry::new();
-            #[cfg(not(test))]
+            // First Layer
             #[cfg(feature = "enable_args")]
-            {
-                if let Some(p) = self.args_param {
-                    sr = sr.with_args(p);
-                }
-                sr.register_source(Box::new(args::SysArgs::new(self.custom_args).0));
+            if let Some(p) = self.args {
+                sr.register_source(Box::new(args::SysArgs::new(p).0));
             }
+            // Second Layer
             sr = sr.with_sys_env();
+            // Third Layer
             #[cfg(feature = "enable_toml")]
             {
                 sr = sr.with_toml();

@@ -129,8 +129,8 @@ impl SourceRegistry {
 
     /// Add default command line arguments parser.
     #[cfg(feature = "enable_args")]
-    pub fn with_args(mut self, param: args::SysArgsParam) -> Self {
-        self.register_source(Box::new(args::SysArgs::new_default_args(param).0));
+    pub fn with_args(mut self, mode: args::SysArgsMode) -> Self {
+        self.register_source(Box::new(args::SysArgs::new(mode).0));
         self
     }
 
@@ -181,7 +181,7 @@ impl Default for SourceRegistry {
         #[cfg(not(test))]
         #[cfg(feature = "enable_args")]
         {
-            sr = sr.with_args(sys_args_param!());
+            sr = sr.with_args(args::SysArgsMode::Auto(auto_read_sys_args_param!()));
         }
         sr = sr.with_sys_env();
         #[cfg(feature = "enable_toml")]

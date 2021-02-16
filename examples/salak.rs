@@ -4,10 +4,10 @@ fn main() {
     env_logger::init();
 
     let env = SalakBuilder::new()
-        .with_args_param(sys_args_param!())
+        .with_default_args(auto_read_sys_args_param!())
         .build();
 
-    match env.require::<String>("a.b.c.hello") {
+    match env.require::<String>("hello") {
         Ok(val) => println!("{}", val),
         Err(e) => println!("{}", e),
     }
