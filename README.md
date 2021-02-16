@@ -26,3 +26,8 @@ cargo run --example salak -- -h
 # OPTIONS:
 #     -P, --property <KEY=VALUE>...    Set properties
 ```
+
+### TODO
+1. Generate configuration struct from salak environment.
+2. Add yaml supports.
+3. Reload configurations.
