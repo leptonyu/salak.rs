@@ -1,7 +1,7 @@
-//! Property converter.
+//! [`Property`] converter.
 use crate::*;
 
-/// Convert value from `Property`.
+/// Convert value from [`Property`].
 pub trait FromProperty: Sized {
     fn from_property(_: Property) -> Result<Self, PropertyError>;
 }

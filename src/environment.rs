@@ -1,4 +1,4 @@
-//! Provide `Environment` implementations.
+//! Provide [`Environment`] implementations.
 #[cfg(feature = "enable_toml")]
 use crate::toml::Toml;
 use crate::*;
@@ -116,7 +116,7 @@ impl<E: Environment> Environment for PlaceHolderEnvironment<E> {
     }
 }
 
-/// A registry for registering `PropertySource`, which implements `Environment`.
+/// A registry for registering [`PropertySource`], which implements [`Environment`].
 pub struct SourceRegistry {
     sources: Vec<Box<dyn PropertySource>>,
 }

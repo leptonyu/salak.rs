@@ -10,7 +10,7 @@ const NOT_POSSIBLE: &'static str = "Not possible";
 pub enum SysArgsMode {
     /// Use default parser.
     Auto(SysArgsParam),
-    /// Customize parser and provide a key value vector as `PropertySource`.
+    /// Customize parser and provide a key value vector as [`PropertySource`].
     Custom(Vec<(String, Property)>),
 }
 
@@ -22,8 +22,8 @@ pub struct SysArgsParam {
     pub about: Option<&'static str>,
 }
 
-/// Auto generate `SysArgsParam` from Cargo.toml.
-/// Due to macro `env!` will generate value at compile time, so users should call it at final project.
+/// Auto generate [`SysArgsParam`] from Cargo.toml.
+/// Due to macro [`env!`] will generate value at compile time, so users should call it at final project.
 #[macro_export]
 macro_rules! auto_read_sys_args_param {
     () => {
@@ -36,11 +36,11 @@ macro_rules! auto_read_sys_args_param {
     };
 }
 
-/// A simple implementation of `PropertySource`.
+/// A simple implementation of [`PropertySource`].
 pub(crate) struct SysArgs(pub(crate) MapPropertySource);
 
 impl SysArgs {
-    /// Create `SysArgs` from vec.
+    /// Create [`SysArgs`].
     pub fn new(args: SysArgsMode) -> Self {
         let args = match args {
             SysArgsMode::Auto(arg) => Self::new_default_args(arg),
@@ -54,7 +54,6 @@ impl SysArgs {
         SysArgs(MapPropertySource::new("SystemArguments".to_owned(), map))
     }
 
-    /// Create `SysArgs` with default parser.
     fn new_default_args(param: SysArgsParam) -> Vec<(String, Property)> {
         let mut app = App::new(param.name).version(param.version);
         if let Some(a) = param.author {

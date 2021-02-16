@@ -5,7 +5,7 @@
 //! [spring-boot](https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-external-config).
 //! `salak` also has a [haskell version](https://hackage.haskell.org/package/salak).
 //!
-//! `salak` defines following default `PropertySource`s:
+//! `salak` defines following default [`PropertySource`]s:
 //! 1. Command line arguments using `clap` to parsing `-P, --propery KEY=VALUE`.
 //! 2. System Environment.
 //! 3. app.toml(*) in current dir and $HOME dir. Or if you specify `APP_CONF_DIR` dir, then only load toml in this dir.
@@ -41,6 +41,7 @@
 //! }
 //! ```
 //!
+
 use crate::environment::*;
 use crate::property::*;
 #[cfg(feature = "enable_log")]
@@ -89,8 +90,8 @@ impl Display for PropertyError {
     }
 }
 
-/// PropertySource is an abstract source loader from various sources,
-/// such as arguments, system environment, files, etc.
+/// An abstract source loader from various sources,
+/// such as commandline arguments, system environment, files, etc.
 pub trait PropertySource: Sync + Send {
     /// Name
     fn name(&self) -> String;
@@ -104,14 +105,14 @@ pub trait PropertySource: Sync + Send {
     fn is_empty(&self) -> bool;
 }
 
-/// A simple implementation of `PropertySource`.
+/// A simple implementation of [`PropertySource`].
 pub struct MapPropertySource {
     name: String,
     map: HashMap<String, Property>,
 }
 
 impl MapPropertySource {
-    /// Create a new `MapPropertySource`.
+    /// Create a new [`MapPropertySource`].
     pub fn new(name: String, map: HashMap<String, Property>) -> Self {
         MapPropertySource { name, map }
     }
@@ -133,7 +134,7 @@ impl PropertySource for MapPropertySource {
     }
 }
 
-/// `Environment` is an environment for getting properties in multiple `PropertySource`.
+/// An environment for getting properties in multiple [`PropertySource`]s.
 pub trait Environment: Sync + Send {
     /// Check if the environment has property.
     fn contains(&self, name: &str) -> bool {
@@ -151,7 +152,7 @@ pub trait Environment: Sync + Send {
     }
 }
 
-/// Builder for build `Salak`.
+/// Builder for build [`Salak`].
 pub struct SalakBuilder {
     #[cfg(feature = "enable_args")]
     args: Option<args::SysArgsMode>,
@@ -171,7 +172,7 @@ impl SalakBuilder {
     }
 
     /// Use default command line arguments parser.
-    /// Please use macro `auto_read_sys_args_param!()` to generate `args::SysArgsParam`.
+    /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
     #[cfg(feature = "enable_args")]
     pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
         self.args = Some(args::SysArgsMode::Auto(param));
@@ -179,7 +180,7 @@ impl SalakBuilder {
     }
 
     /// Use custom command line arguments parser.
-    /// Users should provide a parser to produce `Vec<(String, Property)>`.
+    /// Users should provide a parser to produce [`Vec<(String, Property)>`].
     #[cfg(feature = "enable_args")]
     pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
         self.args = Some(args::SysArgsMode::Custom(args));
@@ -193,13 +194,13 @@ impl SalakBuilder {
     }
 
     /// Disable register default property sources.
-    /// Users should organize `PropertySource`s themselves.
+    /// Users should organize [`PropertySource`]s themselves.
     pub fn disable_default_registry(mut self) -> Self {
         self.enable_default_registry = false;
         self
     }
 
-    /// Build a `Salak` environment.
+    /// Build a [`Salak`] environment.
     pub fn build(self) -> Salak {
         let sr = if self.enable_default_registry {
             let mut sr = SourceRegistry::new();
@@ -223,7 +224,7 @@ impl SalakBuilder {
     }
 }
 
-/// Salak implementation for `Environment`.
+/// Salak implementation for [`Environment`].
 pub struct Salak(PlaceHolderEnvironment<SourceRegistry>);
 
 impl Salak {
