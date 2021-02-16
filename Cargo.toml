@@ -39,3 +39,7 @@ default = ["enable_args", "enable_toml", "enable_log"]
 enable_toml = ["toml"]
 enable_args = ["clap", "regex"]
 enable_log = ["log"]
+
+[[example]]
+name = "salak"
+features = ["enable_args"]

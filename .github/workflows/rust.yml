@@ -21,7 +21,7 @@ jobs:
     - name: Run tests
       run: | 
         cargo test --verbose
-        cargo test --no-default-features --verbose
-        cargo test --no-default-features --features=enable_log --verbose
-        cargo test --no-default-features --features=enable_args --verbose
-        cargo test --no-default-features --features=enable_toml --verbose
+        cargo test --no-default-features --lib --verbose 
+        cargo test --no-default-features --lib --verbose --features=enable_log
+        cargo test --no-default-features --lib --verbose --features=enable_args
+        cargo test --no-default-features --lib --verbose --features=enable_toml

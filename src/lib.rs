@@ -30,7 +30,7 @@
 //!
 //! ## Quick Example
 //!
-//! ```ignore
+//! ```no_run
 //! use salak::*;
 //! let env = SalakBuilder::new()
 //!    .with_args_param(sys_args_param!())
