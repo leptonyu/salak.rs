@@ -45,6 +45,9 @@ use std::fmt::{Display, Error, Formatter};
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
+#[cfg(feature = "enable_derive")]
+pub use salak_derive::FromEnvironment;
+
 /// Enable register args in environment.
 #[cfg(feature = "enable_args")]
 #[macro_use]
@@ -68,6 +71,7 @@ pub enum Property {
 /// Property Error
 #[derive(Debug, PartialEq, Eq)]
 pub enum PropertyError {
+    NotFound(String),
     ParseFail(String),
     RecursiveParse(String),
 }
@@ -75,8 +79,9 @@ pub enum PropertyError {
 impl Display for PropertyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         match self {
+            PropertyError::NotFound(n) => write!(f, "Property {} not found.", n),
             PropertyError::ParseFail(e) => write!(f, "{}", e),
-            PropertyError::RecursiveParse(n) => write!(f, "Recursive parsing property {}.", &n),
+            PropertyError::RecursiveParse(n) => write!(f, "Property {} recursive.", &n),
         }
     }
 }
@@ -126,21 +131,39 @@ impl PropertySource for MapPropertySource {
 }
 
 /// An environment for getting properties in multiple [`PropertySource`]s.
-pub trait Environment: Sync + Send {
+pub trait Environment: Sync + Send + Sized {
     /// Check if the environment has property.
     fn contains(&self, name: &str) -> bool {
         self.require::<Property>(name).is_ok()
     }
     /// Get required value, or return error.
     fn require<T: FromProperty>(&self, name: &str) -> Result<T, PropertyError>;
-    /// Get optional value.
+
+    /// Get required value, if not exists then return default value, otherwise return error.
+    fn require_or<T: FromProperty>(&self, name: &str, default: T) -> Result<T, PropertyError> {
+        match self.require::<Option<T>>(name) {
+            Ok(Some(a)) => Ok(a),
+            Ok(None) => Ok(default),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get optional value, this function will ignore property parse error.
     fn get<T: FromProperty>(&self, name: &str) -> Option<T> {
         self.require(name).ok()
     }
-    /// Get value or using default.
+    /// Get value or using default, this function will ignore property parse error.
     fn get_or<T: FromProperty>(&self, name: &str, default: T) -> T {
         self.get(name).unwrap_or(default)
     }
+
+    fn load<T: FromEnvironment>(&self) -> Result<T, PropertyError> {
+        T::from_env(self)
+    }
+}
+
+pub trait FromEnvironment: Sized {
+    fn from_env(env: &impl Environment) -> Result<Self, PropertyError>;
 }
 
 /// Builder for build [`Salak`].

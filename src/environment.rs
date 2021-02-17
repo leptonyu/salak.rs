@@ -108,10 +108,14 @@ impl<E: Environment> Environment for PlaceHolderEnvironment<E> {
     where
         T: FromProperty,
     {
-        if self.enabled {
-            self.do_parse(name, &mut HashSet::new())
+        let v = if self.enabled {
+            self.do_parse::<T>(name, &mut HashSet::new())
         } else {
             self.env.require(name)
+        };
+        match v {
+            Ok(x) => Ok(x),
+            Err(e) => T::from_err(e),
         }
     }
 }
@@ -202,10 +206,7 @@ impl Environment for SourceRegistry {
                 return T::from_property(v);
             }
         }
-        Err(PropertyError::ParseFail(format!(
-            "Property {} not found",
-            name
-        )))
+        T::from_err(PropertyError::NotFound(name.to_owned()))
     }
 }
 
@@ -241,5 +242,8 @@ mod tests {
             PropertyError::RecursiveParse("v7".to_string()),
             v7.unwrap_err()
         );
+
+        let v8 = env.require::<Option<String>>("v8");
+        assert_eq!(true, v8.is_ok());
     }
 }

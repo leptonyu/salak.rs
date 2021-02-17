@@ -4,11 +4,30 @@ use crate::*;
 /// Convert value from [`Property`].
 pub trait FromProperty: Sized {
     fn from_property(_: Property) -> Result<Self, PropertyError>;
+
+    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
+        Err(err)
+    }
 }
 
 impl FromProperty for Property {
     fn from_property(a: Property) -> Result<Self, PropertyError> {
         Ok(a)
+    }
+}
+
+impl<T: FromProperty> FromProperty for Option<T> {
+    fn from_property(a: Property) -> Result<Self, PropertyError> {
+        match T::from_property(a) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) => Self::from_err(e),
+        }
+    }
+    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
+        match err {
+            PropertyError::NotFound(_) => Ok(None),
+            _ => Err(err),
+        }
     }
 }
 
@@ -121,6 +140,14 @@ mod tests {
         assert_eq!(
             true,
             bool::from_property(Property::Str("x".to_owned())).is_err()
+        );
+    }
+
+    #[test]
+    fn option_test() {
+        assert_eq!(
+            Ok(None),
+            <Option<String>>::from_err(PropertyError::NotFound("".to_owned()))
         );
     }
 
