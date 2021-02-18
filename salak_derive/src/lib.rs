@@ -12,12 +12,19 @@ impl From<&Field> for FieldAttr {
         FieldAttr {
             name: f.ident.clone().unwrap(),
             ty: f.ty.clone(),
-            default: parse_attribute_args(&f.attrs, "default")
-                .map(|l| match l {
-                    Lit::Str(s) => Some(s.value()),
-                    _ => None,
-                })
-                .flatten(),
+            default: parse_attribute_args(&f.attrs, "default").map(|l| match l {
+                Lit::Str(s) => s.value(),
+                Lit::ByteStr(s) => match String::from_utf8(s.value()) {
+                    Ok(v) => v,
+                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                },
+                Lit::Int(i) => i.base10_digits().to_owned(),
+                Lit::Float(f) => f.base10_digits().to_owned(),
+                Lit::Bool(b) => b.value.to_string(),
+                Lit::Char(c) => c.value().to_string(),
+                Lit::Byte(_) => panic!("Salak not support byte"),
+                Lit::Verbatim(_) => panic!("Salak not support Verbatim"),
+            }),
         }
     }
 }
@@ -80,16 +87,12 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
         impl FromEnvironment for #name {
             fn from_env(n: &str, _: Option<Property>, env: &impl Environment, map: &mut map::MapPropertySource) -> Result<Self, PropertyError>{
                 let x = if n.is_empty() { "".to_owned() } else { format!("{}.", n) };
+                let mut dmap = std::collections::HashMap::new();
+                #(dmap.insert(stringify!(#mns).to_owned(),Property::Str(#mds.to_owned()));)*
+                map.insert(n, dmap);
                 Ok(Self {
                     #(#ns: env.require_with_defaults::<#ts>(&format!("{}{}",&x,stringify!(#ns)), map)?),*
                 })
-            }
-
-            fn default_values(prefix: &str) -> Option<std::collections::HashMap<String, Property>> {
-                let mut map = std::collections::HashMap::new();
-                let prefix = if prefix.is_empty() { "".to_owned() } else { format!("{}.",prefix)};
-                #(map.insert(format!("{}{}", &prefix, stringify!(#mns)),Property::Str(#mds.to_owned()));)*
-                Some(map)
             }
         }
     };

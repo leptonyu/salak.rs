@@ -45,11 +45,21 @@ impl<E: Environment> PlaceholderResolver<E> {
         if !contains.insert(name.to_owned()) {
             return Err(PropertyError::RecursiveParse(name.to_owned()));
         }
-        let p = match self.env.require(name)? {
-            Property::Str(s) => Property::Str(self.parse(&s, contains, defs)?),
-            p => p,
+        let p = match self
+            .env
+            .require_with_defaults::<Option<Property>>(name, defs)?
+        {
+            Some(Property::Str(s)) => self
+                .parse(&s, contains, defs)
+                .map(|v| Some(Property::Str(v)))
+                .or_else(|e| match e {
+                    PropertyError::NotFound(_) => Ok(None),
+                    e => Err(e),
+                })?,
+            Some(p) => Some(p),
+            _ => None,
         };
-        T::from_env(name, Some(p), self, defs)
+        T::from_env(name, p, self, defs)
     }
 
     fn parse(
@@ -80,14 +90,18 @@ impl<E: Environment> PlaceholderResolver<E> {
                     } else {
                         &name
                     };
-                    let value: String = self
-                        .do_parse(&key, contains, defs)
-                        .or_else(|e| def.ok_or(e))?;
-                    if let Some(mut prefix) = stack.pop() {
-                        prefix.push_str(&value);
-                        stack.push(prefix);
+                    if let Some(value) = self
+                        .do_parse::<Option<String>>(&key, contains, defs)?
+                        .or(def)
+                    {
+                        if let Some(mut prefix) = stack.pop() {
+                            prefix.push_str(&value);
+                            stack.push(prefix);
+                        } else {
+                            pre.push_str(&value);
+                        }
                     } else {
-                        pre.push_str(&value);
+                        return Err(PropertyError::NotFound(key.to_string()));
                     }
                 } else {
                     return Err(PropertyError::ParseFail(format!("Suffix not match 1")));
@@ -116,14 +130,10 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
     where
         T: FromEnvironment,
     {
-        let v = if self.enabled && name != "" {
+        if self.enabled && name != "" {
             self.do_parse::<T>(name, &mut HashSet::new(), defs)
         } else {
             self.env.require_with_defaults(name, defs)
-        };
-        match v {
-            Ok(x) => Ok(x),
-            Err(e) => T::from_err(e),
         }
     }
 }
@@ -213,20 +223,17 @@ impl Environment for SourceRegistry {
         name: &str,
         defs: &mut MapPropertySource,
     ) -> Result<T, PropertyError> {
+        let mut x = None;
         if !name.is_empty() {
             for ps in self.sources.iter() {
                 if let Some(v) = ps.get_property(name) {
-                    return T::from_env(name, Some(v), self, defs);
+                    x = Some(v);
+                    break;
                 }
             }
-            if let Some(v) = defs.get_property(name) {
-                return T::from_env(name, Some(v), self, defs);
-            }
+            x = x.or_else(|| defs.get_property(name));
         }
-        if let Some(v) = T::default_values(name) {
-            defs.insert(v);
-        }
-        T::from_env(name, None, self, defs)
+        T::from_env(name, x, self, defs)
     }
 }
 

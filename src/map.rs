@@ -15,9 +15,14 @@ impl MapPropertySource {
         MapPropertySource { name, map }
     }
 
-    pub(crate) fn insert(&mut self, map: HashMap<String, Property>) {
+    pub fn insert(&mut self, name: &str, map: HashMap<String, Property>) {
+        let name = if name.is_empty() {
+            "".to_owned()
+        } else {
+            format!("{}.", name)
+        };
         for (k, v) in map.into_iter() {
-            self.map.insert(k, v);
+            self.map.insert(format!("{}{}", name, k), v);
         }
     }
 }

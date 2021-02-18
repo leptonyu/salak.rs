@@ -46,10 +46,12 @@ impl PropertySource for TomlItem {
 }
 
 impl Toml {
+    /// Create toml environment.
     pub fn new(dir: Option<String>, name: String) -> Self {
         Self { dir, name }
     }
 
+    /// Build and load toml [`PropertySource`].
     pub fn build(&self) -> Vec<Option<Box<dyn PropertySource>>> {
         let filename = format!("{}.toml", self.name);
 

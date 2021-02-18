@@ -1,4 +1,4 @@
-//! A configuration loader.
+//! A configuration loader, and zero-boilerplate configuration management.
 //!
 //! ## About
 //! `salak` is a rust version for multi-layered configuration loader inspired by
@@ -22,13 +22,24 @@
 //!
 //! ```
 //! use salak::*;
-//! let env = SalakBuilder::new()
-//!    .with_default_args(auto_read_sys_args_param!())
-//!    .build();
+//! #[derive(FromEnvironment, Debug)]
+//! pub struct DatabaseConfig {
+//!     url: String,
+//!     #[field(default = "salak")]
+//!     username: String,
+//!     password: Option<String>,
+//! }
 //!
-//! match env.require::<String>("hello") {
-//!     Ok(val) => println!("{}", val),
-//!     Err(e) => println!("{}", e),
+//! fn main() {
+//!   std::env::set_var("database.url", "localhost:5432");
+//!   let env = SalakBuilder::new()
+//!      .with_default_args(auto_read_sys_args_param!())
+//!      .build();
+//!  
+//!   match env.require::<DatabaseConfig>("database") {
+//!       Ok(val) => println!("{:?}", val),
+//!       Err(e) => println!("{}", e),
+//!   }
 //! }
 //! ```
 //!
@@ -157,10 +168,6 @@ pub trait FromEnvironment: Sized {
     /// Handle special case such as property not found.
     fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
         Err(err)
-    }
-
-    fn default_values(_prefix: &str) -> Option<HashMap<String, Property>> {
-        None
     }
 }
 
