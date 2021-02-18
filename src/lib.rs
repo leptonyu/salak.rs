@@ -41,6 +41,7 @@
 //!       Err(e) => println!("{}", e),
 //!   }
 //! }
+//! // Output: DatabaseConfig { url: "localhost:5432", username: "salak", password: None }
 //! ```
 //!
 

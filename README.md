@@ -28,5 +28,5 @@ cargo run --example salak -- -h
 ```
 
 ### TODO
-1. Generate configuration struct from salak environment.
+1. Support arrays.
 2. Reload configurations.
