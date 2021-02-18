@@ -27,6 +27,31 @@ cargo run --example salak -- -h
 #     -P, --property <KEY=VALUE>...    Set properties
 ```
 
+### Quick Code
+```rust
+use salak::*;
+#[derive(FromEnvironment, Debug)]
+pub struct DatabaseConfig {
+    url: String,
+    #[field(default = "salak")]
+    username: String,
+    password: Option<String>,
+}
+
+fn main() {
+  std::env::set_var("database.url", "localhost:5432");
+  let env = SalakBuilder::new()
+     .with_default_args(auto_read_sys_args_param!())
+     .build();
+ 
+  match env.require::<DatabaseConfig>("database") {
+      Ok(val) => println!("{:?}", val),
+      Err(e) => println!("{}", e),
+  }
+}
+// Output: DatabaseConfig { url: "localhost:5432", username: "salak", password: None }
+```
+
 ### TODO
 1. Support arrays.
 2. Reload configurations.
