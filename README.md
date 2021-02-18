@@ -7,26 +7,6 @@
 
 `salak` try to provide an out-of-box configuration loader for creating new apps, such as cli, web, servers.
 
-### Quick Run
-```bash
-git clone https://github.com/leptonyu/salak.rs.git
-cd salak.rs
-cargo run --example salak -- -h
-# salak 0.2.0
-# Daniel Yu <leptonyu@gmail.com>
-# A rust configuration loader
-# 
-# USAGE:
-#     salak [OPTIONS]
-# 
-# FLAGS:
-#     -h, --help       Prints help information
-#     -V, --version    Prints version information
-# 
-# OPTIONS:
-#     -P, --property <KEY=VALUE>...    Set properties
-```
-
 ### Quick Code
 ```rust
 use salak::*;
@@ -50,6 +30,26 @@ fn main() {
   }
 }
 // Output: DatabaseConfig { url: "localhost:5432", username: "salak", password: None }
+```
+
+### Quick Run
+```bash
+git clone https://github.com/leptonyu/salak.rs.git
+cd salak.rs
+cargo run --example salak -- -h
+# salak 0.2.0
+# Daniel Yu <leptonyu@gmail.com>
+# A rust configuration loader
+# 
+# USAGE:
+#     salak [OPTIONS]
+# 
+# FLAGS:
+#     -h, --help       Prints help information
+#     -V, --version    Prints version information
+# 
+# OPTIONS:
+#     -P, --property <KEY=VALUE>...    Set properties
 ```
 
 ### TODO
