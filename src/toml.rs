@@ -1,4 +1,4 @@
-//! Provide toml property source.
+//! Provide toml [`PropertySource`].
 use crate::*;
 use ::toml::*;
 use std::env::*;

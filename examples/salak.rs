@@ -1,14 +1,16 @@
 use salak::*;
 
 #[derive(FromEnvironment, Debug)]
-#[field(prefix = "a.b.c")]
+pub struct World {
+    #[field(default = "How are you?")]
+    pub hey: String,
+}
+
+#[derive(FromEnvironment, Debug)]
 pub struct Hello {
-    #[field(default = "world")]
     pub hello: String,
-    #[field()]
     pub no: Option<String>,
-    #[field()]
-    pub hey: Option<i64>,
+    pub world: World,
 }
 
 fn main() {
@@ -18,7 +20,7 @@ fn main() {
         .with_default_args(auto_read_sys_args_param!())
         .build();
 
-    match env.load::<Hello>() {
+    match env.require::<Hello>("") {
         Ok(h) => println!("{:?}", h),
         Err(e) => println!("{}", e),
     }

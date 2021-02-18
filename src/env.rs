@@ -1,4 +1,4 @@
-//! Provide system environment property source.
+//! Provide system environment [`PropertySource`].
 use crate::*;
 
 /// A wrapper of [`PropertySource`] for getting properties from system environment.

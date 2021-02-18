@@ -33,7 +33,7 @@
 //! ```
 //!
 
-use crate::environment::*;
+use crate::map::MapPropertySource;
 use crate::property::*;
 #[cfg(feature = "enable_log")]
 use log::*;
@@ -46,6 +46,7 @@ use std::fmt::{Display, Error, Formatter};
 extern crate quickcheck_macros;
 
 #[cfg(feature = "enable_derive")]
+/// Auto derive [`FromEnvironment`] for struct.
 pub use salak_derive::FromEnvironment;
 
 /// Enable register args in environment.
@@ -53,14 +54,17 @@ pub use salak_derive::FromEnvironment;
 #[macro_use]
 pub mod args;
 pub mod env;
-pub mod environment;
+mod environment;
+pub mod map;
 pub mod property;
 /// Enable register toml in environment.
 #[cfg(feature = "enable_toml")]
 pub mod toml;
 
+pub use crate::environment::{PlaceholderResolver, Salak, SalakBuilder, SourceRegistry};
+
 /// Unified property structure.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Property {
     Str(String),
     Int(i64),
@@ -101,35 +105,6 @@ pub trait PropertySource: Sync + Send {
     fn is_empty(&self) -> bool;
 }
 
-/// A simple implementation of [`PropertySource`].
-pub struct MapPropertySource {
-    name: String,
-    map: HashMap<String, Property>,
-}
-
-impl MapPropertySource {
-    /// Create a new [`MapPropertySource`].
-    pub fn new(name: String, map: HashMap<String, Property>) -> Self {
-        MapPropertySource { name, map }
-    }
-}
-
-impl PropertySource for MapPropertySource {
-    fn name(&self) -> String {
-        self.name.to_owned()
-    }
-
-    fn contains_property(&self, name: &str) -> bool {
-        self.map.contains_key(name)
-    }
-    fn get_property(&self, name: &str) -> Option<Property> {
-        self.map.get(name).map(|p| p.clone())
-    }
-    fn is_empty(&self) -> bool {
-        self.map.is_empty()
-    }
-}
-
 /// An environment for getting properties in multiple [`PropertySource`]s.
 pub trait Environment: Sync + Send + Sized {
     /// Check if the environment has property.
@@ -137,10 +112,21 @@ pub trait Environment: Sync + Send + Sized {
         self.require::<Property>(name).is_ok()
     }
     /// Get required value, or return error.
-    fn require<T: FromProperty>(&self, name: &str) -> Result<T, PropertyError>;
+    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
+        self.require_with_defaults(
+            name,
+            &mut MapPropertySource::new("default".to_owned(), HashMap::new()),
+        )
+    }
+
+    fn require_with_defaults<T: FromEnvironment>(
+        &self,
+        name: &str,
+        defs: &mut MapPropertySource,
+    ) -> Result<T, PropertyError>;
 
     /// Get required value, if not exists then return default value, otherwise return error.
-    fn require_or<T: FromProperty>(&self, name: &str, default: T) -> Result<T, PropertyError> {
+    fn require_or<T: FromEnvironment>(&self, name: &str, default: T) -> Result<T, PropertyError> {
         match self.require::<Option<T>>(name) {
             Ok(Some(a)) => Ok(a),
             Ok(None) => Ok(default),
@@ -149,123 +135,65 @@ pub trait Environment: Sync + Send + Sized {
     }
 
     /// Get optional value, this function will ignore property parse error.
-    fn get<T: FromProperty>(&self, name: &str) -> Option<T> {
+    fn get<T: FromEnvironment>(&self, name: &str) -> Option<T> {
         self.require(name).ok()
     }
     /// Get value or using default, this function will ignore property parse error.
-    fn get_or<T: FromProperty>(&self, name: &str, default: T) -> T {
+    fn get_or<T: FromEnvironment>(&self, name: &str, default: T) -> T {
         self.get(name).unwrap_or(default)
     }
+}
 
-    fn load<T: FromEnvironment>(&self) -> Result<T, PropertyError> {
-        T::from_env(self)
+/// Generate object from [`Environment`].
+pub trait FromEnvironment: Sized {
+    /// Generate object from env.
+    fn from_env(
+        prefix: &str,
+        p: Option<Property>,
+        env: &impl Environment,
+        defs: &mut MapPropertySource,
+    ) -> Result<Self, PropertyError>;
+
+    /// Handle special case such as property not found.
+    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
+        Err(err)
+    }
+
+    fn default_values(_prefix: &str) -> Option<HashMap<String, Property>> {
+        None
     }
 }
 
-pub trait FromEnvironment: Sized {
-    fn from_env(env: &impl Environment) -> Result<Self, PropertyError>;
+impl<P: FromProperty> FromEnvironment for P {
+    fn from_env(
+        n: &str,
+        property: Option<Property>,
+        _: &impl Environment,
+        _: &mut MapPropertySource,
+    ) -> Result<Self, PropertyError> {
+        if let Some(p) = property {
+            return P::from_property(p);
+        }
+        P::from_err(PropertyError::NotFound(n.to_owned()))
+    }
 }
 
-/// Builder for build [`Salak`].
-pub struct SalakBuilder {
-    #[cfg(feature = "enable_args")]
-    args: Option<args::SysArgsMode>,
-    enable_placeholder: bool,
-    enable_default_registry: bool,
-}
-
-impl SalakBuilder {
-    /// Create default builder.
-    pub fn new() -> Self {
-        Self {
-            #[cfg(feature = "enable_args")]
-            args: None,
-            enable_placeholder: true,
-            enable_default_registry: true,
+impl<P: FromEnvironment> FromEnvironment for Option<P> {
+    fn from_env(
+        n: &str,
+        property: Option<Property>,
+        env: &impl Environment,
+        defs: &mut MapPropertySource,
+    ) -> Result<Self, PropertyError> {
+        match P::from_env(n, property, env, defs) {
+            Ok(a) => Ok(Some(a)),
+            Err(err) => Self::from_err(err),
         }
     }
-
-    /// Use default command line arguments parser.
-    /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
-    #[cfg(feature = "enable_args")]
-    pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
-        self.args = Some(args::SysArgsMode::Auto(param));
-        self
-    }
-
-    /// Use custom command line arguments parser.
-    /// Users should provide a parser to produce [`Vec<(String, Property)>`].
-    #[cfg(feature = "enable_args")]
-    pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
-        self.args = Some(args::SysArgsMode::Custom(args));
-        self
-    }
-
-    /// Disable placeholder parsing.
-    pub fn disable_placeholder(mut self) -> Self {
-        self.enable_placeholder = false;
-        self
-    }
-
-    /// Disable register default property sources.
-    /// Users should organize [`PropertySource`]s themselves.
-    pub fn disable_default_registry(mut self) -> Self {
-        self.enable_default_registry = false;
-        self
-    }
-
-    /// Build a [`Salak`] environment.
-    pub fn build(self) -> Salak {
-        let sr = if self.enable_default_registry {
-            let mut sr = SourceRegistry::new();
-            // First Layer
-            #[cfg(feature = "enable_args")]
-            if let Some(p) = self.args {
-                sr.register_source(Box::new(args::SysArgs::new(p).0));
-            }
-            // Second Layer
-            sr = sr.with_sys_env();
-            // Third Layer
-            #[cfg(feature = "enable_toml")]
-            {
-                sr = sr.with_toml();
-            }
-            sr
-        } else {
-            SourceRegistry::new()
-        };
-        Salak(PlaceHolderEnvironment::new(self.enable_placeholder, sr))
-    }
-}
-
-/// Salak implementation for [`Environment`].
-pub struct Salak(PlaceHolderEnvironment<SourceRegistry>);
-
-impl Salak {
-    /// Register property source at last.
-    pub fn register_source(&mut self, ps: Box<dyn PropertySource>) {
-        self.0.env.register_source(ps);
-    }
-    /// Register property sources at last.
-    pub fn register_sources(&mut self, sources: Vec<Option<Box<dyn PropertySource>>>) {
-        self.0.env.register_sources(sources);
-    }
-}
-
-impl Default for Salak {
-    fn default() -> Self {
-        SalakBuilder::new().build()
-    }
-}
-
-impl Environment for Salak {
-    fn contains(&self, name: &str) -> bool {
-        self.0.contains(name)
-    }
-    fn require<T>(&self, name: &str) -> Result<T, PropertyError>
-    where
-        T: FromProperty,
-    {
-        self.0.require(name)
+    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
+        match err {
+            PropertyError::NotFound(_) => Ok(None),
+            _ => Err(err),
+        }
     }
 }

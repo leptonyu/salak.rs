@@ -1,4 +1,5 @@
-//! Provide arguments property source.
+//! Provide command line arguments [`PropertySource`].
+use crate::map::MapPropertySource;
 use crate::*;
 use clap::{App, Arg};
 use regex::Regex;

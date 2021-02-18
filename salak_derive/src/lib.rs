@@ -4,7 +4,7 @@ use syn::*;
 struct FieldAttr {
     name: Ident,
     ty: Type,
-    default: Option<Lit>,
+    default: Option<String>,
 }
 
 impl From<&Field> for FieldAttr {
@@ -12,7 +12,12 @@ impl From<&Field> for FieldAttr {
         FieldAttr {
             name: f.ident.clone().unwrap(),
             ty: f.ty.clone(),
-            default: parse_attribute_args(&f.attrs, "default"),
+            default: parse_attribute_args(&f.attrs, "default")
+                .map(|l| match l {
+                    Lit::Str(s) => Some(s.value()),
+                    _ => None,
+                })
+                .flatten(),
         }
     }
 }
@@ -47,21 +52,11 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
         Data::Struct(d) => d,
         _ => panic!("FromEnvironment only support struct"),
     };
-    let prefix = parse_attribute_args(&ast.attrs, "prefix")
-        .map(|x| match x {
-            Lit::Str(s) => {
-                let mut s = s.value();
-                s.push_str(".");
-                Some(s)
-            }
-            _ => None,
-        })
-        .flatten()
-        .unwrap_or("".to_owned());
 
     let mut ns = vec![];
-    let mut ds = vec![];
     let mut ts = vec![];
+    let mut mns = vec![];
+    let mut mds = vec![];
 
     for fa in match data.fields {
         Fields::Named(FieldsNamed {
@@ -74,16 +69,27 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
     .map(|x| x.into())
     .collect::<Vec<FieldAttr>>()
     {
-        ns.push(fa.name);
+        ns.push(fa.name.clone());
         ts.push(fa.ty);
-        ds.push(fa.default);
+        if let Some(d) = fa.default {
+            mns.push(fa.name);
+            mds.push(d);
+        }
     }
     let gen = quote::quote! {
         impl FromEnvironment for #name {
-            fn from_env(env: &impl Environment) -> Result<Self, PropertyError>{
+            fn from_env(n: &str, _: Option<Property>, env: &impl Environment, map: &mut map::MapPropertySource) -> Result<Self, PropertyError>{
+                let x = if n.is_empty() { "".to_owned() } else { format!("{}.", n) };
                 Ok(Self {
-                    #(#ns: env.require::<#ts>(&format!("{}{}", #prefix, stringify!(#ns)))?),*
+                    #(#ns: env.require_with_defaults::<#ts>(&format!("{}{}",&x,stringify!(#ns)), map)?),*
                 })
+            }
+
+            fn default_values(prefix: &str) -> Option<std::collections::HashMap<String, Property>> {
+                let mut map = std::collections::HashMap::new();
+                let prefix = if prefix.is_empty() { "".to_owned() } else { format!("{}.",prefix)};
+                #(map.insert(format!("{}{}", &prefix, stringify!(#mns)),Property::Str(#mds.to_owned()));)*
+                Some(map)
             }
         }
     };
