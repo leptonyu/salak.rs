@@ -53,5 +53,4 @@ cargo run --example salak -- -h
 ```
 
 ### TODO
-1. Support arrays.
-2. Reload configurations.
+1. Reload configurations.

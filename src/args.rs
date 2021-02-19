@@ -17,9 +17,13 @@ pub enum SysArgsMode {
 
 /// Command line arguments parameters.
 pub struct SysArgsParam {
+    /// App name.
     pub name: &'static str,
+    /// App version.
     pub version: &'static str,
+    /// App authors.
     pub author: Option<&'static str>,
+    /// App description.
     pub about: Option<&'static str>,
 }
 

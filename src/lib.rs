@@ -12,10 +12,10 @@
 //!
 //! \* `APP_CONF_NAME` can be specified to replace `app`.
 //!
-//! ### Placeholder parsing
+//! ### Placeholder format
 //! `salak` use format `{key:default}` to reference to other `key`, and if `key` not exists then use value `default`.
 //!
-//! ### Toml key conversion
+//! ### Key format
 //! `salak` use the same key conversion as toml.
 //!
 //! ## Quick Example
@@ -25,7 +25,7 @@
 //! #[derive(FromEnvironment, Debug)]
 //! pub struct DatabaseConfig {
 //!     url: String,
-//!     #[field(default = "salak")]
+//!     #[salak(default = "salak")]
 //!     username: String,
 //!     password: Option<String>,
 //! }
@@ -49,7 +49,6 @@ use crate::map::MapPropertySource;
 use crate::property::*;
 #[cfg(feature = "enable_log")]
 use log::*;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{Display, Error, Formatter};
 
@@ -87,8 +86,11 @@ pub enum Property {
 /// Property Error
 #[derive(Debug, PartialEq, Eq)]
 pub enum PropertyError {
+    /// Property not found
     NotFound(String),
+    /// Property parse failed.
     ParseFail(String),
+    /// Resursive parsing same key.
     RecursiveParse(String),
 }
 
@@ -98,6 +100,21 @@ impl Display for PropertyError {
             PropertyError::NotFound(n) => write!(f, "Property {} not found.", n),
             PropertyError::ParseFail(e) => write!(f, "{}", e),
             PropertyError::RecursiveParse(n) => write!(f, "Property {} recursive.", &n),
+        }
+    }
+}
+
+#[doc(hidden)]
+pub trait SalakStringUtil {
+    fn to_prefix(self) -> String;
+}
+
+impl SalakStringUtil for &str {
+    fn to_prefix(self) -> String {
+        if self.is_empty() {
+            self.to_owned()
+        } else {
+            format!("{}.", self)
         }
     }
 }
@@ -117,6 +134,22 @@ pub trait PropertySource: Sync + Send {
     fn is_empty(&self) -> bool;
 }
 
+pub struct EnvironmentOption {
+    map: MapPropertySource,
+}
+
+impl EnvironmentOption {
+    pub fn new() -> Self {
+        Self {
+            map: MapPropertySource::empty("environment_option_default"),
+        }
+    }
+
+    pub fn insert<P: ToProperty>(&mut self, name: String, value: P) {
+        self.map.insert(name, value);
+    }
+}
+
 /// An environment for getting properties in multiple [`PropertySource`]s.
 pub trait Environment: Sync + Send + Sized {
     /// Check if the environment has property.
@@ -125,16 +158,14 @@ pub trait Environment: Sync + Send + Sized {
     }
     /// Get required value, or return error.
     fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
-        self.require_with_defaults(
-            name,
-            &mut MapPropertySource::new("default".to_owned(), HashMap::new()),
-        )
+        self.require_with_options(name, false, &mut EnvironmentOption::new())
     }
 
-    fn require_with_defaults<T: FromEnvironment>(
+    fn require_with_options<T: FromEnvironment>(
         &self,
         name: &str,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<T, PropertyError>;
 
     /// Get required value, if not exists then return default value, otherwise return error.
@@ -163,7 +194,8 @@ pub trait FromEnvironment: Sized {
         prefix: &str,
         p: Option<Property>,
         env: &impl Environment,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError>;
 
     /// Handle special case such as property not found.
@@ -177,7 +209,8 @@ impl<P: FromProperty> FromEnvironment for P {
         n: &str,
         property: Option<Property>,
         _: &impl Environment,
-        _: &mut MapPropertySource,
+        _: bool,
+        _: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
         if let Some(p) = property {
             return P::from_property(p);
@@ -191,9 +224,10 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
         n: &str,
         property: Option<Property>,
         env: &impl Environment,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
-        match P::from_env(n, property, env, defs) {
+        match P::from_env(n, property, env, disable_placeholder, mut_option) {
             Ok(a) => Ok(Some(a)),
             Err(err) => Self::from_err(err),
         }
@@ -204,4 +238,90 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
             _ => Err(err),
         }
     }
+}
+
+impl<P: FromEnvironment> FromEnvironment for Vec<P> {
+    fn from_env(
+        name: &str,
+        _: Option<Property>,
+        env: &impl Environment,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
+    ) -> Result<Self, PropertyError> {
+        let mut vs = vec![];
+        let mut i = 0;
+        let mut key = format!("{}{}", &name.to_prefix(), i);
+        while let Some(v) = <Option<P>>::from_env(
+            &key,
+            env.require::<Option<Property>>(&key)?,
+            env,
+            disable_placeholder.clone(),
+            mut_option,
+        )? {
+            vs.push(v);
+            i += 1;
+            key = format!("{}{}", &name.to_prefix(), i);
+        }
+        Ok(vs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    #[derive(FromEnvironment, Debug)]
+    pub struct DatabaseConfigObj {
+        hello: String,
+        world: Option<String>,
+    }
+    #[derive(FromEnvironment, Debug)]
+    pub struct DatabaseConfigDetail {
+        #[salak(default = "str")]
+        option_str: String,
+        #[salak(default = 1)]
+        option_i64: i64,
+        option_arr: Vec<i64>,
+        option_obj: Vec<DatabaseConfigObj>,
+    }
+
+    #[derive(FromEnvironment, Debug)]
+    pub struct DatabaseConfig {
+        url: String,
+        #[salak(default = "salak")]
+        username: String,
+        password: Option<String>,
+        #[salak(default = "{Hello}", disable_placeholder = true)]
+        description: String,
+        detail: DatabaseConfigDetail,
+    }
+    #[test]
+    fn integration_tests() {
+        let mut env = SalakBuilder::new().build();
+        let mut hey = MapPropertySource::empty("hey");
+        hey.insert("database.detail.option_arr.0".to_owned(), "10");
+        hey.insert("database.url".to_owned(), "localhost:5432");
+        env.register_source(Box::new(hey));
+
+        let ret = env.require::<DatabaseConfig>("database");
+        assert_eq!(true, ret.is_ok());
+        let ret = ret.unwrap();
+        assert_eq!("localhost:5432", ret.url);
+        assert_eq!("salak", ret.username);
+        assert_eq!(None, ret.password);
+        let ret = ret.detail;
+        assert_eq!("str", ret.option_str);
+        assert_eq!(1, ret.option_i64);
+        assert_eq!(5, ret.option_arr.len());
+        assert_eq!(2, ret.option_obj.len());
+    }
+}
+
+#[derive(FromEnvironment, Debug)]
+pub struct DatabaseConfig {
+    url: String,
+    #[salak(default = "salak")]
+    username: String,
+    password: Option<String>,
+    #[salak(default = "{Hello}", disable_placeholder = true)]
+    description: String,
 }

@@ -10,20 +10,19 @@ pub struct MapPropertySource {
 }
 
 impl MapPropertySource {
+    /// Create empty [`MapPropertySource`].
+    pub fn empty(name: &str) -> Self {
+        Self::new(name.to_owned(), HashMap::new())
+    }
+
     /// Create a new [`MapPropertySource`].
     pub fn new(name: String, map: HashMap<String, Property>) -> Self {
         MapPropertySource { name, map }
     }
 
-    pub fn insert(&mut self, name: &str, map: HashMap<String, Property>) {
-        let name = if name.is_empty() {
-            "".to_owned()
-        } else {
-            format!("{}.", name)
-        };
-        for (k, v) in map.into_iter() {
-            self.map.insert(format!("{}{}", name, k), v);
-        }
+    /// Add property to [`MapPropertySource`].
+    pub fn insert<T: ToProperty>(&mut self, name: String, value: T) {
+        self.map.insert(name, value.to_property());
     }
 }
 

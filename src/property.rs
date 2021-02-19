@@ -1,6 +1,60 @@
 //! [`Property`] converter.
 use crate::*;
 
+pub trait ToProperty: Sized {
+    fn to_property(self) -> Property;
+}
+
+impl ToProperty for Property {
+    fn to_property(self) -> Property {
+        self
+    }
+}
+
+impl ToProperty for String {
+    fn to_property(self) -> Property {
+        Property::Str(self)
+    }
+}
+
+impl ToProperty for &str {
+    fn to_property(self) -> Property {
+        Property::Str(self.to_owned())
+    }
+}
+
+macro_rules! impl_to_property {
+    ($x:ident) => {
+        impl ToProperty for $x {
+            fn to_property(self) -> Property {
+                Property::Int(self as i64)
+            }
+        }
+    };
+    ($x:ident, $($y:ident),+) => {
+        impl_to_property!($x);
+        impl_to_property!($($y),+);
+    };
+}
+
+impl_to_property!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
+
+macro_rules! impl_float_to_property {
+    ($x:ident) => {
+        impl ToProperty for $x {
+            fn to_property(self) -> Property {
+                Property::Float(self as f64)
+            }
+        }
+    };
+    ($x:ident, $($y:ident),+) => {
+        impl_float_to_property!($x);
+        impl_float_to_property!($($y),+);
+    };
+}
+
+impl_float_to_property!(f32, f64);
+
 /// Convert value from [`Property`].
 pub trait FromProperty: Sized {
     fn from_property(_: Property) -> Result<Self, PropertyError>;

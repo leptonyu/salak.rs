@@ -36,38 +36,36 @@ impl<E: Environment> PlaceholderResolver<E> {
         }
     }
 
-    fn do_parse<T: FromEnvironment>(
+    fn require_with_parse<T: FromEnvironment>(
         &self,
         name: &str,
         contains: &mut HashSet<String>,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<T, PropertyError> {
         if !contains.insert(name.to_owned()) {
             return Err(PropertyError::RecursiveParse(name.to_owned()));
         }
-        let p = match self
-            .env
-            .require_with_defaults::<Option<Property>>(name, defs)?
-        {
-            Some(Property::Str(s)) => self
-                .parse(&s, contains, defs)
-                .map(|v| Some(Property::Str(v)))
-                .or_else(|e| match e {
-                    PropertyError::NotFound(_) => Ok(None),
-                    e => Err(e),
-                })?,
-            Some(p) => Some(p),
-            _ => None,
+        let p = match self.env.require_with_options::<Option<Property>>(
+            name,
+            disable_placeholder.clone(),
+            mut_option,
+        )? {
+            Some(Property::Str(s)) => {
+                self.parse_value(&s, contains, disable_placeholder.clone(), mut_option)?
+            }
+            v => v,
         };
-        T::from_env(name, p, self, defs)
+        T::from_env(name, p, self, disable_placeholder, mut_option)
     }
 
-    fn parse(
+    fn parse_value(
         &self,
         mut val: &str,
         contains: &mut HashSet<String>,
-        defs: &mut MapPropertySource,
-    ) -> Result<String, PropertyError> {
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
+    ) -> Result<Option<Property>, PropertyError> {
         let mut stack: Vec<String> = vec![];
         let mut pre = "".to_owned();
         let placeholder: &[_] = &[self.placeholder_prefix, self.placeholder_suffix];
@@ -90,18 +88,27 @@ impl<E: Environment> PlaceholderResolver<E> {
                     } else {
                         &name
                     };
-                    if let Some(value) = self
-                        .do_parse::<Option<String>>(&key, contains, defs)?
-                        .or(def)
-                    {
-                        if let Some(mut prefix) = stack.pop() {
-                            prefix.push_str(&value);
-                            stack.push(prefix);
-                        } else {
-                            pre.push_str(&value);
-                        }
+                    let value = if let Some(d) = def {
+                        self.require_with_parse::<Option<String>>(
+                            &key,
+                            contains,
+                            disable_placeholder.clone(),
+                            mut_option,
+                        )?
+                        .unwrap_or(d)
                     } else {
-                        return Err(PropertyError::NotFound(key.to_string()));
+                        self.require_with_parse::<String>(
+                            &key,
+                            contains,
+                            disable_placeholder.clone(),
+                            mut_option,
+                        )?
+                    };
+                    if let Some(mut prefix) = stack.pop() {
+                        prefix.push_str(&value);
+                        stack.push(prefix);
+                    } else {
+                        pre.push_str(&value);
                     }
                 } else {
                     return Err(PropertyError::ParseFail(format!("Suffix not match 1")));
@@ -113,7 +120,7 @@ impl<E: Environment> PlaceholderResolver<E> {
             return Err(PropertyError::ParseFail(format!("Suffix not match 2")));
         }
         pre.push_str(&val);
-        Ok(pre)
+        Ok(Some(Property::Str(pre)))
     }
 }
 
@@ -122,18 +129,19 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
         self.env.contains(name)
     }
 
-    fn require_with_defaults<T>(
+    fn require_with_options<T>(
         &self,
         name: &str,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<T, PropertyError>
     where
         T: FromEnvironment,
     {
-        if self.enabled && name != "" {
-            self.do_parse::<T>(name, &mut HashSet::new(), defs)
+        if self.enabled && !disable_placeholder && name != "" {
+            self.require_with_parse::<T>(name, &mut HashSet::new(), false, mut_option)
         } else {
-            self.env.require_with_defaults(name, defs)
+            self.env.require_with_options(name, false, mut_option)
         }
     }
 }
@@ -218,10 +226,11 @@ impl Environment for SourceRegistry {
     fn contains(&self, name: &str) -> bool {
         self.sources.iter().any(|a| a.contains_property(name))
     }
-    fn require_with_defaults<T: FromEnvironment>(
+    fn require_with_options<T: FromEnvironment>(
         &self,
         name: &str,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<T, PropertyError> {
         let mut x = None;
         if !name.is_empty() {
@@ -231,9 +240,9 @@ impl Environment for SourceRegistry {
                     break;
                 }
             }
-            x = x.or_else(|| defs.get_property(name));
+            x = x.or_else(|| mut_option.map.get_property(name));
         }
-        T::from_env(name, x, self, defs)
+        T::from_env(name, x, self, disable_placeholder, mut_option)
     }
 }
 
@@ -251,6 +260,7 @@ mod tests {
         std::env::set_var("v5", "{no_found:{no_found_2:hello}}");
         std::env::set_var("v6", "hello-{v1}-{v3}-");
         std::env::set_var("v7", "{v7}");
+        std::env::set_var("v10", "{no_found}");
         let env = PlaceholderResolver::new(true, SourceRegistry::default());
         assert_eq!("value", &env.require::<String>("v1").unwrap());
         assert_eq!("value", &env.require::<String>("v2").unwrap());
@@ -275,6 +285,13 @@ mod tests {
         let v9 = env.require::<Option<String>>("");
         assert_eq!(true, v9.is_ok());
         assert_eq!(None, v9.unwrap());
+
+        let v10 = env.require::<String>("v10");
+        assert_eq!(true, v10.is_err());
+        assert_eq!(
+            PropertyError::NotFound("no_found".to_owned()),
+            v10.unwrap_err()
+        );
     }
 }
 
@@ -374,14 +391,16 @@ impl Environment for Salak {
     fn contains(&self, name: &str) -> bool {
         self.0.contains(name)
     }
-    fn require_with_defaults<T>(
+    fn require_with_options<T>(
         &self,
         name: &str,
-        defs: &mut MapPropertySource,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
     ) -> Result<T, PropertyError>
     where
         T: FromEnvironment,
     {
-        self.0.require_with_defaults(name, defs)
+        self.0
+            .require_with_options(name, disable_placeholder, mut_option)
     }
 }

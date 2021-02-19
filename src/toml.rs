@@ -25,6 +25,7 @@ impl PropertySource for TomlItem {
         for n in name.split(".") {
             match v {
                 Value::Table(t) => v = t.get(n)?,
+                Value::Array(vs) => v = vs.get(n.parse::<usize>().ok()?)?,
                 _ => return None,
             }
         }
@@ -33,7 +34,7 @@ impl PropertySource for TomlItem {
             Value::Integer(vs) => Some(Property::Int(*vs)),
             Value::Float(vs) => Some(Property::Float(*vs)),
             Value::Boolean(vs) => Some(Property::Bool(*vs)),
-            // Not Support Date, Array
+            // Not Support Date
             _ => None,
         }
     }

@@ -9,9 +9,6 @@ documentation = "https://docs.rs/salak/"
 repository = "https://github.com/leptonyu/salak.rs"
 homepage = "https://github.com/leptonyu/salak.rs"
 readme = "README.md"
-exclude = [
-    "app.toml",
-]
 keywords = [
     "configuration",
     "config",
@@ -27,7 +24,7 @@ regex = {version= "1.4", optional=true}
 clap = {version= "2.33", optional=true}
 toml = {version= "0.5", optional=true}
 log = {version="0.4", optional=true}
-salak_derive = { path = "./salak_derive", version = "0.3", optional = true }
+salak_derive = { path = "./salak_derive", version = "0.1", optional = true }
 
 [dev-dependencies]
 quickcheck = "1"
