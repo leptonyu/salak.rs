@@ -298,6 +298,7 @@ impl<P: FromEnvironment> FromEnvironment for Vec<P> {
     }
 }
 
+#[cfg(feature = "salak_derive")]
 #[cfg(test)]
 mod tests {
     use crate::*;
