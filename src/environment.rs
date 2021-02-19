@@ -367,7 +367,7 @@ impl SalakBuilder {
     }
 }
 
-/// Salak implementation for [`Environment`].
+/// A wrapper for [`Environment`], which can hide the implementation details.
 pub struct Salak(PlaceholderResolver<SourceRegistry>);
 
 impl Salak {

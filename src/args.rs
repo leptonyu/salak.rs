@@ -28,6 +28,7 @@ pub struct SysArgsParam {
 }
 
 /// Auto generate [`SysArgsParam`] from Cargo.toml.
+///
 /// Due to macro [`env!`] will generate value at compile time, so users should call it at final project.
 #[macro_export]
 macro_rules! auto_read_sys_args_param {

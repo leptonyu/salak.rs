@@ -1,4 +1,4 @@
-//! A configuration loader, and zero-boilerplate configuration management.
+//! A configuration loader with zero-boilerplate configuration management.
 //!
 //! ## About
 //! `salak` is a rust version for multi-layered configuration loader inspired by
@@ -16,7 +16,19 @@
 //! `salak` use format `{key:default}` to reference to other `key`, and if `key` not exists then use value `default`.
 //!
 //! ### Key format
-//! `salak` use the same key conversion as toml.
+//! 1. `a.b.c` is a normal key separated by dot(`.`).
+//! 2. `a.b.0`, `a.b.1`, `a.b.2`... is a group of keys with arrays.
+//! 3. System environment key will be changed from `HELLO_WORLD` to `hello.world`, vice versa.
+//!
+//! ### Auto derived parameters.
+//!
+//! ##### attribute `default` to set default value.
+//! 1. `#[salak(default="string")]`
+//! 2. `#[salak(default=1)]`
+//!
+//! ##### attribute `disable_placeholder` to disable placeholder parsing.
+//! 1. `#[salak(disable_placeholder)]`
+//! 2. `#[salak(disable_placeholder = true)]`
 //!
 //! ## Quick Example
 //!
@@ -26,8 +38,12 @@
 //! pub struct DatabaseConfig {
 //!     url: String,
 //!     #[salak(default = "salak")]
+//!     name: String,
+//!     #[salak(default = "{database.name}")]
 //!     username: String,
 //!     password: Option<String>,
+//!     #[salak(default = "{Hello}", disable_placeholder)]
+//!     description: String,
 //! }
 //!
 //! fn main() {
@@ -41,7 +57,13 @@
 //!       Err(e) => println!("{}", e),
 //!   }
 //! }
-//! // Output: DatabaseConfig { url: "localhost:5432", username: "salak", password: None }
+//! // Output: DatabaseConfig {
+//! //  url: "localhost:5432",
+//! //  name: "salak",
+//! //  username: "salak",
+//! //  password: None,
+//! //  description: "{Hello}"
+//! // }
 //! ```
 //!
 
@@ -60,7 +82,7 @@ extern crate quickcheck_macros;
 /// Auto derive [`FromEnvironment`] for struct.
 pub use salak_derive::FromEnvironment;
 
-/// Enable register args in environment.
+// Enable register args in [`Environment`].
 #[cfg(feature = "enable_args")]
 #[macro_use]
 pub mod args;
@@ -68,7 +90,7 @@ pub mod env;
 mod environment;
 pub mod map;
 pub mod property;
-/// Enable register toml in environment.
+// Enable register toml in [`Environment`].
 #[cfg(feature = "enable_toml")]
 pub mod toml;
 
@@ -134,6 +156,9 @@ pub trait PropertySource: Sync + Send {
     fn is_empty(&self) -> bool;
 }
 
+/// An option be used to add default values for some keys.
+///
+/// May extend options for future use.
 pub struct EnvironmentOption {
     map: MapPropertySource,
 }
@@ -160,7 +185,14 @@ pub trait Environment: Sync + Send + Sized {
     fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
         self.require_with_options(name, false, &mut EnvironmentOption::new())
     }
+    /// Get required raw value without parsing placeholders, or return error.
+    fn require_raw<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
+        self.require_with_options(name, true, &mut EnvironmentOption::new())
+    }
 
+    /// Get value with options.
+    /// 1. `disable_placeholder` can disable placeholder parsing.
+    /// 2. `mut_option` can add default values.
     fn require_with_options<T: FromEnvironment>(
         &self,
         name: &str,
@@ -288,6 +320,8 @@ mod tests {
     pub struct DatabaseConfig {
         url: String,
         #[salak(default = "salak")]
+        name: String,
+        #[salak(default = "{database.name}")]
         username: String,
         password: Option<String>,
         #[salak(default = "{Hello}", disable_placeholder = true)]
@@ -306,6 +340,7 @@ mod tests {
         assert_eq!(true, ret.is_ok());
         let ret = ret.unwrap();
         assert_eq!("localhost:5432", ret.url);
+        assert_eq!("salak", ret.name);
         assert_eq!("salak", ret.username);
         assert_eq!(None, ret.password);
         let ret = ret.detail;
@@ -314,14 +349,4 @@ mod tests {
         assert_eq!(5, ret.option_arr.len());
         assert_eq!(2, ret.option_obj.len());
     }
-}
-
-#[derive(FromEnvironment, Debug)]
-pub struct DatabaseConfig {
-    url: String,
-    #[salak(default = "salak")]
-    username: String,
-    password: Option<String>,
-    #[salak(default = "{Hello}", disable_placeholder = true)]
-    description: String,
 }
