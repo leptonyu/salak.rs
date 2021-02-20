@@ -1,5 +1,5 @@
 # salak
-A configuration loader with zero-boilerplate configuration management.
+A layered configuration loader with zero-boilerplate configuration management.
 
 [![Crates.io](https://img.shields.io/crates/v/salak?style=flat-square)](https://crates.io/crates/salak)
 [![Crates.io](https://img.shields.io/crates/d/salak?style=flat-square)](https://crates.io/crates/salak)

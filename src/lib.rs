@@ -1,4 +1,4 @@
-//! A configuration loader with zero-boilerplate configuration management.
+//! A layered configuration loader with zero-boilerplate configuration management.
 //!
 //! ## About
 //! `salak` is a rust version for multi-layered configuration loader inspired by
