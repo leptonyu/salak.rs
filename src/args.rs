@@ -116,3 +116,14 @@ impl Default for SysArgs {
         SysArgs::new(SysArgsMode::Auto(auto_read_sys_args_param!()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[cfg(feature = "enable_clap")]
+    fn test_auto_read_sys_args_param() {
+        use crate::args;
+        let m = auto_read_sys_args_param!();
+        assert_eq!("salak", m.name);
+    }
+}
