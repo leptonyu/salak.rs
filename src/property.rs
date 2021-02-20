@@ -88,7 +88,7 @@ fn check_f64(f: f64) -> Result<f64, PropertyError> {
     if f.is_finite() {
         Ok(f)
     } else {
-        Err(PropertyError::ParseFail("f64 value is infinite".to_owned()))
+        Err(PropertyError::parse_failed("f64 value is infinite"))
     }
 }
 
@@ -108,10 +108,8 @@ macro_rules! impl_from_property {
         impl FromProperty for $x {
             fn from_property(p: Property) -> Result<Self, PropertyError> {
                 match p {
-                    Property::Str(str) => str
-                        .parse::<$x>()
-                        .map_err(|e| PropertyError::ParseFail(e.to_string())),
-                    Property::Int(i64) => <$x>::try_from(i64).map_err(|e|PropertyError::ParseFail(e.to_string())),
+                    Property::Str(str) => Ok(str.parse::<$x>()?),
+                    Property::Int(i64) => Ok(<$x>::try_from(i64)?),
                     Property::Float(f64) => Ok(check_f64(f64)? as $x),
                     Property::Bool(_) => Err(PropertyError::ParseFail(
                         format!("Bool value cannot convert to {}",stringify!($x)),
@@ -133,9 +131,7 @@ macro_rules! impl_float_from_property {
         impl FromProperty for $x {
             fn from_property(p: Property) -> Result<Self, PropertyError> {
                 match p {
-                    Property::Str(str) => str
-                        .parse::<$x>()
-                        .map_err(|e| PropertyError::ParseFail(e.to_string())),
+                    Property::Str(str) => Ok(str.parse::<$x>()?),
                     Property::Int(i64) => Ok(i64 as $x),
                     Property::Float(f64) => Ok(check_f64(f64)? as $x),
                     Property::Bool(_) => Err(PropertyError::ParseFail(
@@ -167,14 +163,25 @@ impl FromProperty for bool {
                 } else if STR_NO.contains(&str) {
                     Ok(false)
                 } else {
-                    Err(PropertyError::ParseFail(format!(
-                        "Str cannot convert to bool"
-                    )))
+                    Err(PropertyError::parse_failed("Str cannot convert to bool"))
                 }
             }
             Property::Int(i64) => Ok(i64 != 0),
             Property::Float(f64) => Ok(check_f64(f64)? != 0.0),
             Property::Bool(bool) => Ok(bool),
+        }
+    }
+}
+
+#[cfg(feature = "enable_toml")]
+impl FromProperty for ::toml::value::Datetime {
+    fn from_property(p: Property) -> Result<Self, PropertyError> {
+        use std::str::FromStr;
+        match p {
+            Property::Str(v) => Ok(Self::from_str(&v)?),
+            _ => Err(PropertyError::parse_failed(
+                "Datetime only support string value parse.",
+            )),
         }
     }
 }
@@ -242,8 +249,8 @@ mod tests {
         assert_eq!(Ok(i), i64::from_property(Property::Str(format!("{}", i))));
         assert_eq!(Ok(i), i64::from_property(Property::Int(i as i64)));
         assert_eq!(
-            Err(PropertyError::ParseFail(
-                "Bool value cannot convert to i64".to_owned()
+            Err(PropertyError::parse_failed(
+                "Bool value cannot convert to i64"
             )),
             i64::from_property(Property::Bool(true))
         );

@@ -18,12 +18,13 @@ A configuration loader with zero-boilerplate configuration management.
 \* `APP_CONF_NAME` can be specified to replace `app`.
 
 ### Placeholder format
-`salak` use format `{key:default}` to reference to other `key`, and if `key` not exists then use value `default`.
+1. `${key:default}` means get value of `key`, if not exists then return `default`.
+2. `${key}` means get value of `key`, if not exists then return `PropertyError::NotFound(_)`.
 
 ### Key format
 1. `a.b.c` is a normal key separated by dot(`.`).
-2. `a.b.0`, `a.b.1`, `a.b.2`... is a group of keys with arrays.
-3. System environment key will be changed from `HELLO_WORLD` to `hello.world`, vice versa.
+2. `a.b[0]`, `a.b[1]`, `a.b[2]`... is a group of keys with arrays.
+3. System environment key will be changed from `HELLO_WORLD` <=> `hello.world`, `HELLO__WORLD_HOW` <=> `hello_world.how`, `hello[1].world` => `HELLO_1_WORLD` <=> `hello.1.world`.
 
 ### Auto derived parameters.
 
@@ -34,6 +35,17 @@ A configuration loader with zero-boilerplate configuration management.
 ##### attribute `disable_placeholder` to disable placeholder parsing.
 1. `#[salak(disable_placeholder)]`
 2. `#[salak(disable_placeholder = true)]`
+
+### Features
+
+##### Default features
+1. `enable_log`, enable log record if enabled.
+2. `enable_toml`, enable toml support.
+3. `enable_derive`, enable auto derive [`FromEnvironment`] for struts.
+
+##### Optional features
+1. `enable_clap`, enable default command line arguments parsing by `clap`.
+
 
 ### Quick Code
 ```rust
@@ -46,14 +58,14 @@ pub struct DatabaseConfig {
     #[salak(default = "{database.name}")]
     username: String,
     password: Option<String>,
-    #[salak(default = "{Hello}", disable_placeholder)]
+    #[salak(default = "${Hello}", disable_placeholder)]
     description: String,
 }
 
 fn main() {
   std::env::set_var("database.url", "localhost:5432");
   let env = SalakBuilder::new()
-     .with_default_args(auto_read_sys_args_param!())
+     .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
      .build();
  
   match env.require::<DatabaseConfig>("database") {
@@ -61,15 +73,15 @@ fn main() {
       Err(e) => println!("{}", e),
   }
 }
-// Output: DatabaseConfig { url: "localhost:5432", name: "salak", username: "salak", password: None, description: "{Hello}" }
+// Output: DatabaseConfig { url: "localhost:5432", name: "salak", username: "salak", password: None, description: "${Hello}" }
 ```
 
 ### Quick Run
 ```bash
 git clone https://github.com/leptonyu/salak.rs.git
 cd salak.rs
-cargo run --example salak -- -h
-# salak 0.2.0
+cargo run --example salak --features="default enable_clap" -- -h
+# salak 0.4.0
 # Daniel Yu <leptonyu@gmail.com>
 # A rust configuration loader
 # 
@@ -86,5 +98,4 @@ cargo run --example salak -- -h
 
 ### TODO
 1. Support hashmap.
-2. Support toml date.
-3. Reload configurations.
+2. Reload configurations.

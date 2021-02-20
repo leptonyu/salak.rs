@@ -208,7 +208,7 @@ checksum = "b5eb417147ba9860a96cfe72a0b93bf88fee1744b5636ec99ab20c1aa9376581"
 
 [[package]]
 name = "salak"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "env_logger",

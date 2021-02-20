@@ -8,9 +8,9 @@ use crate::*;
 /// ```
 /// use salak::*;
 /// std::env::set_var("v1", "value");
-/// std::env::set_var("v2", "{v1}");
-/// std::env::set_var("v3", "{no_found:default}");
-/// std::env::set_var("v4", "{no_found:{v2}}");
+/// std::env::set_var("v2", "${v1}");
+/// std::env::set_var("v3", "${no_found:default}");
+/// std::env::set_var("v4", "${no_found:${v2}}");
 /// let env = PlaceholderResolver::new(true, SourceRegistry::default());
 /// assert_eq!("value", &env.require::<String>("v1").unwrap());
 /// assert_eq!("value", &env.require::<String>("v2").unwrap());
@@ -68,56 +68,79 @@ impl<E: Environment> PlaceholderResolver<E> {
     ) -> Result<Option<Property>, PropertyError> {
         let mut stack: Vec<String> = vec![];
         let mut pre = "".to_owned();
-        let placeholder: &[_] = &[self.placeholder_prefix, self.placeholder_suffix];
+        let placeholder: &[_] = &['$', '\\', self.placeholder_suffix];
         let prefix = &self.placeholder_prefix.to_string();
         while let Some(left) = val.find(placeholder) {
-            if &val[left..=left] == prefix {
-                if stack.is_empty() {
-                    pre.push_str(&val[..left]);
-                    stack.push("".to_owned());
-                } else {
-                    stack.push(val[..left].to_string());
-                }
-            } else {
-                if let Some(mut name) = stack.pop() {
-                    name.push_str(&val[..left]);
-                    let mut def: Option<String> = None;
-                    let key = if let Some(k) = name.find(self.placeholder_middle) {
-                        def = Some(name[k + 1..].to_owned());
-                        &name[..k]
+            match &val[left..=left] {
+                "$" => {
+                    let (push, next) =
+                        if val.len() == left + 1 || &val[left + 1..=left + 1] != prefix {
+                            (&val[..=left], &val[left + 1..])
+                        } else {
+                            (&val[..left], &val[left + 2..])
+                        };
+                    if stack.is_empty() {
+                        pre.push_str(push);
+                        stack.push("".to_owned());
                     } else {
-                        &name
-                    };
-                    let value = if let Some(d) = def {
-                        self.require_with_parse::<Option<String>>(
-                            &key,
-                            contains,
-                            disable_placeholder.clone(),
-                            mut_option,
-                        )?
-                        .unwrap_or(d)
-                    } else {
-                        self.require_with_parse::<String>(
-                            &key,
-                            contains,
-                            disable_placeholder.clone(),
-                            mut_option,
-                        )?
-                    };
-                    if let Some(mut prefix) = stack.pop() {
-                        prefix.push_str(&value);
-                        stack.push(prefix);
-                    } else {
-                        pre.push_str(&value);
+                        stack.push(push.to_string());
                     }
-                } else {
-                    return Err(PropertyError::ParseFail(format!("Suffix not match 1")));
+                    val = next;
+                }
+                "\\" => {
+                    if val.len() == left + 1 {
+                        return Err(PropertyError::parse_failed("End with single \\"));
+                    }
+                    let merge = format!("{}{}", &val[..left], &val[left + 1..=left + 1]);
+                    if let Some(mut v) = stack.pop() {
+                        v.push_str(&merge);
+                        stack.push(v);
+                    } else {
+                        pre.push_str(&merge);
+                    }
+                    val = &val[left + 2..];
+                }
+                _ => {
+                    if let Some(mut name) = stack.pop() {
+                        name.push_str(&val[..left]);
+                        let mut def: Option<String> = None;
+                        let key = if let Some(k) = name.find(self.placeholder_middle) {
+                            def = Some(name[k + 1..].to_owned());
+                            &name[..k]
+                        } else {
+                            &name
+                        };
+                        let value = if let Some(d) = def {
+                            self.require_with_parse::<Option<String>>(
+                                &key,
+                                contains,
+                                disable_placeholder.clone(),
+                                mut_option,
+                            )?
+                            .unwrap_or(d)
+                        } else {
+                            self.require_with_parse::<String>(
+                                &key,
+                                contains,
+                                disable_placeholder.clone(),
+                                mut_option,
+                            )?
+                        };
+                        if let Some(mut prefix) = stack.pop() {
+                            prefix.push_str(&value);
+                            stack.push(prefix);
+                        } else {
+                            pre.push_str(&value);
+                        }
+                    } else {
+                        return Err(PropertyError::parse_failed("Suffix not match 1"));
+                    }
+                    val = &val[left + 1..];
                 }
             }
-            val = &val[left + 1..];
         }
         if !stack.is_empty() {
-            return Err(PropertyError::ParseFail(format!("Suffix not match 2")));
+            return Err(PropertyError::parse_failed("Suffix not match 2"));
         }
         pre.push_str(&val);
         Ok(Some(Property::Str(pre)))
@@ -254,13 +277,14 @@ mod tests {
     #[test]
     fn check() {
         std::env::set_var("v1", "value");
-        std::env::set_var("v2", "{v1}");
-        std::env::set_var("v3", "{no_found:default}");
-        std::env::set_var("v4", "{no_found:{v2}}");
-        std::env::set_var("v5", "{no_found:{no_found_2:hello}}");
-        std::env::set_var("v6", "hello-{v1}-{v3}-");
-        std::env::set_var("v7", "{v7}");
-        std::env::set_var("v10", "{no_found}");
+        std::env::set_var("v2", "${v1}");
+        std::env::set_var("v3", "${no_found:default}");
+        std::env::set_var("v4", "${no_found:${v2}}");
+        std::env::set_var("v5", "${no_found:${no_found_2:hello}}");
+        std::env::set_var("v6", "hello-${v1}-${v3}-");
+        std::env::set_var("v7", "${v7}");
+        std::env::set_var("v10", "${no_found}");
+        std::env::set_var("v11", "\\{raw\\}");
         let env = PlaceholderResolver::new(true, SourceRegistry::default());
         assert_eq!("value", &env.require::<String>("v1").unwrap());
         assert_eq!("value", &env.require::<String>("v2").unwrap());
@@ -292,6 +316,7 @@ mod tests {
             PropertyError::NotFound("no_found".to_owned()),
             v10.unwrap_err()
         );
+        assert_eq!(Ok("{raw}".to_owned()), env.require::<String>("v11"));
     }
 }
 

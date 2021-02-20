@@ -13,12 +13,14 @@
 //! \* `APP_CONF_NAME` can be specified to replace `app`.
 //!
 //! ### Placeholder format
-//! `salak` use format `{key:default}` to reference to other `key`, and if `key` not exists then use value `default`.
+//! 1. `${key:default}` means get value of `key`, if not exists then return `default`.
+//! 2. `${key}` means get value of `key`, if not exists then return `PropertyError::NotFound(_)`.
+//! 3. `\$\{key\}` means escape to `${key}` or u can use `disable_placeholder` attribute.
 //!
 //! ### Key format
 //! 1. `a.b.c` is a normal key separated by dot(`.`).
-//! 2. `a.b.0`, `a.b.1`, `a.b.2`... is a group of keys with arrays.
-//! 3. System environment key will be changed from `HELLO_WORLD` to `hello.world`, vice versa.
+//! 2. `a.b[0]`, `a.b[1]`, `a.b[2]`... is a group of keys with arrays.
+//! 3. System environment key will be changed from `HELLO_WORLD` <=> `hello.world`, `HELLO__WORLD_HOW` <=> `hello_world.how`, `hello[1].world` => `HELLO_1_WORLD` <=> `hello.1.world`.
 //!
 //! ### Auto derived parameters.
 //!
@@ -29,6 +31,16 @@
 //! ##### attribute `disable_placeholder` to disable placeholder parsing.
 //! 1. `#[salak(disable_placeholder)]`
 //! 2. `#[salak(disable_placeholder = true)]`
+//!
+//! ### Features
+//!
+//! ##### Default features
+//! 1. `enable_log`, enable log record if enabled.
+//! 2. `enable_toml`, enable toml support.
+//! 3. `enable_derive`, enable auto derive [`FromEnvironment`] for struts.
+//!
+//! ##### Optional features
+//! 1. `enable_clap`, enable default command line arguments parsing by `clap`.
 //!
 //! ## Quick Example
 //!
@@ -42,14 +54,14 @@
 //!     #[salak(default = "{database.name}")]
 //!     username: String,
 //!     password: Option<String>,
-//!     #[salak(default = "{Hello}", disable_placeholder)]
+//!     #[salak(default = "${Hello}", disable_placeholder)]
 //!     description: String,
 //! }
 //!
 //! fn main() {
 //!   std::env::set_var("database.url", "localhost:5432");
 //!   let env = SalakBuilder::new()
-//!      .with_default_args(auto_read_sys_args_param!())
+//!      .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
 //!      .build();
 //!  
 //!   match env.require::<DatabaseConfig>("database") {
@@ -62,7 +74,7 @@
 //! //  name: "salak",
 //! //  username: "salak",
 //! //  password: None,
-//! //  description: "{Hello}"
+//! //  description: "${Hello}"
 //! // }
 //! ```
 //!
@@ -72,7 +84,6 @@ use crate::property::*;
 #[cfg(feature = "enable_log")]
 use log::*;
 use std::collections::HashSet;
-use std::fmt::{Display, Error, Formatter};
 
 #[cfg(test)]
 #[macro_use(quickcheck)]
@@ -82,11 +93,14 @@ extern crate quickcheck_macros;
 /// Auto derive [`FromEnvironment`] for struct.
 pub use salak_derive::FromEnvironment;
 
+pub use crate::err::*;
+
 // Enable register args in [`Environment`].
 #[macro_use]
 pub mod args;
 pub mod env;
 mod environment;
+mod err;
 pub mod map;
 pub mod property;
 // Enable register toml in [`Environment`].
@@ -102,27 +116,6 @@ pub enum Property {
     Int(i64),
     Float(f64),
     Bool(bool),
-}
-
-/// Property Error
-#[derive(Debug, PartialEq, Eq)]
-pub enum PropertyError {
-    /// Property not found
-    NotFound(String),
-    /// Property parse failed.
-    ParseFail(String),
-    /// Resursive parsing same key.
-    RecursiveParse(String),
-}
-
-impl Display for PropertyError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        match self {
-            PropertyError::NotFound(n) => write!(f, "Property {} not found.", n),
-            PropertyError::ParseFail(e) => write!(f, "{}", e),
-            PropertyError::RecursiveParse(n) => write!(f, "Property {} recursive.", &n),
-        }
-    }
 }
 
 #[doc(hidden)]
@@ -328,7 +321,7 @@ mod tests {
         #[salak(default = 1)]
         option_i64: i64,
         option_arr: Vec<i64>,
-        option_vec: Vec<Vec<i64>>,
+        option_multi_arr: Vec<Vec<i64>>,
         option_obj: Vec<DatabaseConfigObj>,
     }
 
@@ -337,10 +330,10 @@ mod tests {
         url: String,
         #[salak(default = "salak")]
         name: String,
-        #[salak(default = "{database.name}")]
+        #[salak(default = "${database.name}")]
         username: String,
         password: Option<String>,
-        #[salak(default = "{Hello}", disable_placeholder = true)]
+        #[salak(default = "\\{Hello\\}")]
         description: String,
         detail: DatabaseConfigDetail,
     }
@@ -365,7 +358,7 @@ mod tests {
         assert_eq!(1, ret.option_i64);
         assert_eq!(5, ret.option_arr.len());
         assert_eq!(10, ret.option_arr[0]);
-        assert_eq!(0, ret.option_vec.len());
+        assert_eq!(0, ret.option_multi_arr.len());
         assert_eq!(2, ret.option_obj.len());
     }
 }

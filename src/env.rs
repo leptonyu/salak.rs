@@ -8,10 +8,14 @@ impl SysEnv {
     fn normalize_keys(name: &str) -> Vec<String> {
         let mut v = vec![name.to_owned()];
         if let Some(_) = name.find('.') {
-            let name = name.replace('.', "_").to_uppercase();
+            let name = name
+                .replace('_', "__")
+                .replace("]", "")
+                .replace(&['.', '['][..], "_")
+                .to_uppercase();
             v.push(name);
         } else {
-            let name = name.replace('_', ".").to_lowercase();
+            let name = name.replace('_', ".").replace("..", "_").to_lowercase();
             v.push(name);
         }
         v
@@ -46,5 +50,32 @@ mod tests {
         let v: HashSet<String> = SysEnv::normalize_keys("NAME_URL").into_iter().collect();
         assert_eq!(true, v.contains("name.url"));
         assert_eq!(true, v.contains("NAME_URL"));
+
+        let v: HashSet<String> = SysEnv::normalize_keys("name[1].url").into_iter().collect();
+        assert_eq!(true, v.contains("name[1].url"));
+        assert_eq!(true, v.contains("NAME_1_URL"));
+        let v: HashSet<String> = SysEnv::normalize_keys("NAME_1_URL").into_iter().collect();
+        assert_eq!(true, v.contains("name.1.url"));
+        assert_eq!(true, v.contains("NAME_1_URL"));
+
+        let v: HashSet<String> = SysEnv::normalize_keys("name[1][2].url")
+            .into_iter()
+            .collect();
+        assert_eq!(true, v.contains("name[1][2].url"));
+        assert_eq!(true, v.contains("NAME_1_2_URL"));
+        let v: HashSet<String> = SysEnv::normalize_keys("NAME_1_2_URL").into_iter().collect();
+        assert_eq!(true, v.contains("name.1.2.url"));
+        assert_eq!(true, v.contains("NAME_1_2_URL"));
+
+        let v: HashSet<String> = SysEnv::normalize_keys("name_family.url")
+            .into_iter()
+            .collect();
+        assert_eq!(true, v.contains("name_family.url"));
+        assert_eq!(true, v.contains("NAME__FAMILY_URL"));
+        let v: HashSet<String> = SysEnv::normalize_keys("NAME__FAMILY_URL")
+            .into_iter()
+            .collect();
+        assert_eq!(true, v.contains("name_family.url"));
+        assert_eq!(true, v.contains("NAME__FAMILY_URL"));
     }
 }

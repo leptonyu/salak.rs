@@ -40,7 +40,7 @@ impl PropertySource for TomlItem {
             Value::Integer(vs) => Some(Property::Int(*vs)),
             Value::Float(vs) => Some(Property::Float(*vs)),
             Value::Boolean(vs) => Some(Property::Bool(*vs)),
-            // Not Support Date
+            Value::Datetime(vs) => Some(Property::Str(vs.to_string())),
             _ => None,
         }
     }

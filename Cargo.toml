@@ -1,6 +1,6 @@
 [package]
 name = "salak"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Daniel Yu <leptonyu@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -32,7 +32,7 @@ quickcheck_macros ="1"
 env_logger= "0.8"
 
 [features]
-default = ["enable_clap", "enable_toml", "enable_log", "enable_derive"]
+default = ["enable_toml", "enable_log", "enable_derive"]
 enable_toml = ["toml"]
 enable_clap = ["clap", "regex"]
 enable_log = ["log"]
@@ -40,3 +40,7 @@ enable_derive = ["salak_derive"]
 
 [workspace]
 members = [".", "salak_derive"]
+
+[[example]]
+name = "salak"
+required-features = ["default", "enable_clap"]
