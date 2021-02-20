@@ -55,7 +55,7 @@ macro_rules! impl_to_property_str {
     };
 }
 
-impl_to_property_str!(u64, u128, i128);
+impl_to_property_str!(u64, u128, i128, isize, usize);
 
 macro_rules! impl_float_to_property {
     ($x:ident) => {
@@ -124,7 +124,7 @@ macro_rules! impl_from_property {
     };
 }
 
-impl_from_property!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
+impl_from_property!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
 macro_rules! impl_float_from_property {
     ($x:ident) => {

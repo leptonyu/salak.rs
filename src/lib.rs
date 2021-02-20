@@ -1,7 +1,7 @@
 //! A layered configuration loader with zero-boilerplate configuration management.
 //!
 //! ## About
-//! `salak` is a rust version for multi-layered configuration loader inspired by
+//! `salak` is a rust version of layered configuration loader inspired by
 //! [spring-boot](https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-external-config).
 //! `salak` also has a [haskell version](https://hackage.haskell.org/package/salak).
 //!
@@ -84,6 +84,9 @@ use crate::property::*;
 #[cfg(feature = "enable_log")]
 use log::*;
 use std::collections::HashSet;
+use std::hash::BuildHasher;
+use std::hash::Hash;
+use std::iter::FromIterator;
 
 #[cfg(test)]
 #[macro_use(quickcheck)]
@@ -301,6 +304,24 @@ impl<P: FromEnvironment> FromEnvironment for Vec<P> {
     }
     fn check_is_empty(&self) -> bool {
         self.is_empty()
+    }
+}
+
+impl<T, S> FromEnvironment for HashSet<T, S>
+where
+    T: Eq + Hash + FromEnvironment,
+    S: BuildHasher + Default,
+{
+    fn from_env(
+        name: &str,
+        p: Option<Property>,
+        env: &impl Environment,
+        disable_placeholder: bool,
+        mut_option: &mut EnvironmentOption,
+    ) -> Result<Self, PropertyError> {
+        Ok(HashSet::from_iter(
+            <Vec<T>>::from_env(name, p, env, disable_placeholder, mut_option)?.into_iter(),
+        ))
     }
 }
 
