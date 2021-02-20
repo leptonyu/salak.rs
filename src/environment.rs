@@ -158,7 +158,7 @@ impl SourceRegistry {
     }
 
     /// Add default command line arguments parser.
-    #[cfg(feature = "enable_args")]
+    #[cfg(feature = "enable_clap")]
     pub fn with_args(mut self, mode: args::SysArgsMode) -> Self {
         self.register_source(Box::new(args::SysArgs::new(mode).0));
         self
@@ -209,7 +209,7 @@ impl Default for SourceRegistry {
     fn default() -> Self {
         let mut sr = SourceRegistry::new();
         #[cfg(not(test))]
-        #[cfg(feature = "enable_args")]
+        #[cfg(feature = "enable_clap")]
         {
             sr = sr.with_args(args::SysArgsMode::Auto(auto_read_sys_args_param!()));
         }
@@ -297,7 +297,6 @@ mod tests {
 
 /// [`Salak`] builder.
 pub struct SalakBuilder {
-    #[cfg(feature = "enable_args")]
     args: Option<args::SysArgsMode>,
     enable_placeholder: bool,
     enable_default_registry: bool,
@@ -307,7 +306,6 @@ impl SalakBuilder {
     /// Create default builder.
     pub fn new() -> Self {
         Self {
-            #[cfg(feature = "enable_args")]
             args: None,
             enable_placeholder: true,
             enable_default_registry: true,
@@ -316,7 +314,7 @@ impl SalakBuilder {
 
     /// Use default command line arguments parser.
     /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
-    #[cfg(feature = "enable_args")]
+    #[cfg(feature = "enable_clap")]
     pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
         self.args = Some(args::SysArgsMode::Auto(param));
         self
@@ -324,7 +322,6 @@ impl SalakBuilder {
 
     /// Use custom command line arguments parser.
     /// Users should provide a parser to produce [`Vec<(String, Property)>`].
-    #[cfg(feature = "enable_args")]
     pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
         self.args = Some(args::SysArgsMode::Custom(args));
         self
@@ -348,7 +345,6 @@ impl SalakBuilder {
         let sr = if self.enable_default_registry {
             let mut sr = SourceRegistry::new();
             // First Layer
-            #[cfg(feature = "enable_args")]
             if let Some(p) = self.args {
                 sr.register_source(Box::new(args::SysArgs::new(p).0));
             }

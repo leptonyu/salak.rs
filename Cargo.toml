@@ -32,9 +32,9 @@ quickcheck_macros ="1"
 env_logger= "0.8"
 
 [features]
-default = ["enable_args", "enable_toml", "enable_log", "enable_derive"]
+default = ["enable_clap", "enable_toml", "enable_log", "enable_derive"]
 enable_toml = ["toml"]
-enable_args = ["clap", "regex"]
+enable_clap = ["clap", "regex"]
 enable_log = ["log"]
 enable_derive = ["salak_derive"]
 

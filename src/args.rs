@@ -1,14 +1,18 @@
 //! Provide command line arguments [`PropertySource`].
 use crate::map::MapPropertySource;
 use crate::*;
+#[cfg(feature = "enable_clap")]
 use clap::{App, Arg};
+#[cfg(feature = "enable_clap")]
 use regex::Regex;
 use std::collections::HashMap;
 
+#[cfg(feature = "enable_clap")]
 const NOT_POSSIBLE: &'static str = "Not possible";
 
 /// CommandLine arguments parser mode.
 pub enum SysArgsMode {
+    #[cfg(feature = "enable_clap")]
     /// Use default parser.
     Auto(SysArgsParam),
     /// Customize parser and provide a key value vector as [`PropertySource`].
@@ -16,6 +20,7 @@ pub enum SysArgsMode {
 }
 
 /// Command line arguments parameters.
+#[cfg(feature = "enable_clap")]
 pub struct SysArgsParam {
     /// App name.
     pub name: &'static str,
@@ -31,6 +36,7 @@ pub struct SysArgsParam {
 ///
 /// Due to macro [`env!`] will generate value at compile time, so users should call it at final project.
 #[macro_export]
+#[cfg(feature = "enable_clap")]
 macro_rules! auto_read_sys_args_param {
     () => {
         args::SysArgsParam {
@@ -49,6 +55,7 @@ impl SysArgs {
     /// Create [`SysArgs`].
     pub fn new(args: SysArgsMode) -> Self {
         let args = match args {
+            #[cfg(feature = "enable_clap")]
             SysArgsMode::Auto(arg) => Self::new_default_args(arg),
             SysArgsMode::Custom(arg) => arg,
         };
@@ -60,6 +67,7 @@ impl SysArgs {
         SysArgs(MapPropertySource::new("SystemArguments".to_owned(), map))
     }
 
+    #[cfg(feature = "enable_clap")]
     fn new_default_args(param: SysArgsParam) -> Vec<(String, Property)> {
         let mut app = App::new(param.name).version(param.version);
         if let Some(a) = param.author {
@@ -101,6 +109,7 @@ impl SysArgs {
     }
 }
 
+#[cfg(feature = "enable_clap")]
 impl Default for SysArgs {
     /// A simple implementation using `clap`.
     fn default() -> Self {

@@ -83,7 +83,6 @@ extern crate quickcheck_macros;
 pub use salak_derive::FromEnvironment;
 
 // Enable register args in [`Environment`].
-#[cfg(feature = "enable_args")]
 #[macro_use]
 pub mod args;
 pub mod env;
