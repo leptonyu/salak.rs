@@ -233,6 +233,11 @@ pub trait FromEnvironment: Sized {
     fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
         Err(err)
     }
+
+    /// Notify if the value is empty value. Such as `Vec<T>` or `Option<T>`.
+    fn check_is_empty(&self) -> bool {
+        false
+    }
 }
 
 impl<P: FromProperty> FromEnvironment for P {
@@ -269,6 +274,9 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
             _ => Err(err),
         }
     }
+    fn check_is_empty(&self) -> bool {
+        self.is_none()
+    }
 }
 
 impl<P: FromEnvironment> FromEnvironment for Vec<P> {
@@ -281,24 +289,30 @@ impl<P: FromEnvironment> FromEnvironment for Vec<P> {
     ) -> Result<Self, PropertyError> {
         let mut vs = vec![];
         let mut i = 0;
-        let mut key = format!("{}{}", &name.to_prefix(), i);
+        let mut key = format!("{}[{}]", &name, i);
         while let Some(v) = <Option<P>>::from_env(
             &key,
             env.require::<Option<Property>>(&key)?,
             env,
-            disable_placeholder.clone(),
+            disable_placeholder,
             mut_option,
         )? {
+            if v.check_is_empty() {
+                break;
+            }
             vs.push(v);
             i += 1;
-            key = format!("{}{}", &name.to_prefix(), i);
+            key = format!("{}[{}]", &name, i);
         }
         Ok(vs)
     }
+    fn check_is_empty(&self) -> bool {
+        self.is_empty()
+    }
 }
 
-#[cfg(feature = "salak_derive")]
-#[cfg(feature = "salak_toml")]
+#[cfg(feature = "enable_toml")]
+#[cfg(feature = "enable_derive")]
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -314,6 +328,7 @@ mod tests {
         #[salak(default = 1)]
         option_i64: i64,
         option_arr: Vec<i64>,
+        option_vec: Vec<Vec<i64>>,
         option_obj: Vec<DatabaseConfigObj>,
     }
 
@@ -331,11 +346,12 @@ mod tests {
     }
     #[test]
     fn integration_tests() {
-        let mut env = SalakBuilder::new().build();
-        let mut hey = MapPropertySource::empty("hey");
-        hey.insert("database.detail.option_arr.0".to_owned(), "10");
-        hey.insert("database.url".to_owned(), "localhost:5432");
-        env.register_source(Box::new(hey));
+        let env = SalakBuilder::new()
+            .with_custom_args(vec![
+                ("database.detail.option_arr[0]".to_owned(), "10"),
+                ("database.url".to_owned(), "localhost:5432"),
+            ])
+            .build();
 
         let ret = env.require::<DatabaseConfig>("database");
         assert_eq!(true, ret.is_ok());
@@ -348,6 +364,8 @@ mod tests {
         assert_eq!("str", ret.option_str);
         assert_eq!(1, ret.option_i64);
         assert_eq!(5, ret.option_arr.len());
+        assert_eq!(10, ret.option_arr[0]);
+        assert_eq!(0, ret.option_vec.len());
         assert_eq!(2, ret.option_obj.len());
     }
 }

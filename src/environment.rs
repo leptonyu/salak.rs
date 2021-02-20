@@ -322,8 +322,12 @@ impl SalakBuilder {
 
     /// Use custom command line arguments parser.
     /// Users should provide a parser to produce [`Vec<(String, Property)>`].
-    pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
-        self.args = Some(args::SysArgsMode::Custom(args));
+    pub fn with_custom_args<P: ToProperty>(mut self, args: Vec<(String, P)>) -> Self {
+        self.args = Some(args::SysArgsMode::Custom(
+            args.into_iter()
+                .map(|(k, v)| (k, v.to_property()))
+                .collect(),
+        ));
         self
     }
 

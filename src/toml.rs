@@ -22,7 +22,13 @@ impl PropertySource for TomlItem {
     }
     fn get_property(&self, name: &str) -> Option<Property> {
         let mut v = &self.value;
-        for n in name.split(".") {
+        lazy_static::lazy_static! {
+            static ref P: &'static [char] = &['.', '[', ']'];
+        }
+        for n in name.split(&P[..]) {
+            if n.is_empty() {
+                continue;
+            }
             match v {
                 Value::Table(t) => v = t.get(n)?,
                 Value::Array(vs) => v = vs.get(n.parse::<usize>().ok()?)?,
