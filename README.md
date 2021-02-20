@@ -55,7 +55,7 @@ pub struct DatabaseConfig {
     url: String,
     #[salak(default = "salak")]
     name: String,
-    #[salak(default = "{database.name}")]
+    #[salak(default = "${database.name}")]
     username: String,
     password: Option<String>,
     #[salak(default = "${Hello}", disable_placeholder)]
