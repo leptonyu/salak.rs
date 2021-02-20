@@ -219,13 +219,13 @@ impl SourceRegistry {
     }
 
     /// Add yaml support.
-    #[cfg(feature = "enable_yaml")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
-    pub fn with_yaml(mut self) -> Self {
-        let fc = self.build_conf();
-        self.register_sources(fc.build(crate::yaml::Yaml));
-        self
-    }
+    // #[cfg(feature = "enable_yaml")]
+    // #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
+    // pub fn with_yaml(mut self) -> Self {
+    //     let fc = self.build_conf();
+    //     self.register_sources(fc.build(crate::yaml::Yaml));
+    //     self
+    // }
 
     /// Register source.
     pub fn register_source(&mut self, source: Box<dyn PropertySource>) {
@@ -257,10 +257,10 @@ impl Default for SourceRegistry {
         {
             sr = sr.with_toml();
         }
-        #[cfg(feature = "enable_yaml")]
-        {
-            sr = sr.with_yaml();
-        }
+        // #[cfg(feature = "enable_yaml")]
+        // {
+        //     sr = sr.with_yaml();
+        // }
         sr
     }
 }
@@ -405,10 +405,10 @@ impl SalakBuilder {
             {
                 sr = sr.with_toml();
             }
-            #[cfg(feature = "enable_yaml")]
-            {
-                sr = sr.with_yaml();
-            }
+            // #[cfg(feature = "enable_yaml")]
+            // {
+            //     sr = sr.with_yaml();
+            // }
             sr
         } else {
             SourceRegistry::new()

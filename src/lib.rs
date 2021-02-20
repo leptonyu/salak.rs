@@ -114,10 +114,6 @@ pub mod property;
 #[cfg(feature = "enable_toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
 pub mod toml;
-// Enable register yaml in [`Environment`].
-#[cfg(feature = "enable_yaml")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
-pub mod yaml;
 
 pub use crate::environment::{PlaceholderResolver, Salak, SalakBuilder, SourceRegistry};
 
