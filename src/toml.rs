@@ -1,19 +1,27 @@
 //! Provide toml [`PropertySource`].
+use crate::file::FileToPropertySource;
 use crate::*;
 use ::toml::*;
-use std::env::*;
-use std::fs;
 use std::path::PathBuf;
 
 /// Support read toml file as [`PropertySource`].
-pub struct Toml {
-    dir: Option<String>,
-    name: String,
-}
+pub struct Toml;
 
 struct TomlItem {
     name: String,
     value: Value,
+}
+
+impl FileToPropertySource for Toml {
+    fn to_property_source(&self, path: PathBuf) -> Option<Box<(dyn PropertySource)>> {
+        Some(Box::new(TomlItem {
+            name: path.display().to_string(),
+            value: from_str(&std::fs::read_to_string(path).ok()?).ok()?,
+        }))
+    }
+    fn extention(&self) -> &'static str {
+        "toml"
+    }
 }
 
 impl PropertySource for TomlItem {
@@ -49,43 +57,5 @@ impl PropertySource for TomlItem {
             Value::Table(t) => t.is_empty(),
             _ => false,
         }
-    }
-}
-
-impl Toml {
-    /// Create toml environment.
-    pub fn new(dir: Option<String>, name: String) -> Self {
-        Self { dir, name }
-    }
-
-    /// Build and load toml [`PropertySource`].
-    pub fn build(&self) -> Vec<Option<Box<dyn PropertySource>>> {
-        let filename = format!("{}.toml", self.name);
-
-        let mut v = vec![];
-        if let Some(dir) = &self.dir {
-            // Only load from specified location
-            v.push(Self::load(Some(PathBuf::from(dir)), &filename));
-        } else {
-            // Load from current location
-            let current = current_dir().ok();
-            // Load from HOME location
-            let mut home = var("HOME").ok().map(PathBuf::from);
-            if current == home {
-                home = None;
-            }
-            v.push(Self::load(current, &filename));
-            v.push(Self::load(home, &filename));
-        }
-        v
-    }
-
-    fn load(dir: Option<PathBuf>, file: &str) -> Option<Box<dyn PropertySource>> {
-        let mut dir = dir?;
-        dir.push(file);
-        Some(Box::new(TomlItem {
-            name: dir.display().to_string(),
-            value: from_str(&fs::read_to_string(dir).ok()?).ok()?,
-        }))
     }
 }

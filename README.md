@@ -82,7 +82,7 @@ fn main() {
 git clone https://github.com/leptonyu/salak.rs.git
 cd salak.rs
 cargo run --example salak --features="default enable_clap" -- -h
-# salak 0.4.0
+# salak 0.5.0
 # Daniel Yu <leptonyu@gmail.com>
 # A rust configuration loader
 # 

@@ -78,6 +78,7 @@
 //! // }
 //! ```
 //!
+#![feature(doc_cfg)]
 
 use crate::map::MapPropertySource;
 use crate::property::*;
@@ -92,7 +93,8 @@ use std::iter::FromIterator;
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
-#[cfg(feature = "enable_derive")]
+#[cfg(any(feature = "enable_derive", doc))]
+#[doc(cfg(feature = "enable_derive"))]
 /// Auto derive [`FromEnvironment`] for struct.
 pub use salak_derive::FromEnvironment;
 
@@ -104,11 +106,17 @@ pub mod args;
 pub mod env;
 mod environment;
 mod err;
+mod file;
 pub mod map;
 pub mod property;
 // Enable register toml in [`Environment`].
-#[cfg(feature = "enable_toml")]
+#[cfg(any(feature = "enable_toml", doc))]
+#[doc(cfg(feature = "enable_toml"))]
 pub mod toml;
+// Enable register yaml in [`Environment`].
+#[cfg(any(feature = "enable_yaml", doc))]
+#[doc(cfg(feature = "enable_yaml"))]
+pub mod yaml;
 
 pub use crate::environment::{PlaceholderResolver, Salak, SalakBuilder, SourceRegistry};
 

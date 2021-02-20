@@ -12,7 +12,8 @@ const NOT_POSSIBLE: &'static str = "Not possible";
 
 /// CommandLine arguments parser mode.
 pub enum SysArgsMode {
-    #[cfg(feature = "enable_clap")]
+    #[cfg(any(feature = "enable_clap", doc))]
+    #[doc(cfg(feature = "enable_clap"))]
     /// Use default parser.
     Auto(SysArgsParam),
     /// Customize parser and provide a key value vector as [`PropertySource`].
@@ -20,7 +21,8 @@ pub enum SysArgsMode {
 }
 
 /// Command line arguments parameters.
-#[cfg(feature = "enable_clap")]
+#[cfg(any(feature = "enable_clap", doc))]
+#[doc(cfg(feature = "enable_clap"))]
 pub struct SysArgsParam {
     /// App name.
     pub name: &'static str,
@@ -36,7 +38,8 @@ pub struct SysArgsParam {
 ///
 /// Due to macro [`env!`] will generate value at compile time, so users should call it at final project.
 #[macro_export]
-#[cfg(feature = "enable_clap")]
+#[cfg(any(feature = "enable_clap", doc))]
+#[doc(cfg(feature = "enable_clap"))]
 macro_rules! auto_read_sys_args_param {
     () => {
         args::SysArgsParam {
@@ -109,7 +112,8 @@ impl SysArgs {
     }
 }
 
-#[cfg(feature = "enable_clap")]
+#[cfg(any(feature = "enable_clap", doc))]
+#[doc(cfg(feature = "enable_clap"))]
 impl Default for SysArgs {
     /// A simple implementation using `clap`.
     fn default() -> Self {

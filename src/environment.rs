@@ -1,6 +1,5 @@
 //! Provide [`Environment`] implementations.
-#[cfg(feature = "enable_toml")]
-use crate::toml::Toml;
+use crate::file::FileConfig;
 use crate::*;
 
 /// An implementation of [`Environment`] that can resolve placeholder for values.
@@ -171,17 +170,23 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
 
 /// An implementation of [`Environment`] for registering [`PropertySource`].
 pub struct SourceRegistry {
+    #[allow(dead_code)]
+    conf: Option<FileConfig>,
     sources: Vec<Box<dyn PropertySource>>,
 }
 
 impl SourceRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
-        SourceRegistry { sources: vec![] }
+        SourceRegistry {
+            conf: None,
+            sources: vec![],
+        }
     }
 
     /// Add default command line arguments parser.
-    #[cfg(feature = "enable_clap")]
+    #[cfg(any(feature = "enable_clap", doc))]
+    #[doc(cfg(feature = "enable_clap"))]
     pub fn with_args(mut self, mode: args::SysArgsMode) -> Self {
         self.register_source(Box::new(args::SysArgs::new(mode).0));
         self
@@ -193,19 +198,33 @@ impl SourceRegistry {
         self
     }
 
-    /// Add toml file.
-    #[cfg(feature = "enable_toml")]
-    pub fn with_toml(mut self) -> Self {
-        let dir: Option<String> = self.get("APP_CONF_DIR");
-        let name = self.get_or("APP_CONF_NAME", "app".to_owned());
-        #[cfg(feature = "enable_log")]
-        {
-            if let Some(d) = &dir {
-                debug!("Set APP_CONF_DIR as {}.", &d);
+    #[allow(dead_code)]
+    fn build_conf(&mut self) -> FileConfig {
+        match &self.conf {
+            Some(v) => v.clone(),
+            _ => {
+                let v = FileConfig::new(self);
+                self.conf = Some(v.clone());
+                v
             }
-            debug!("Set APP_CONF_NAME as {}.", name);
         }
-        self.register_sources(Toml::new(dir, name).build());
+    }
+
+    /// Add toml support.
+    #[cfg(any(feature = "enable_toml", doc))]
+    #[doc(cfg(feature = "enable_toml"))]
+    pub fn with_toml(mut self) -> Self {
+        let fc = self.build_conf();
+        self.register_sources(fc.build(crate::toml::Toml));
+        self
+    }
+
+    /// Add yaml support.
+    #[cfg(any(feature = "enable_yaml", doc))]
+    #[doc(cfg(feature = "enable_yaml"))]
+    pub fn with_yaml(mut self) -> Self {
+        let fc = self.build_conf();
+        self.register_sources(fc.build(crate::yaml::Yaml));
         self
     }
 
@@ -219,11 +238,9 @@ impl SourceRegistry {
     }
 
     /// Register multiple sources.
-    pub fn register_sources(&mut self, sources: Vec<Option<Box<dyn PropertySource>>>) {
+    pub fn register_sources(&mut self, sources: Vec<Box<dyn PropertySource>>) {
         for source in sources.into_iter() {
-            if let Some(s) = source {
-                self.register_source(s);
-            }
+            self.register_source(source);
         }
     }
 }
@@ -240,6 +257,10 @@ impl Default for SourceRegistry {
         #[cfg(feature = "enable_toml")]
         {
             sr = sr.with_toml();
+        }
+        #[cfg(feature = "enable_yaml")]
+        {
+            sr = sr.with_yaml();
         }
         sr
     }
@@ -339,7 +360,8 @@ impl SalakBuilder {
 
     /// Use default command line arguments parser.
     /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
-    #[cfg(feature = "enable_clap")]
+    #[cfg(any(feature = "enable_clap", doc))]
+    #[doc(cfg(feature = "enable_clap"))]
     pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
         self.args = Some(args::SysArgsMode::Auto(param));
         self
@@ -384,6 +406,10 @@ impl SalakBuilder {
             {
                 sr = sr.with_toml();
             }
+            #[cfg(feature = "enable_yaml")]
+            {
+                sr = sr.with_yaml();
+            }
             sr
         } else {
             SourceRegistry::new()
@@ -401,7 +427,7 @@ impl Salak {
         self.0.env.register_source(ps);
     }
     /// Register property sources at last.
-    pub fn register_sources(&mut self, sources: Vec<Option<Box<dyn PropertySource>>>) {
+    pub fn register_sources(&mut self, sources: Vec<Box<dyn PropertySource>>) {
         self.0.env.register_sources(sources);
     }
 }
