@@ -15,9 +15,12 @@ impl FileToPropertySource for Yaml {
     fn to_property_source(&self, path: PathBuf) -> Option<Box<(dyn PropertySource)>> {
         Some(Box::new(YamlItem {
             name: path.display().to_string(),
-            value: yaml_rust::YamlLoader::load_from_str(&std::fs::read_to_string(path).ok()?)
-                .ok()?
-                .pop()?,
+            value: yaml_rust::YamlLoader::load_from_str(include_str!(&std::fs::read_to_string(
+                path
+            )
+            .ok()?))
+            .ok()?
+            .pop()?,
         }))
     }
     fn extention(&self) -> &'static str {
