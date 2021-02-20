@@ -46,3 +46,7 @@ members = [".", "salak_derive"]
 [[example]]
 name = "salak"
 required-features = ["default", "enable_clap"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

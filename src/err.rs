@@ -54,8 +54,8 @@ impl_parse_failed!(
     Infallible
 );
 
-#[cfg(any(feature = "enable_toml", doc))]
-#[doc(cfg(feature = "enable_toml"))]
+#[cfg(feature = "enable_toml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
 impl From<::toml::value::DatetimeParseError> for PropertyError {
     fn from(err: ::toml::value::DatetimeParseError) -> Self {
         Self::ParseFail(err.to_string())

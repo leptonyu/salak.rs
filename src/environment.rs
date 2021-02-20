@@ -185,8 +185,7 @@ impl SourceRegistry {
     }
 
     /// Add default command line arguments parser.
-    #[cfg(any(feature = "enable_clap", doc))]
-    #[doc(cfg(feature = "enable_clap"))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
     pub fn with_args(mut self, mode: args::SysArgsMode) -> Self {
         self.register_source(Box::new(args::SysArgs::new(mode).0));
         self
@@ -211,8 +210,8 @@ impl SourceRegistry {
     }
 
     /// Add toml support.
-    #[cfg(any(feature = "enable_toml", doc))]
-    #[doc(cfg(feature = "enable_toml"))]
+    #[cfg(feature = "enable_toml")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
     pub fn with_toml(mut self) -> Self {
         let fc = self.build_conf();
         self.register_sources(fc.build(crate::toml::Toml));
@@ -220,8 +219,8 @@ impl SourceRegistry {
     }
 
     /// Add yaml support.
-    #[cfg(any(feature = "enable_yaml", doc))]
-    #[doc(cfg(feature = "enable_yaml"))]
+    #[cfg(feature = "enable_yaml")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
     pub fn with_yaml(mut self) -> Self {
         let fc = self.build_conf();
         self.register_sources(fc.build(crate::yaml::Yaml));
@@ -360,8 +359,8 @@ impl SalakBuilder {
 
     /// Use default command line arguments parser.
     /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
-    #[cfg(any(feature = "enable_clap", doc))]
-    #[doc(cfg(feature = "enable_clap"))]
+    #[cfg(feature = "enable_clap")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
     pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
         self.args = Some(args::SysArgsMode::Auto(param));
         self
