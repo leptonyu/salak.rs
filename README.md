@@ -46,6 +46,7 @@ A layered configuration loader with zero-boilerplate configuration management.
 
 ##### Optional features
 1. `enable_clap`, enable default command line arguments parsing by `clap`.
+2. `enable_yaml`, enable yaml support.
 
 
 ### Quick Code
