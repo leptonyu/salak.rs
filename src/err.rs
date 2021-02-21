@@ -15,6 +15,7 @@ pub enum PropertyError {
 }
 
 impl PropertyError {
+    /// Generate parse fail error.
     pub fn parse_failed(msg: &str) -> Self {
         Self::ParseFail(msg.to_owned())
     }

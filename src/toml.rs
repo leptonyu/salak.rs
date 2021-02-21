@@ -5,6 +5,7 @@ use ::toml::*;
 use std::path::PathBuf;
 
 /// Support read toml file as [`PropertySource`].
+#[derive(Debug, Copy, Clone)]
 pub struct Toml;
 
 struct TomlItem {

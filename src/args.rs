@@ -8,9 +8,10 @@ use regex::Regex;
 use std::collections::HashMap;
 
 #[cfg(feature = "enable_clap")]
-const NOT_POSSIBLE: &'static str = "Not possible";
+const NOT_POSSIBLE: &str = "Not possible";
 
 /// CommandLine arguments parser mode.
+#[derive(Debug)]
 pub enum SysArgsMode {
     #[cfg(feature = "enable_clap")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
@@ -23,6 +24,7 @@ pub enum SysArgsMode {
 /// Command line arguments parameters.
 #[cfg(feature = "enable_clap")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
+#[derive(Debug, Copy, Clone)]
 pub struct SysArgsParam {
     /// App name.
     pub name: &'static str,
@@ -42,7 +44,7 @@ pub struct SysArgsParam {
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
 macro_rules! auto_read_sys_args_param {
     () => {
-        args::SysArgsParam {
+        SysArgsParam {
             name: env!("CARGO_PKG_NAME"),
             version: env!("CARGO_PKG_VERSION"),
             author: option_env!("CARGO_PKG_AUTHORS"),
@@ -56,7 +58,8 @@ pub(crate) struct SysArgs(pub(crate) MapPropertySource);
 
 impl SysArgs {
     /// Create [`SysArgs`].
-    pub fn new(args: SysArgsMode) -> Self {
+    #[allow(clippy::infallible_destructuring_match)]
+    pub(crate) fn new(args: SysArgsMode) -> Self {
         let args = match args {
             #[cfg(feature = "enable_clap")]
             SysArgsMode::Auto(arg) => Self::new_default_args(arg),
@@ -99,7 +102,7 @@ impl SysArgs {
         }
         matches
             .values_of_lossy("property")
-            .unwrap_or(vec![])
+            .unwrap_or_default()
             .iter()
             .flat_map(|k| match RE.captures(&k) {
                 Some(ref v) => Some((
@@ -126,7 +129,7 @@ mod tests {
     #[test]
     #[cfg(feature = "enable_clap")]
     fn test_auto_read_sys_args_param() {
-        use crate::args;
+        use crate::*;
         let m = auto_read_sys_args_param!();
         assert_eq!("salak", m.name);
     }

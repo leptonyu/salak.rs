@@ -4,6 +4,7 @@ use crate::*;
 use std::path::PathBuf;
 
 /// Support read yaml file as [`PropertySource`].
+#[derive(Debug, Copy, Clone)]
 pub struct Yaml;
 
 struct YamlItem {
@@ -15,7 +16,7 @@ impl FileToPropertySource for Yaml {
     fn to_property_source(&self, path: PathBuf) -> Option<Box<(dyn PropertySource)>> {
         Some(Box::new(YamlItem {
             name: path.display().to_string(),
-            value: yaml_rust::YamlLoader::load_from_str(include_str!(path))
+            value: yaml_rust::YamlLoader::load_from_str(&std::fs::read_to_string(path).ok()?)
                 .ok()?
                 .pop()?,
         }))

@@ -50,9 +50,9 @@ fn parse_lit_bool(lit: Lit) -> bool {
     }
 }
 
-fn parse_attribute_args(attrs: &Vec<Attribute>, fa: &mut FieldAttr) {
+fn parse_attribute_args(attrs: &[Attribute], fa: &mut FieldAttr) {
     for attr in attrs {
-        if let Some(v) = attr.parse_meta().ok() {
+        if let Ok(v) = attr.parse_meta() {
             match v {
                 Meta::List(list) => {
                     for m in list.nested {

@@ -16,6 +16,7 @@ use crate::*;
 /// assert_eq!("default", &env.require::<String>("v3").unwrap());
 /// assert_eq!("value", &env.require::<String>("v4").unwrap());
 /// ```
+#[derive(Debug)]
 pub struct PlaceholderResolver<T: Environment> {
     enabled: bool,
     pub(crate) env: T,
@@ -25,6 +26,7 @@ pub struct PlaceholderResolver<T: Environment> {
 }
 
 impl<E: Environment> PlaceholderResolver<E> {
+    /// Create placeholder environment.
     pub fn new(enabled: bool, env: E) -> Self {
         PlaceholderResolver {
             enabled,
@@ -47,11 +49,11 @@ impl<E: Environment> PlaceholderResolver<E> {
         }
         let p = match self.env.require_with_options::<Option<Property>>(
             name,
-            disable_placeholder.clone(),
+            disable_placeholder,
             mut_option,
         )? {
             Some(Property::Str(s)) => {
-                self.parse_value(&s, contains, disable_placeholder.clone(), mut_option)?
+                self.parse_value(&s, contains, disable_placeholder, mut_option)?
             }
             v => v,
         };
@@ -113,7 +115,7 @@ impl<E: Environment> PlaceholderResolver<E> {
                             self.require_with_parse::<Option<String>>(
                                 &key,
                                 contains,
-                                disable_placeholder.clone(),
+                                disable_placeholder,
                                 mut_option,
                             )?
                             .unwrap_or(d)
@@ -121,7 +123,7 @@ impl<E: Environment> PlaceholderResolver<E> {
                             self.require_with_parse::<String>(
                                 &key,
                                 contains,
-                                disable_placeholder.clone(),
+                                disable_placeholder,
                                 mut_option,
                             )?
                         };
@@ -160,7 +162,7 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
     where
         T: FromEnvironment,
     {
-        if self.enabled && !disable_placeholder && name != "" {
+        if self.enabled && !disable_placeholder && !name.is_empty() {
             self.require_with_parse::<T>(name, &mut HashSet::new(), false, mut_option)
         } else {
             self.env.require_with_options(name, false, mut_option)
@@ -169,6 +171,7 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
 }
 
 /// An implementation of [`Environment`] for registering [`PropertySource`].
+#[allow(missing_debug_implementations)]
 pub struct SourceRegistry {
     #[allow(dead_code)]
     conf: Option<FileConfig>,
@@ -185,8 +188,9 @@ impl SourceRegistry {
     }
 
     /// Add default command line arguments parser.
+    #[cfg(feature = "enable_clap")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
-    pub fn with_args(mut self, mode: args::SysArgsMode) -> Self {
+    pub fn with_args(mut self, mode: SysArgsMode) -> Self {
         self.register_source(Box::new(args::SysArgs::new(mode).0));
         self
     }
@@ -215,6 +219,15 @@ impl SourceRegistry {
     pub fn with_toml(mut self) -> Self {
         let fc = self.build_conf();
         self.register_sources(fc.build(crate::toml::Toml));
+        self
+    }
+
+    /// Add yaml support.
+    #[cfg(feature = "enable_yaml")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
+    pub fn with_yaml(mut self) -> Self {
+        let fc = self.build_conf();
+        self.register_sources(fc.build(crate::yaml::Yaml));
         self
     }
 
@@ -257,10 +270,10 @@ impl Default for SourceRegistry {
         {
             sr = sr.with_toml();
         }
-        // #[cfg(feature = "enable_yaml")]
-        // {
-        //     sr = sr.with_yaml();
-        // }
+        #[cfg(feature = "enable_yaml")]
+        {
+            sr = sr.with_yaml();
+        }
         sr
     }
 }
@@ -341,10 +354,17 @@ mod tests {
 }
 
 /// [`Salak`] builder.
+#[derive(Debug)]
 pub struct SalakBuilder {
-    args: Option<args::SysArgsMode>,
+    args: Option<SysArgsMode>,
     enable_placeholder: bool,
     enable_default_registry: bool,
+}
+
+impl Default for SalakBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SalakBuilder {
@@ -361,17 +381,17 @@ impl SalakBuilder {
     /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
     #[cfg(feature = "enable_clap")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
-    pub fn with_default_args(mut self, param: args::SysArgsParam) -> Self {
+    pub fn with_default_args(mut self, param: SysArgsParam) -> Self {
         self.args = Some(args::SysArgsMode::Auto(param));
         self
     }
 
     /// Use custom command line arguments parser.
     /// Users should provide a parser to produce [`Vec<(String, Property)>`].
-    pub fn with_custom_args<P: ToProperty>(mut self, args: Vec<(String, P)>) -> Self {
+    pub fn with_custom_args<P: IntoProperty>(mut self, args: Vec<(String, P)>) -> Self {
         self.args = Some(args::SysArgsMode::Custom(
             args.into_iter()
-                .map(|(k, v)| (k, v.to_property()))
+                .map(|(k, v)| (k, v.into_property()))
                 .collect(),
         ));
         self
@@ -405,10 +425,10 @@ impl SalakBuilder {
             {
                 sr = sr.with_toml();
             }
-            // #[cfg(feature = "enable_yaml")]
-            // {
-            //     sr = sr.with_yaml();
-            // }
+            #[cfg(feature = "enable_yaml")]
+            {
+                sr = sr.with_yaml();
+            }
             sr
         } else {
             SourceRegistry::new()
@@ -418,6 +438,7 @@ impl SalakBuilder {
 }
 
 /// A wrapper for [`Environment`], which can hide the implementation details.
+#[allow(missing_debug_implementations)]
 pub struct Salak(PlaceholderResolver<SourceRegistry>);
 
 impl Salak {

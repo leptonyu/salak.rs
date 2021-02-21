@@ -16,7 +16,7 @@ pub(crate) trait FileToPropertySource {
 }
 
 impl FileConfig {
-    pub fn new(env: &impl Environment) -> Self {
+    pub(crate) fn new(env: &impl Environment) -> Self {
         let _fc = Self {
             dir: env.get("app.conf.dir"),
             name: env.get_or("app.conf.name", "app".to_owned()),
@@ -38,17 +38,17 @@ impl FileConfig {
         if let Some(dir) = &self.dir {
             v.push(PathBuf::from(dir));
         }
-        if let Some(dir) = current_dir().ok() {
+        if let Ok(dir) = current_dir() {
             v.push(dir);
         }
-        if let Some(dir) = var("HOME").ok() {
+        if let Ok(dir) = var("HOME") {
             v.push(PathBuf::from(dir));
         }
-        fn _build(v: &Vec<PathBuf>, f: &str) -> Vec<PathBuf> {
+        fn _build(v: &[PathBuf], f: &str) -> Vec<PathBuf> {
             v.iter()
                 .map(|d| {
                     let mut d = d.clone();
-                    d.push(f.clone());
+                    d.push(<&str>::clone(&f));
                     d
                 })
                 .filter(|f| f.exists())

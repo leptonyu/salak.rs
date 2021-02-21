@@ -3,78 +3,82 @@ use crate::*;
 use core::convert::TryFrom;
 
 /// Convert to [`Property`].
-pub trait ToProperty: Sized {
-    fn to_property(self) -> Property;
+pub trait IntoProperty: Sized {
+    /// Convert to property.
+    fn into_property(self) -> Property;
 }
 
-impl ToProperty for Property {
-    fn to_property(self) -> Property {
+impl IntoProperty for Property {
+    fn into_property(self) -> Property {
         self
     }
 }
 
-impl ToProperty for String {
-    fn to_property(self) -> Property {
+impl IntoProperty for String {
+    fn into_property(self) -> Property {
         Property::Str(self)
     }
 }
 
-impl ToProperty for &str {
-    fn to_property(self) -> Property {
+impl IntoProperty for &str {
+    fn into_property(self) -> Property {
         Property::Str(self.to_owned())
     }
 }
 
-macro_rules! impl_to_property {
+macro_rules! impl_into_property {
     ($x:ident) => {
-        impl ToProperty for $x {
-            fn to_property(self) -> Property {
+        impl IntoProperty for $x {
+            #[allow(trivial_numeric_casts)]
+            fn into_property(self) -> Property {
                 Property::Int(self as i64)
             }
         }
     };
     ($x:ident, $($y:ident),+) => {
-        impl_to_property!($x);
-        impl_to_property!($($y),+);
+        impl_into_property!($x);
+        impl_into_property!($($y),+);
     };
 }
 
-impl_to_property!(u8, u16, u32, i8, i16, i32, i64);
+impl_into_property!(u8, u16, u32, i8, i16, i32, i64);
 
-macro_rules! impl_to_property_str {
+macro_rules! impl_into_property_str {
     ($x:ident) => {
-        impl ToProperty for $x {
-            fn to_property(self) -> Property {
+        impl IntoProperty for $x {
+            fn into_property(self) -> Property {
                 Property::Str(self.to_string())
             }
         }
     };
     ($x:ident, $($y:ident),+) => {
-        impl_to_property_str!($x);
-        impl_to_property_str!($($y),+);
+        impl_into_property_str!($x);
+        impl_into_property_str!($($y),+);
     };
 }
 
-impl_to_property_str!(u64, u128, i128, isize, usize);
+impl_into_property_str!(u64, u128, i128, isize, usize);
 
-macro_rules! impl_float_to_property {
+macro_rules! impl_float_into_property {
     ($x:ident) => {
-        impl ToProperty for $x {
-            fn to_property(self) -> Property {
+        impl IntoProperty for $x {
+            #[allow(trivial_numeric_casts)]
+            fn into_property(self) -> Property {
                 Property::Float(self as f64)
             }
         }
     };
     ($x:ident, $($y:ident),+) => {
-        impl_float_to_property!($x);
-        impl_float_to_property!($($y),+);
+        impl_float_into_property!($x);
+        impl_float_into_property!($($y),+);
     };
 }
 
-impl_float_to_property!(f32, f64);
+impl_float_into_property!(f32, f64);
 
 /// Convert value from [`Property`].
 pub trait FromProperty: Sized {
+    /// Convert from property.
     fn from_property(_: Property) -> Result<Self, PropertyError>;
 }
 
@@ -129,6 +133,7 @@ impl_from_property!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isi
 macro_rules! impl_float_from_property {
     ($x:ident) => {
         impl FromProperty for $x {
+            #[allow(trivial_numeric_casts)]
             fn from_property(p: Property) -> Result<Self, PropertyError> {
                 match p {
                     Property::Str(str) => Ok(str.parse::<$x>()?),
@@ -152,8 +157,8 @@ impl_float_from_property!(f64, f32);
 impl FromProperty for bool {
     fn from_property(p: Property) -> Result<Self, PropertyError> {
         lazy_static::lazy_static! {
-        static ref STR_YES: HashSet<String> = vec!["yes","y","1","true","t"].into_iter().map(|a|format!("{}",a)).collect();
-        static ref STR_NO: HashSet<String> = vec!["no","n","0","false","f"].into_iter().map(|a|format!("{}",a)).collect();
+        static ref STR_YES: HashSet<String> = vec!["yes","y","1","true","t"].into_iter().map(|a|a.to_string()).collect();
+        static ref STR_NO: HashSet<String> = vec!["no","n","0","false","f"].into_iter().map(|a|a.to_string()).collect();
         }
         match p {
             Property::Str(str) => {
@@ -247,7 +252,7 @@ mod tests {
     #[quickcheck]
     fn num_tests(i: i64) {
         assert_eq!(Ok(i), i64::from_property(Property::Str(format!("{}", i))));
-        assert_eq!(Ok(i), i64::from_property(Property::Int(i as i64)));
+        assert_eq!(Ok(i), i64::from_property(Property::Int(i)));
         assert_eq!(
             Err(PropertyError::parse_failed(
                 "Bool value cannot convert to i64"
@@ -258,62 +263,62 @@ mod tests {
 
     #[quickcheck]
     fn u8_tests(i: u8) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn u16_tests(i: u16) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn u32_tests(i: u32) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn u64_tests(i: u64) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn u128_tests(i: u128) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn i8_tests(i: i8) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn i16_tests(i: i16) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn i32_tests(i: i32) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn i64_tests(i: i64) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn i128_tests(i: i128) -> bool {
-        FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn f32_tests(i: f32) -> bool {
-        !i.is_finite() || FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        !i.is_finite() || FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]
     fn f64_tests(i: f64) -> bool {
-        !i.is_finite() || FromProperty::from_property(ToProperty::to_property(i)) == Ok(i)
+        !i.is_finite() || FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
     }
 
     #[quickcheck]

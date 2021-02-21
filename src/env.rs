@@ -2,12 +2,13 @@
 use crate::*;
 
 /// A wrapper of [`PropertySource`] for getting properties from system environment.
+#[derive(Debug, Copy, Clone)]
 pub struct SysEnv;
 
 impl SysEnv {
     fn normalize_keys(name: &str) -> Vec<String> {
         let mut v = vec![name.to_owned()];
-        if let Some(_) = name.find('.') {
+        if name.find('.').is_some() {
             let name = name
                 .replace('_', "__")
                 .replace("]", "")
@@ -28,7 +29,7 @@ impl PropertySource for SysEnv {
     }
     fn get_property(&self, name: &str) -> Option<Property> {
         for n in Self::normalize_keys(name) {
-            if let Some(v) = std::env::var(n).ok() {
+            if let Ok(v) = std::env::var(n) {
                 return Some(Property::Str(v));
             }
         }

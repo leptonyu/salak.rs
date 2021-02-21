@@ -21,8 +21,8 @@ impl MapPropertySource {
     }
 
     /// Add property to [`MapPropertySource`].
-    pub fn insert<T: ToProperty>(&mut self, name: String, value: T) {
-        self.map.insert(name, value.to_property());
+    pub fn insert<T: IntoProperty>(&mut self, name: String, value: T) {
+        self.map.insert(name, value.into_property());
     }
 }
 
@@ -35,7 +35,7 @@ impl PropertySource for MapPropertySource {
         self.map.contains_key(name)
     }
     fn get_property(&self, name: &str) -> Option<Property> {
-        self.map.get(name).map(|p| p.clone())
+        self.map.get(name).cloned()
     }
     fn is_empty(&self) -> bool {
         self.map.is_empty()

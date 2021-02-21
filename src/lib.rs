@@ -59,17 +59,16 @@
 //!     description: String,
 //! }
 //!
-//! fn main() {
-//!   std::env::set_var("database.url", "localhost:5432");
-//!   let env = SalakBuilder::new()
-//!      .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
-//!      .build();
-//!  
-//!   match env.require::<DatabaseConfig>("database") {
-//!       Ok(val) => println!("{:?}", val),
-//!       Err(e) => println!("{}", e),
-//!   }
+//! std::env::set_var("database.url", "localhost:5432");
+//! let env = SalakBuilder::new()
+//!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
+//!    .build();
+//!
+//! match env.require::<DatabaseConfig>("database") {
+//!     Ok(val) => println!("{:?}", val),
+//!     Err(e) => println!("{}", e),
 //! }
+//!
 //! // Output: DatabaseConfig {
 //! //  url: "localhost:5432",
 //! //  name: "salak",
@@ -80,6 +79,21 @@
 //! ```
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(
+    anonymous_parameters,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    nonstandard_style,
+    rust_2018_idioms,
+    single_use_lifetimes,
+    trivial_casts,
+    trivial_numeric_casts,
+    unreachable_pub,
+    unused_extern_crates,
+    unused_qualifications,
+    variant_size_differences
+)]
 
 use crate::map::MapPropertySource;
 use crate::property::*;
@@ -88,53 +102,65 @@ use log::*;
 use std::collections::HashSet;
 use std::hash::BuildHasher;
 use std::hash::Hash;
-use std::iter::FromIterator;
 
 #[cfg(test)]
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
-#[cfg(feature = "enable_derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
-/// Auto derive [`FromEnvironment`] for struct.
-pub use salak_derive::FromEnvironment;
-
+pub use crate::args::*;
 pub use crate::err::*;
 
 // Enable register args in [`Environment`].
 #[macro_use]
-pub mod args;
-pub mod env;
+mod args;
 mod environment;
 mod err;
 mod file;
+
+pub mod env;
 pub mod map;
 pub mod property;
+
+/// Auto derive [`FromEnvironment`] for struct.
+#[cfg(feature = "enable_derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
+pub use salak_derive::FromEnvironment;
+
 // Enable register toml in [`Environment`].
 #[cfg(feature = "enable_toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
 pub mod toml;
 
+// Enable register yaml in [`Environment`].
+#[cfg(feature = "enable_yaml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
+pub mod yaml;
+
 pub use crate::environment::{PlaceholderResolver, Salak, SalakBuilder, SourceRegistry};
 
 /// Unified property structure.
 #[derive(Clone, Debug)]
+#[allow(missing_docs)]
 pub enum Property {
+    // String
     Str(String),
+    // Integer
     Int(i64),
+    // Float
     Float(f64),
+    // Bool
     Bool(bool),
 }
 
 #[doc(hidden)]
 pub trait SalakStringUtil {
-    fn to_prefix(self) -> String;
+    fn to_prefix(&self) -> String;
 }
 
 impl SalakStringUtil for &str {
-    fn to_prefix(self) -> String {
+    fn to_prefix(&self) -> String {
         if self.is_empty() {
-            self.to_owned()
+            self.to_owned().to_string()
         } else {
             format!("{}.", self)
         }
@@ -159,19 +185,28 @@ pub trait PropertySource: Sync + Send {
 /// An option be used to add default values for some keys.
 ///
 /// May extend options for future use.
+#[derive(Debug)]
 pub struct EnvironmentOption {
     map: MapPropertySource,
 }
 
 impl EnvironmentOption {
+    /// Create default option.
     pub fn new() -> Self {
         Self {
             map: MapPropertySource::empty("environment_option_default"),
         }
     }
 
-    pub fn insert<P: ToProperty>(&mut self, name: String, value: P) {
+    /// Insert key value.
+    pub fn insert<P: IntoProperty>(&mut self, name: String, value: P) {
         self.map.insert(name, value);
+    }
+}
+
+impl Default for EnvironmentOption {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -324,9 +359,11 @@ where
         disable_placeholder: bool,
         mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
-        Ok(HashSet::from_iter(
-            <Vec<T>>::from_env(name, p, env, disable_placeholder, mut_option)?.into_iter(),
-        ))
+        Ok(
+            <Vec<T>>::from_env(name, p, env, disable_placeholder, mut_option)?
+                .into_iter()
+                .collect(),
+        )
     }
 }
 
@@ -336,12 +373,12 @@ where
 mod tests {
     use crate::*;
     #[derive(FromEnvironment, Debug)]
-    pub struct DatabaseConfigObj {
+    struct DatabaseConfigObj {
         hello: String,
         world: Option<String>,
     }
     #[derive(FromEnvironment, Debug)]
-    pub struct DatabaseConfigDetail {
+    struct DatabaseConfigDetail {
         #[salak(default = "str")]
         option_str: String,
         #[salak(default = 1)]
@@ -352,7 +389,7 @@ mod tests {
     }
 
     #[derive(FromEnvironment, Debug)]
-    pub struct DatabaseConfig {
+    struct DatabaseConfig {
         url: String,
         #[salak(default = "salak")]
         name: String,
