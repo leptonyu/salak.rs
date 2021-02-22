@@ -58,7 +58,7 @@
 //!
 //! std::env::set_var("database.url", "localhost:5432");
 //! std::env::set_var("database.description", "\\$\\{Hello\\}");
-//! let env = SalakBuilder::new()
+//! let env = Salak::new()
 //!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
 //!    .build();
 //!
@@ -362,7 +362,7 @@ mod tests {
     }
     #[test]
     fn integration_tests() {
-        let env = SalakBuilder::new()
+        let env = Salak::new()
             .with_custom_args(vec![
                 ("database.detail.option_arr[0]".to_owned(), "10"),
                 ("database.url".to_owned(), "localhost:5432"),

@@ -354,20 +354,11 @@ pub struct SalakBuilder {
 
 impl Default for SalakBuilder {
     fn default() -> Self {
-        Self::new()
+        Salak::new()
     }
 }
 
 impl SalakBuilder {
-    /// Create default builder.
-    pub fn new() -> Self {
-        Self {
-            args: None,
-            enable_placeholder: true,
-            enable_default_registry: true,
-        }
-    }
-
     /// Use default command line arguments parser.
     /// Please use macro [`auto_read_sys_args_param!`] to generate [`args::SysArgsParam`].
     #[cfg(feature = "enable_clap")]
@@ -434,6 +425,14 @@ pub struct Salak(PlaceholderResolver<SourceRegistry>);
 
 impl Salak {
     /// Register property source at last.
+    pub fn new() -> SalakBuilder {
+        SalakBuilder {
+            args: None,
+            enable_placeholder: true,
+            enable_default_registry: true,
+        }
+    }
+    /// Create default builder.
     pub fn register_source(&mut self, ps: Box<dyn PropertySource>) {
         self.0.env.register_source(ps);
     }
@@ -445,7 +444,7 @@ impl Salak {
 
 impl Default for Salak {
     fn default() -> Self {
-        SalakBuilder::new().build()
+        Salak::new().build()
     }
 }
 
