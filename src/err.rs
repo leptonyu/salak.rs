@@ -1,4 +1,4 @@
-use core::num::*;
+use core::num::{ParseFloatError, ParseIntError, TryFromIntError};
 use core::str::ParseBoolError;
 use std::convert::Infallible;
 use std::fmt::{Display, Error, Formatter};

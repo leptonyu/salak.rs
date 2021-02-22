@@ -96,7 +96,7 @@
 )]
 
 use crate::map::MapPropertySource;
-use crate::property::*;
+use crate::property::{FromProperty, IntoProperty};
 #[cfg(feature = "enable_log")]
 use log::*;
 use std::collections::HashSet;
@@ -108,9 +108,21 @@ use std::hash::Hash;
 extern crate quickcheck_macros;
 
 pub use crate::args::*;
-pub use crate::err::*;
+pub use crate::err::PropertyError;
 
-// Enable register args in [`Environment`].
+#[cfg(feature = "enable_derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
+#[allow(unused_imports)]
+pub use crate::derive::*;
+/// Auto derive [`FromEnvironment`] for struct.
+#[cfg(feature = "enable_derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
+pub use salak_derive::FromEnvironment;
+
+#[cfg(feature = "enable_derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
+mod derive;
+
 #[macro_use]
 mod args;
 mod environment;
@@ -120,11 +132,6 @@ mod file;
 pub mod env;
 pub mod map;
 pub mod property;
-
-/// Auto derive [`FromEnvironment`] for struct.
-#[cfg(feature = "enable_derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
-pub use salak_derive::FromEnvironment;
 
 // Enable register toml in [`Environment`].
 #[cfg(feature = "enable_toml")]
@@ -180,6 +187,12 @@ pub trait PropertySource: Sync + Send {
     }
     /// Check if the source is empty.
     fn is_empty(&self) -> bool;
+}
+
+/// Allow to add property to source.
+pub trait MutPropertySource: PropertySource {
+    /// Insert key value.
+    fn insert<P: IntoProperty>(&mut self, name: String, value: P);
 }
 
 /// An option be used to add default values for some keys.
@@ -252,6 +265,10 @@ pub trait Environment: Sync + Send + Sized {
     fn get_or<T: FromEnvironment>(&self, name: &str, default: T) -> T {
         self.get(name).unwrap_or(default)
     }
+
+    #[doc(hidden)]
+    #[cfg(feature = "enable_derive")]
+    fn load(&self, _id: &str, _prefix: &str, _def: Vec<(String, Property)>) {}
 }
 
 /// Generate object from [`Environment`].
@@ -273,6 +290,11 @@ pub trait FromEnvironment: Sized {
     /// Notify if the value is empty value. Such as `Vec<T>` or `Option<T>`.
     fn check_is_empty(&self) -> bool {
         false
+    }
+
+    /// Load default value.
+    fn load_default() -> Vec<(String, Property)> {
+        vec![]
     }
 }
 
@@ -312,6 +334,10 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
     }
     fn check_is_empty(&self) -> bool {
         self.is_none()
+    }
+
+    fn load_default() -> Vec<(String, Property)> {
+        P::load_default()
     }
 }
 
@@ -389,14 +415,13 @@ mod tests {
     }
 
     #[derive(FromEnvironment, Debug)]
+    #[salak(prefix = "database")]
     struct DatabaseConfig {
         url: String,
         #[salak(default = "salak")]
-        name: String,
-        #[salak(default = "${database.name}")]
         username: String,
         password: Option<String>,
-        #[salak(default = "\\{Hello\\}")]
+        #[salak(disable_placeholder)]
         description: String,
         detail: DatabaseConfigDetail,
     }
@@ -406,6 +431,7 @@ mod tests {
             .with_custom_args(vec![
                 ("database.detail.option_arr[0]".to_owned(), "10"),
                 ("database.url".to_owned(), "localhost:5432"),
+                ("database.description".to_owned(), "${Hello}"),
             ])
             .build();
 
@@ -413,9 +439,9 @@ mod tests {
         assert_eq!(true, ret.is_ok());
         let ret = ret.unwrap();
         assert_eq!("localhost:5432", ret.url);
-        assert_eq!("salak", ret.name);
         assert_eq!("salak", ret.username);
         assert_eq!(None, ret.password);
+        assert_eq!("${Hello}", ret.description);
         let ret = ret.detail;
         assert_eq!("str", ret.option_str);
         assert_eq!(1, ret.option_i64);

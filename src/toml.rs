@@ -1,7 +1,7 @@
 //! Provide toml [`PropertySource`].
 use crate::file::FileToPropertySource;
 use crate::*;
-use ::toml::*;
+use ::toml::{from_str, Value};
 use std::path::PathBuf;
 
 /// Support read toml file as [`PropertySource`].

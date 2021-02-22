@@ -3,7 +3,7 @@ use crate::*;
 use std::collections::HashMap;
 
 /// A simple implementation of [`PropertySource`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MapPropertySource {
     name: String,
     map: HashMap<String, Property>,
@@ -18,11 +18,6 @@ impl MapPropertySource {
     /// Create a new [`MapPropertySource`].
     pub fn new(name: String, map: HashMap<String, Property>) -> Self {
         MapPropertySource { name, map }
-    }
-
-    /// Add property to [`MapPropertySource`].
-    pub fn insert<T: IntoProperty>(&mut self, name: String, value: T) {
-        self.map.insert(name, value.into_property());
     }
 }
 
@@ -39,5 +34,11 @@ impl PropertySource for MapPropertySource {
     }
     fn is_empty(&self) -> bool {
         self.map.is_empty()
+    }
+}
+
+impl MutPropertySource for MapPropertySource {
+    fn insert<T: IntoProperty>(&mut self, name: String, value: T) {
+        self.map.insert(name, value.into_property());
     }
 }

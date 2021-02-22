@@ -168,6 +168,12 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
             self.env.require_with_options(name, false, mut_option)
         }
     }
+
+    #[doc(hidden)]
+    #[cfg(feature = "enable_derive")]
+    fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
+        self.env.load(id, prefix, def);
+    }
 }
 
 /// An implementation of [`Environment`] for registering [`PropertySource`].
@@ -175,6 +181,8 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
 pub struct SourceRegistry {
     #[allow(dead_code)]
     conf: Option<FileConfig>,
+    #[cfg(feature = "enable_derive")]
+    default: std::sync::RwLock<(HashSet<String>, MapPropertySource)>,
     sources: Vec<Box<dyn PropertySource>>,
 }
 
@@ -183,6 +191,8 @@ impl SourceRegistry {
     pub fn new() -> Self {
         SourceRegistry {
             conf: None,
+            #[cfg(feature = "enable_derive")]
+            default: std::sync::RwLock::new((HashSet::new(), MapPropertySource::empty("default"))),
             sources: vec![],
         }
     }
@@ -296,9 +306,31 @@ impl Environment for SourceRegistry {
                     break;
                 }
             }
-            x = x.or_else(|| mut_option.map.get_property(name));
+            #[cfg(feature = "enable_derive")]
+            {
+                x = x.or_else(|| {
+                    self.default
+                        .read()
+                        .expect("READ lock failed")
+                        .1
+                        .get_property(name)
+                });
+            }
         }
         T::from_env(name, x, self, disable_placeholder, mut_option)
+    }
+
+    #[doc(hidden)]
+    #[cfg(feature = "enable_derive")]
+    fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
+        let df = &mut (*self.default.write().expect("WRTIE get failed"));
+        if df.0.insert(id.to_string()) {
+            #[cfg(feature = "enable_derive")]
+            log::info!("Log {}", id);
+            for (k, v) in def {
+                df.1.insert(format!("{}.{}", prefix, k), v);
+            }
+        }
     }
 }
 
@@ -473,5 +505,11 @@ impl Environment for Salak {
     {
         self.0
             .require_with_options(name, disable_placeholder, mut_option)
+    }
+
+    #[doc(hidden)]
+    #[cfg(feature = "enable_derive")]
+    fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
+        self.0.env.load(id, prefix, def);
     }
 }
