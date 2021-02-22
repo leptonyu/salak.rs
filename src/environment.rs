@@ -325,8 +325,6 @@ impl Environment for SourceRegistry {
     fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
         let df = &mut (*self.default.write().expect("WRTIE get failed"));
         if df.0.insert(id.to_string()) {
-            #[cfg(feature = "enable_derive")]
-            log::info!("Log {}", id);
             for (k, v) in def {
                 df.1.insert(format!("{}.{}", prefix, k), v);
             }
