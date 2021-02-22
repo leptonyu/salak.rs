@@ -41,31 +41,21 @@ impl<E: Environment> PlaceholderResolver<E> {
         &self,
         name: &str,
         contains: &mut HashSet<String>,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
     ) -> Result<T, PropertyError> {
         if !contains.insert(name.to_owned()) {
             return Err(PropertyError::RecursiveParse(name.to_owned()));
         }
-        let p = match self.env.require_with_options::<Option<Property>>(
-            name,
-            disable_placeholder,
-            mut_option,
-        )? {
-            Some(Property::Str(s)) => {
-                self.parse_value(&s, contains, disable_placeholder, mut_option)?
-            }
+        let p = match self.env.require::<Option<Property>>(name)? {
+            Some(Property::Str(s)) => self.parse_value(&s, contains)?,
             v => v,
         };
-        T::from_env(name, p, self, disable_placeholder, mut_option)
+        T::from_env(name, p, self)
     }
 
     fn parse_value(
         &self,
         mut val: &str,
         contains: &mut HashSet<String>,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
     ) -> Result<Option<Property>, PropertyError> {
         let mut stack: Vec<String> = vec![];
         let mut pre = "".to_owned();
@@ -112,20 +102,10 @@ impl<E: Environment> PlaceholderResolver<E> {
                             &name
                         };
                         let value = if let Some(d) = def {
-                            self.require_with_parse::<Option<String>>(
-                                &key,
-                                contains,
-                                disable_placeholder,
-                                mut_option,
-                            )?
-                            .unwrap_or(d)
+                            self.require_with_parse::<Option<String>>(&key, contains)?
+                                .unwrap_or(d)
                         } else {
-                            self.require_with_parse::<String>(
-                                &key,
-                                contains,
-                                disable_placeholder,
-                                mut_option,
-                            )?
+                            self.require_with_parse::<String>(&key, contains)?
                         };
                         if let Some(mut prefix) = stack.pop() {
                             prefix.push_str(&value);
@@ -153,26 +133,19 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
         self.env.contains(name)
     }
 
-    fn require_with_options<T>(
-        &self,
-        name: &str,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
-    ) -> Result<T, PropertyError>
+    fn require<T>(&self, name: &str) -> Result<T, PropertyError>
     where
         T: FromEnvironment,
     {
-        if self.enabled && !disable_placeholder && !name.is_empty() {
-            self.require_with_parse::<T>(name, &mut HashSet::new(), false, mut_option)
+        if self.enabled && !name.is_empty() {
+            self.require_with_parse::<T>(name, &mut HashSet::new())
         } else {
-            self.env.require_with_options(name, false, mut_option)
+            self.env.require(name)
         }
     }
 
-    #[doc(hidden)]
-    #[cfg(feature = "enable_derive")]
-    fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
-        self.env.load(id, prefix, def);
+    fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
+        self.parse_value(&value, &mut HashSet::new())
     }
 }
 
@@ -292,12 +265,7 @@ impl Environment for SourceRegistry {
     fn contains(&self, name: &str) -> bool {
         self.sources.iter().any(|a| a.contains_property(name))
     }
-    fn require_with_options<T: FromEnvironment>(
-        &self,
-        name: &str,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
-    ) -> Result<T, PropertyError> {
+    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
         let mut x = None;
         if !name.is_empty() {
             for ps in self.sources.iter() {
@@ -317,18 +285,11 @@ impl Environment for SourceRegistry {
                 });
             }
         }
-        T::from_env(name, x, self, disable_placeholder, mut_option)
+        T::from_env(name, x, self)
     }
 
-    #[doc(hidden)]
-    #[cfg(feature = "enable_derive")]
-    fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
-        let df = &mut (*self.default.write().expect("WRTIE get failed"));
-        if df.0.insert(id.to_string()) {
-            for (k, v) in def {
-                df.1.insert(format!("{}.{}", prefix, k), v);
-            }
-        }
+    fn resolve_placeholder(&self, _: String) -> Result<Option<Property>, PropertyError> {
+        Err(PropertyError::parse_failed("Placeholder not implement"))
     }
 }
 
@@ -492,22 +453,13 @@ impl Environment for Salak {
     fn contains(&self, name: &str) -> bool {
         self.0.contains(name)
     }
-    fn require_with_options<T>(
-        &self,
-        name: &str,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
-    ) -> Result<T, PropertyError>
+    fn require<T>(&self, name: &str) -> Result<T, PropertyError>
     where
         T: FromEnvironment,
     {
-        self.0
-            .require_with_options(name, disable_placeholder, mut_option)
+        self.0.require(name)
     }
-
-    #[doc(hidden)]
-    #[cfg(feature = "enable_derive")]
-    fn load(&self, id: &str, prefix: &str, def: Vec<(String, Property)>) {
-        self.0.env.load(id, prefix, def);
+    fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
+        self.0.resolve_placeholder(value)
     }
 }

@@ -36,7 +36,7 @@ pub enum Hello {
 fn main() {
     env_logger::init();
     std::env::set_var("database.url", "localhost:5432");
-    std::env::set_var("database.description", "${Hello}");
+    std::env::set_var("database.description", "\\$\\{Hello\\}");
     std::env::set_var("database.detail.option_arr[0]", "10");
     let env = SalakBuilder::new()
         .with_default_args(auto_read_sys_args_param!())

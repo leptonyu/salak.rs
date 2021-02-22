@@ -99,7 +99,7 @@ fn parse_field_attribute(attrs: Vec<Attribute>) -> (bool, Option<String>) {
 fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
     let name = field.ident.expect("Not possible");
     let ty = field.ty;
-    let (disable_placeholder, def) = parse_field_attribute(field.attrs);
+    let (_, def) = parse_field_attribute(field.attrs);
     let temp_name = quote::format_ident!("__{}", name);
     let property = match def {
         Some(def) => quote! {
@@ -113,10 +113,8 @@ fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__privat
         },
         quote! {
             #name: <#ty>::from_env(&#temp_name,
-                env.require_with_options::<Option<String>>(&#temp_name, #disable_placeholder, mut_option)?#property.map(|p|Property::Str(p)),
-                env,
-                #disable_placeholder,
-                mut_option)?
+                env.require::<Option<String>>(&#temp_name)?#property.map(|p|Property::Str(p)),
+                env)?
         },
     )
 }
@@ -157,7 +155,7 @@ fn derive_enum(
     attrs: Vec<Attribute>,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let (disable_placeholder, def) = parse_field_attribute(attrs);
+    let (_, def) = parse_field_attribute(attrs);
     let def = if let Some(def) = def {
         quote! {
             .or(Some(#def))
@@ -179,7 +177,7 @@ fn derive_enum(
         vs.push(body);
     }
     quote! {
-        if let Some(def) = env.require_with_options::<Option<String>>(name, #disable_placeholder, mut_option)?#def {
+        if let Some(def) = env.require::<Option<String>>(name)?#def {
             return match &def[..] {
                 #(#vs)*
                 v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),
@@ -218,8 +216,6 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
                 name: &str,
                 property: Option<Property>,
                 env: &impl Environment,
-                _: bool,
-                mut_option: &mut EnvironmentOption,
             ) -> Result<Self, PropertyError> {
                 #body
             }

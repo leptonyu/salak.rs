@@ -58,7 +58,7 @@
 //! }
 //!
 //! std::env::set_var("database.url", "localhost:5432");
-//! std::env::set_var("database.description", "${Hello}");
+//! std::env::set_var("database.description", "\\$\\{Hello\\}");
 //! let env = SalakBuilder::new()
 //!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
 //!    .build();
@@ -229,23 +229,7 @@ pub trait Environment: Sync + Send + Sized {
         self.require::<Property>(name).is_ok()
     }
     /// Get required value, or return error.
-    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
-        self.require_with_options(name, false, &mut EnvironmentOption::new())
-    }
-    /// Get required raw value without parsing placeholders, or return error.
-    fn require_raw<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
-        self.require_with_options(name, true, &mut EnvironmentOption::new())
-    }
-
-    /// Get value with options.
-    /// 1. `disable_placeholder` can disable placeholder parsing.
-    /// 2. `mut_option` can add default values.
-    fn require_with_options<T: FromEnvironment>(
-        &self,
-        name: &str,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
-    ) -> Result<T, PropertyError>;
+    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError>;
 
     /// Get required value, if not exists then return default value, otherwise return error.
     fn require_or<T: FromEnvironment>(&self, name: &str, default: T) -> Result<T, PropertyError> {
@@ -265,9 +249,8 @@ pub trait Environment: Sync + Send + Sized {
         self.get(name).unwrap_or(default)
     }
 
-    #[doc(hidden)]
-    #[cfg(feature = "enable_derive")]
-    fn load(&self, _id: &str, _prefix: &str, _def: Vec<(String, Property)>) {}
+    /// Resolve placeholder.
+    fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
 }
 
 /// Generate object from [`Environment`].
@@ -277,8 +260,6 @@ pub trait FromEnvironment: Sized {
         prefix: &str,
         p: Option<Property>,
         env: &impl Environment,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError>;
 
     /// Handle special case such as property not found.
@@ -302,8 +283,6 @@ impl<P: FromProperty> FromEnvironment for P {
         n: &str,
         property: Option<Property>,
         _: &impl Environment,
-        _: bool,
-        _: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
         if let Some(p) = property {
             return P::from_property(p);
@@ -317,10 +296,8 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
         n: &str,
         property: Option<Property>,
         env: &impl Environment,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
-        match P::from_env(n, property, env, disable_placeholder, mut_option) {
+        match P::from_env(n, property, env) {
             Ok(a) => Ok(Some(a)),
             Err(err) => Self::from_err(err),
         }
@@ -345,19 +322,13 @@ impl<P: FromEnvironment> FromEnvironment for Vec<P> {
         name: &str,
         _: Option<Property>,
         env: &impl Environment,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
         let mut vs = vec![];
         let mut i = 0;
         let mut key = format!("{}[{}]", &name, i);
-        while let Some(v) = <Option<P>>::from_env(
-            &key,
-            env.require::<Option<Property>>(&key)?,
-            env,
-            disable_placeholder,
-            mut_option,
-        )? {
+        while let Some(v) =
+            <Option<P>>::from_env(&key, env.require::<Option<Property>>(&key)?, env)?
+        {
             if v.check_is_empty() {
                 break;
             }
@@ -381,14 +352,8 @@ where
         name: &str,
         p: Option<Property>,
         env: &impl Environment,
-        disable_placeholder: bool,
-        mut_option: &mut EnvironmentOption,
     ) -> Result<Self, PropertyError> {
-        Ok(
-            <Vec<T>>::from_env(name, p, env, disable_placeholder, mut_option)?
-                .into_iter()
-                .collect(),
-        )
+        Ok(<Vec<T>>::from_env(name, p, env)?.into_iter().collect())
     }
 }
 
@@ -430,7 +395,7 @@ mod tests {
             .with_custom_args(vec![
                 ("database.detail.option_arr[0]".to_owned(), "10"),
                 ("database.url".to_owned(), "localhost:5432"),
-                ("database.description".to_owned(), "${Hello}"),
+                ("database.description".to_owned(), "\\$\\{Hello\\}"),
             ])
             .build();
 
