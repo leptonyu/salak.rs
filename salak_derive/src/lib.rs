@@ -151,7 +151,7 @@ fn derive_enum(
         vs.push(body);
     }
     quote! {
-        if let Some(Property::Str(def)) = env.require::<Option<Property>>(name)?#def {
+        if let Some(Property::Str(def)) = property#def {
             return match &def[..] {
                 #(#vs)*
                 v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),
