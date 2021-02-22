@@ -22,13 +22,6 @@ fn parse_lit(lit: Lit) -> String {
     }
 }
 
-fn parse_lit_bool(lit: Lit) -> bool {
-    match lit {
-        Lit::Bool(b) => b.value,
-        _ => panic!("Please use bool value"),
-    }
-}
-
 fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     for attr in attrs {
         if let Ok(v) = attr.parse_meta() {
@@ -59,8 +52,7 @@ fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     None
 }
 
-fn parse_field_attribute(attrs: Vec<Attribute>) -> (bool, Option<String>) {
-    let mut disable_placeholder = false;
+fn parse_field_attribute(attrs: Vec<Attribute>) -> quote::__private::TokenStream {
     let mut def = None;
     for attr in attrs {
         if let Ok(v) = attr.parse_meta() {
@@ -69,19 +61,9 @@ fn parse_field_attribute(attrs: Vec<Attribute>) -> (bool, Option<String>) {
                     for m in list.nested {
                         if let NestedMeta::Meta(meta) = m {
                             match meta {
-                                Meta::Path(path) => {
-                                    if parse_path(path) == "disable_placeholder" {
-                                        disable_placeholder = true;
-                                    } else {
-                                        panic!("Only support disable_placeholder");
-                                    }
-                                }
                                 Meta::NameValue(nv) => match &parse_path(nv.path)[..] {
-                                    "disable_placeholder" => {
-                                        disable_placeholder = parse_lit_bool(nv.lit)
-                                    }
                                     "default" => def = Some(parse_lit(nv.lit)),
-                                    _ => panic!("Only support disable_placeholder/default"),
+                                    _ => panic!("Only support default"),
                                 },
                                 _ => panic!("Not support Meta::List"),
                             }
@@ -93,27 +75,26 @@ fn parse_field_attribute(attrs: Vec<Attribute>) -> (bool, Option<String>) {
         }
     }
 
-    (disable_placeholder, def)
+    match def {
+        Some(def) => quote! {
+            .or(env.resolve_placeholder(#def.to_string())?)
+        },
+        _ => quote! {},
+    }
 }
 
 fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
     let name = field.ident.expect("Not possible");
     let ty = field.ty;
-    let (_, def) = parse_field_attribute(field.attrs);
     let temp_name = quote::format_ident!("__{}", name);
-    let property = match def {
-        Some(def) => quote! {
-            .or(Some(#def.to_string()))
-        },
-        _ => quote! {},
-    };
+    let def = parse_field_attribute(field.attrs);
     (
         quote! {
             let #temp_name = format!("{}{}", name ,stringify!(#name));
         },
         quote! {
             #name: <#ty>::from_env(&#temp_name,
-                env.require::<Option<String>>(&#temp_name)?#property.map(|p|Property::Str(p)),
+                env.require::<Option<Property>>(&#temp_name)?#def,
                 env)?
         },
     )
@@ -155,14 +136,7 @@ fn derive_enum(
     attrs: Vec<Attribute>,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let (_, def) = parse_field_attribute(attrs);
-    let def = if let Some(def) = def {
-        quote! {
-            .or(Some(#def))
-        }
-    } else {
-        quote! {}
-    };
+    let def = parse_field_attribute(attrs);
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;
@@ -177,7 +151,7 @@ fn derive_enum(
         vs.push(body);
     }
     quote! {
-        if let Some(def) = env.require::<Option<String>>(name)?#def {
+        if let Some(Property::Str(def)) = env.require::<Option<Property>>(name)?#def {
             return match &def[..] {
                 #(#vs)*
                 v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),

@@ -58,13 +58,12 @@ pub struct DatabaseConfig {
     #[salak(default = "salak")]
     username: String,
     password: Option<String>,
-    #[salak(disable_placeholder)]
     description: String,
 }
 
 fn main() {
   std::env::set_var("database.url", "localhost:5432");
-  std::env::set_var("database.description", "${Hello}");
+  std::env::set_var("database.description", "\\$\\{Hello\\}");
   let env = SalakBuilder::new()
      .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
      .build();

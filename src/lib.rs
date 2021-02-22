@@ -53,7 +53,6 @@
 //!     #[salak(default = "salak")]
 //!     username: String,
 //!     password: Option<String>,
-//!     #[salak(disable_placeholder)]
 //!     description: String,
 //! }
 //!
@@ -192,34 +191,6 @@ pub trait PropertySource: Sync + Send {
 pub trait MutPropertySource: PropertySource {
     /// Insert key value.
     fn insert<P: IntoProperty>(&mut self, name: String, value: P);
-}
-
-/// An option be used to add default values for some keys.
-///
-/// May extend options for future use.
-#[derive(Debug)]
-pub struct EnvironmentOption {
-    map: MapPropertySource,
-}
-
-impl EnvironmentOption {
-    /// Create default option.
-    pub fn new() -> Self {
-        Self {
-            map: MapPropertySource::empty("environment_option_default"),
-        }
-    }
-
-    /// Insert key value.
-    pub fn insert<P: IntoProperty>(&mut self, name: String, value: P) {
-        self.map.insert(name, value);
-    }
-}
-
-impl Default for EnvironmentOption {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// An environment for getting properties in multiple [`PropertySource`]s.
@@ -382,10 +353,10 @@ mod tests {
     #[salak(prefix = "database")]
     struct DatabaseConfig {
         url: String,
-        #[salak(default = "salak")]
+        name: String,
+        #[salak(default = "${database.name}")]
         username: String,
         password: Option<String>,
-        #[salak(disable_placeholder)]
         description: String,
         detail: DatabaseConfigDetail,
     }
@@ -395,6 +366,7 @@ mod tests {
             .with_custom_args(vec![
                 ("database.detail.option_arr[0]".to_owned(), "10"),
                 ("database.url".to_owned(), "localhost:5432"),
+                ("database.name".to_owned(), "salak"),
                 ("database.description".to_owned(), "\\$\\{Hello\\}"),
             ])
             .build();
@@ -403,6 +375,7 @@ mod tests {
         assert_eq!(true, ret.is_ok());
         let ret = ret.unwrap();
         assert_eq!("localhost:5432", ret.url);
+        assert_eq!("salak", ret.name);
         assert_eq!("salak", ret.username);
         assert_eq!(None, ret.password);
         assert_eq!("${Hello}", ret.description);

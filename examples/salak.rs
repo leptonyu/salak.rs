@@ -22,7 +22,6 @@ pub struct DatabaseConfig {
     #[salak(default = "salak")]
     username: String,
     password: Option<String>,
-    #[salak(disable_placeholder)]
     description: String,
     detail: DatabaseConfigDetail,
 }
