@@ -107,6 +107,7 @@ extern crate quickcheck_macros;
 
 pub use crate::args::*;
 pub use crate::err::PropertyError;
+pub use crate::property::FromProperty;
 
 #[cfg(feature = "enable_derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
