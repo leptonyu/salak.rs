@@ -1,5 +1,4 @@
 //! Provide command line arguments [`PropertySource`].
-use crate::map::MapPropertySource;
 use crate::*;
 #[cfg(feature = "enable_clap")]
 use clap::{App, Arg};
@@ -21,7 +20,7 @@ pub enum SysArgsMode {
     Custom(Vec<(String, Property)>),
 }
 
-/// Command line arguments parameters.
+/// Command line help info, such as name, version, author, etc.
 #[cfg(feature = "enable_clap")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
 #[derive(Debug, Copy, Clone)]

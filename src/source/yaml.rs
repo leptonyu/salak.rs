@@ -1,9 +1,9 @@
 //! Provide yaml [`PropertySource`].
-use crate::file::FileToPropertySource;
+use crate::source::*;
 use crate::*;
 use std::path::PathBuf;
 
-/// Support read yaml file as [`PropertySource`].
+/// [`PropertySource`] read properties from yaml file.
 #[derive(Debug, Copy, Clone)]
 pub struct Yaml;
 

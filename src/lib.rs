@@ -94,7 +94,6 @@
     variant_size_differences
 )]
 
-pub use crate::property::{FromProperty, IntoProperty};
 #[cfg(feature = "enable_log")]
 use log::*;
 use std::collections::HashSet;
@@ -105,43 +104,41 @@ use std::hash::Hash;
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
-pub use crate::args::*;
-pub use crate::err::PropertyError;
+#[cfg(feature = "enable_derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
+mod derive;
 
 #[cfg(feature = "enable_derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
-#[allow(unused_imports)]
-pub use crate::derive::*;
+pub use crate::derive::{AutoDeriveFromEnvironment, DefaultSourceFromEnvironment};
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "enable_derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
 pub use salak_derive::FromEnvironment;
 
-#[cfg(feature = "enable_derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
-mod derive;
-
-#[macro_use]
-mod args;
-mod environment;
 mod err;
-mod file;
+mod property;
+mod utils;
 
-pub mod env;
-pub mod map;
-pub mod property;
+pub use crate::err::PropertyError;
+pub use crate::utils::SalakStringUtil;
 
-// Enable register toml in [`Environment`].
+mod env;
+pub use crate::env::{
+    placeholder::PlaceholderResolver,
+    registry::SourceRegistry,
+    salak::{Salak, SalakBuilder},
+};
+
+mod source;
+
 #[cfg(feature = "enable_toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
-pub mod toml;
-
-// Enable register yaml in [`Environment`].
+pub use crate::source::toml::Toml;
 #[cfg(feature = "enable_yaml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
-pub mod yaml;
-
-pub use crate::environment::{PlaceholderResolver, Salak, SalakBuilder, SourceRegistry};
+pub use crate::source::yaml::Yaml;
+pub use crate::source::{args::*, env::SysEnvPropertySource, map::MapPropertySource};
 
 /// Unified property structure.
 #[derive(Clone, Debug)]
@@ -157,19 +154,16 @@ pub enum Property {
     Bool(bool),
 }
 
-#[doc(hidden)]
-pub trait SalakStringUtil {
-    fn to_prefix(&self) -> String;
+/// Convert to [`Property`].
+pub trait IntoProperty: Sized {
+    /// Convert to property.
+    fn into_property(self) -> Property;
 }
 
-impl SalakStringUtil for &str {
-    fn to_prefix(&self) -> String {
-        if self.is_empty() {
-            self.to_owned().to_string()
-        } else {
-            format!("{}.", self)
-        }
-    }
+/// Convert value from [`Property`].
+pub trait FromProperty: Sized {
+    /// Convert from property.
+    fn from_property(_: Property) -> Result<Self, PropertyError>;
 }
 
 /// An abstract source loader from various sources,
@@ -253,85 +247,6 @@ pub trait FromEnvironment: Sized {
     /// Load default value.
     fn load_default() -> Vec<(String, Property)> {
         vec![]
-    }
-}
-
-impl<P: FromProperty> FromEnvironment for P {
-    fn from_env(
-        n: &str,
-        property: Option<Property>,
-        _: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        if let Some(p) = property {
-            return P::from_property(p);
-        }
-        P::from_err(PropertyError::NotFound(n.to_owned()))
-    }
-}
-
-impl<P: FromEnvironment> FromEnvironment for Option<P> {
-    fn from_env(
-        n: &str,
-        property: Option<Property>,
-        env: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        match P::from_env(n, property, env) {
-            Ok(a) => Ok(Some(a)),
-            Err(err) => Self::from_err(err),
-        }
-    }
-    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
-        match err {
-            PropertyError::NotFound(_) => Ok(None),
-            _ => Err(err),
-        }
-    }
-    fn check_is_empty(&self) -> bool {
-        self.is_none()
-    }
-
-    fn load_default() -> Vec<(String, Property)> {
-        P::load_default()
-    }
-}
-
-impl<P: FromEnvironment> FromEnvironment for Vec<P> {
-    fn from_env(
-        name: &str,
-        _: Option<Property>,
-        env: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        let mut vs = vec![];
-        let mut i = 0;
-        let mut key = format!("{}[{}]", &name, i);
-        while let Some(v) =
-            <Option<P>>::from_env(&key, env.require::<Option<Property>>(&key)?, env)?
-        {
-            if v.check_is_empty() {
-                break;
-            }
-            vs.push(v);
-            i += 1;
-            key = format!("{}[{}]", &name, i);
-        }
-        Ok(vs)
-    }
-    fn check_is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl<T, S> FromEnvironment for HashSet<T, S>
-where
-    T: Eq + Hash + FromEnvironment,
-    S: BuildHasher + Default,
-{
-    fn from_env(
-        name: &str,
-        p: Option<Property>,
-        env: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        Ok(<Vec<T>>::from_env(name, p, env)?.into_iter().collect())
     }
 }
 

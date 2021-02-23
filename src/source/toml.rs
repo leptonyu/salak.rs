@@ -1,10 +1,10 @@
 //! Provide toml [`PropertySource`].
-use crate::file::FileToPropertySource;
+use crate::source::*;
 use crate::*;
 use ::toml::{from_str, Value};
 use std::path::PathBuf;
 
-/// Support read toml file as [`PropertySource`].
+/// [`PropertySource`] read properties from toml file.
 #[derive(Debug, Copy, Clone)]
 pub struct Toml;
 

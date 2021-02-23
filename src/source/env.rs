@@ -1,11 +1,11 @@
 //! Provide system environment [`PropertySource`].
 use crate::*;
 
-/// A wrapper of [`PropertySource`] for getting properties from system environment.
+/// [`PropertySource`] read properties from system environment.
 #[derive(Debug, Copy, Clone)]
-pub struct SysEnv;
+pub struct SysEnvPropertySource;
 
-impl SysEnv {
+impl SysEnvPropertySource {
     fn normalize_keys(name: &str) -> Vec<String> {
         let mut v = vec![name.to_owned()];
         if name.find('.').is_some() {
@@ -23,7 +23,7 @@ impl SysEnv {
     }
 }
 
-impl PropertySource for SysEnv {
+impl PropertySource for SysEnvPropertySource {
     fn name(&self) -> String {
         "SystemEnvironment".to_owned()
     }
@@ -42,38 +42,48 @@ impl PropertySource for SysEnv {
 
 #[cfg(test)]
 mod tests {
-    use crate::env::*;
+    use crate::*;
     #[test]
     fn name_tests() {
-        let v: HashSet<String> = SysEnv::normalize_keys("name.url").into_iter().collect();
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name.url")
+            .into_iter()
+            .collect();
         assert_eq!(true, v.contains("name.url"));
         assert_eq!(true, v.contains("NAME_URL"));
-        let v: HashSet<String> = SysEnv::normalize_keys("NAME_URL").into_iter().collect();
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME_URL")
+            .into_iter()
+            .collect();
         assert_eq!(true, v.contains("name.url"));
         assert_eq!(true, v.contains("NAME_URL"));
 
-        let v: HashSet<String> = SysEnv::normalize_keys("name[1].url").into_iter().collect();
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name[1].url")
+            .into_iter()
+            .collect();
         assert_eq!(true, v.contains("name[1].url"));
         assert_eq!(true, v.contains("NAME_1_URL"));
-        let v: HashSet<String> = SysEnv::normalize_keys("NAME_1_URL").into_iter().collect();
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME_1_URL")
+            .into_iter()
+            .collect();
         assert_eq!(true, v.contains("name.1.url"));
         assert_eq!(true, v.contains("NAME_1_URL"));
 
-        let v: HashSet<String> = SysEnv::normalize_keys("name[1][2].url")
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name[1][2].url")
             .into_iter()
             .collect();
         assert_eq!(true, v.contains("name[1][2].url"));
         assert_eq!(true, v.contains("NAME_1_2_URL"));
-        let v: HashSet<String> = SysEnv::normalize_keys("NAME_1_2_URL").into_iter().collect();
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME_1_2_URL")
+            .into_iter()
+            .collect();
         assert_eq!(true, v.contains("name.1.2.url"));
         assert_eq!(true, v.contains("NAME_1_2_URL"));
 
-        let v: HashSet<String> = SysEnv::normalize_keys("name_family.url")
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name_family.url")
             .into_iter()
             .collect();
         assert_eq!(true, v.contains("name_family.url"));
         assert_eq!(true, v.contains("NAME__FAMILY_URL"));
-        let v: HashSet<String> = SysEnv::normalize_keys("NAME__FAMILY_URL")
+        let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME__FAMILY_URL")
             .into_iter()
             .collect();
         assert_eq!(true, v.contains("name_family.url"));

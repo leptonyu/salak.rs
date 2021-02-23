@@ -82,10 +82,11 @@ impl FileConfig {
 
 #[cfg(test)]
 mod tests {
+    use crate::source::FileConfig;
     use crate::*;
     #[test]
     fn build_test() {
-        let fc = crate::file::FileConfig::new(&SourceRegistry::new());
+        let fc = FileConfig::new(&SourceRegistry::new());
         let path = fc.build_path("toml");
         assert_eq!(false, path.is_empty());
     }

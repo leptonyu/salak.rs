@@ -2,12 +2,6 @@
 use crate::*;
 use core::convert::TryFrom;
 
-/// Convert to [`Property`].
-pub trait IntoProperty: Sized {
-    /// Convert to property.
-    fn into_property(self) -> Property;
-}
-
 impl IntoProperty for Property {
     fn into_property(self) -> Property {
         self
@@ -75,12 +69,6 @@ macro_rules! impl_float_into_property {
 }
 
 impl_float_into_property!(f32, f64);
-
-/// Convert value from [`Property`].
-pub trait FromProperty: Sized {
-    /// Convert from property.
-    fn from_property(_: Property) -> Result<Self, PropertyError>;
-}
 
 impl FromProperty for Property {
     fn from_property(a: Property) -> Result<Self, PropertyError> {
