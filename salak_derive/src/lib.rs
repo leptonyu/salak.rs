@@ -52,7 +52,7 @@ fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     None
 }
 
-fn parse_field_attribute(attrs: Vec<Attribute>) -> quote::__private::TokenStream {
+fn parse_field_attribute(attrs: Vec<Attribute>, get_val: quote::__private::TokenStream) -> quote::__private::TokenStream {
     let mut def = None;
     for attr in attrs {
         if let Ok(v) = attr.parse_meta() {
@@ -77,9 +77,12 @@ fn parse_field_attribute(attrs: Vec<Attribute>) -> quote::__private::TokenStream
 
     match def {
         Some(def) => quote! {
-            .or_else(||env.resolve_placeholder(#def.to_string())?)
+            match #get_val {
+                None => env.resolve_placeholder(#def.to_string())?,
+                v    => v,
+            }
         },
-        _ => quote! {},
+        _ => get_val,
     }
 }
 
@@ -87,14 +90,17 @@ fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__privat
     let name = field.ident.expect("Not possible");
     let ty = field.ty;
     let temp_name = quote::format_ident!("__{}", name);
-    let def = parse_field_attribute(field.attrs);
+    let get_value = quote! {
+      env.require::<Option<Property>>(&#temp_name)?
+    };
+    let get_value = parse_field_attribute(field.attrs, get_value);
     (
         quote! {
             let #temp_name = format!("{}{}", name ,stringify!(#name));
         },
         quote! {
             #name: <#ty>::from_env(&#temp_name,
-                env.require::<Option<Property>>(&#temp_name)?#def,
+                #get_value,
                 env)?
         },
     )
