@@ -142,7 +142,7 @@ fn derive_enum(
     attrs: Vec<Attribute>,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let def = parse_field_attribute(attrs);
+    let def = parse_field_attribute(attrs, quote! { property });
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;
@@ -157,7 +157,7 @@ fn derive_enum(
         vs.push(body);
     }
     quote! {
-        if let Some(Property::Str(def)) = property#def {
+        if let Some(Property::Str(def)) = #def {
             return match &def[..] {
                 #(#vs)*
                 v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),
