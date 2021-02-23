@@ -77,7 +77,7 @@ fn parse_field_attribute(attrs: Vec<Attribute>) -> quote::__private::TokenStream
 
     match def {
         Some(def) => quote! {
-            .or(env.resolve_placeholder(#def.to_string())?)
+            .or_else(||env.resolve_placeholder(#def.to_string())?)
         },
         _ => quote! {},
     }
