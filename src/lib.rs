@@ -224,6 +224,8 @@ pub trait Environment: Sync + Send + Sized {
     fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
 
     /// Load properties
+    #[cfg(feature = "enable_derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
     fn load_config<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require(T::prefix())
     }

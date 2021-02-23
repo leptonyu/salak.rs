@@ -1,5 +1,6 @@
 //! Provide [`Environment`] implementations.
 use crate::file::FileConfig;
+#[allow(unused_imports)]
 use crate::map::MapPropertySource;
 use crate::*;
 
@@ -275,6 +276,7 @@ impl Environment for SourceRegistry {
                     break;
                 }
             }
+            #[cfg(feature = "enable_derive")]
             if x.is_none() {
                 if let Some(ps) = &self.default {
                     x = ps.get_property(name);
@@ -397,7 +399,7 @@ impl SalakBuilder {
         let p = T::prefix();
 
         #[cfg(feature = "enable_log")]
-        info!("Register default {}", p);
+        debug!("Register default properties with prefix {}.", p);
 
         for (k, v) in T::load_default() {
             self.default.insert(format!("{}.{}", p, k), v);
@@ -408,6 +410,7 @@ impl SalakBuilder {
     /// Build a [`Salak`] environment.
     pub fn build(self) -> Salak {
         let mut sr = if self.enable_default_registry {
+            #[warn(unused_mut)]
             let mut sr = SourceRegistry::new();
             // First Layer
             if let Some(p) = self.args {
