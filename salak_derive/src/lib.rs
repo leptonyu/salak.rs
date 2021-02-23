@@ -157,8 +157,8 @@ fn derive_enum(
         vs.push(body);
     }
     quote! {
-        if let Some(Property::Str(def)) = #def {
-            return match &def[..] {
+        if let Some(p) = #def {
+            return match &String::from_property(p)?[..] {
                 #(#vs)*
                 v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),
             };
