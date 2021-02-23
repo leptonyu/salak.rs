@@ -77,6 +77,7 @@
 //! ```
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(include = "../README.md"))]
 #![warn(
     anonymous_parameters,
     missing_copy_implementations,
@@ -93,7 +94,6 @@
     variant_size_differences
 )]
 
-use crate::map::MapPropertySource;
 pub use crate::property::{FromProperty, IntoProperty};
 #[cfg(feature = "enable_log")]
 use log::*;
@@ -222,6 +222,11 @@ pub trait Environment: Sync + Send + Sized {
 
     /// Resolve placeholder.
     fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
+
+    /// Load properties
+    fn load_config<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
+        self.require(T::prefix())
+    }
 }
 
 /// Generate object from [`Environment`].

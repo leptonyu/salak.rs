@@ -17,7 +17,7 @@ fn parse_lit(lit: Lit) -> String {
         Lit::Float(f) => f.base10_digits().to_owned(),
         Lit::Bool(b) => b.value.to_string(),
         Lit::Char(c) => c.value().to_string(),
-        Lit::Byte(_) => panic!("Salak not support byte"),
+        Lit::Byte(b) => (b.value() as char).to_string(),
         Lit::Verbatim(_) => panic!("Salak not support Verbatim"),
     }
 }
@@ -52,7 +52,14 @@ fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     None
 }
 
-fn parse_field_attribute(attrs: Vec<Attribute>, get_val: quote::__private::TokenStream) -> quote::__private::TokenStream {
+fn parse_field_attribute(
+    attrs: Vec<Attribute>,
+    get_val: quote::__private::TokenStream,
+    name: Ident,
+) -> (
+    quote::__private::TokenStream,
+    Option<quote::__private::TokenStream>,
+) {
     let mut def = None;
     for attr in attrs {
         if let Ok(v) = attr.parse_meta() {
@@ -76,24 +83,35 @@ fn parse_field_attribute(attrs: Vec<Attribute>, get_val: quote::__private::Token
     }
 
     match def {
-        Some(def) => quote! {
-            match #get_val {
-                None => env.resolve_placeholder(#def.to_string())?,
-                v    => v,
-            }
-        },
-        _ => get_val,
+        Some(def) => (
+            quote! {
+                match #get_val {
+                    None => env.resolve_placeholder(#def.to_string())?,
+                    v    => v,
+                }
+            },
+            Some(quote! {
+                (stringify!(#name).to_owned(), Property::Str(#def.to_owned()))
+            }),
+        ),
+        _ => (get_val, None),
     }
 }
 
-fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
+fn derive_field(
+    field: Field,
+) -> (
+    quote::__private::TokenStream,
+    quote::__private::TokenStream,
+    Option<quote::__private::TokenStream>,
+) {
     let name = field.ident.expect("Not possible");
     let ty = field.ty;
     let temp_name = quote::format_ident!("__{}", name);
     let get_value = quote! {
       env.require::<Option<Property>>(&#temp_name)?
     };
-    let get_value = parse_field_attribute(field.attrs, get_value);
+    let (get_value, def) = parse_field_attribute(field.attrs, get_value, name.clone());
     (
         quote! {
             let #temp_name = format!("{}{}", name ,stringify!(#name));
@@ -103,6 +121,7 @@ fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__privat
                 #get_value,
                 env)?
         },
+        def,
     )
 }
 
@@ -111,30 +130,58 @@ fn derive_fields(
 ) -> (
     Vec<quote::__private::TokenStream>,
     Vec<quote::__private::TokenStream>,
+    Vec<quote::__private::TokenStream>,
+    Vec<quote::__private::TokenStream>,
 ) {
     if let Fields::Named(fields) = fields {
         let mut k = vec![];
         let mut v = vec![];
+        let mut d = vec![];
+        let mut n = vec![];
         for field in fields.named {
-            let (a, b) = derive_field(field);
+            let ty = field.ty.clone();
+            let name = field.ident.clone();
+            n.push(quote! {
+                (stringify!(#name), <#ty>::load_default())
+            });
+            let (a, b, def) = derive_field(field);
             k.push(a);
             v.push(b);
+            if let Some(def) = def {
+                d.push(def);
+            }
         }
-        (k, v)
+        (k, v, d, n)
     } else {
         panic!("Only support named body");
     }
 }
 
-fn derive_struct(data: DataStruct) -> quote::__private::TokenStream {
-    let (expr, field) = derive_fields(data.fields);
-    quote! {
-        let name = name.to_prefix();
-        #(#expr)*
-        Ok(Self {
-            #(#field),*
-        })
-    }
+fn derive_struct(
+    data: DataStruct,
+) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
+    let (expr, field, defs, ns) = derive_fields(data.fields);
+    (
+        quote! {
+            let name = name.to_prefix();
+            #(#expr)*
+            Ok(Self {
+                #(#field),*
+            })
+        },
+        quote! {
+            fn load_default() -> Vec<(String, Property)> {
+                let mut v = vec![];
+                #(v.push(#defs);)*
+                for (p, vs) in vec![#(#ns),*] {
+                    for (n, s) in vs {
+                        v.push((format!("{}.{}", p, n), s));
+                    }
+                }
+                v
+            }
+        },
+    )
 }
 
 fn derive_enum(
@@ -142,7 +189,7 @@ fn derive_enum(
     attrs: Vec<Attribute>,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let def = parse_field_attribute(attrs, quote! { property });
+    let (def, _) = parse_field_attribute(attrs, quote! { property }, type_name.clone());
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;
@@ -171,7 +218,7 @@ fn derive_enum(
 pub fn from_env_derive(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
-    let (head, body) = match input.data {
+    let (head, (body, default)) = match input.data {
         Data::Struct(d) => (
             if let Some(prefix) = parse_attribute_prefix(&input.attrs) {
                 quote! {
@@ -186,7 +233,10 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
             },
             derive_struct(d),
         ),
-        Data::Enum(d) => (quote! {}, derive_enum(name.clone(), input.attrs, d)),
+        Data::Enum(d) => (
+            quote! {},
+            (derive_enum(name.clone(), input.attrs, d), quote! {}),
+        ),
         _ => panic!("union is not supported"),
     };
 
@@ -199,6 +249,7 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
             ) -> Result<Self, PropertyError> {
                 #body
             }
+            #default
         }
         impl AutoDeriveFromEnvironment for #name {}
         #head

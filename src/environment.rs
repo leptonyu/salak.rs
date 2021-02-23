@@ -1,5 +1,6 @@
 //! Provide [`Environment`] implementations.
 use crate::file::FileConfig;
+use crate::map::MapPropertySource;
 use crate::*;
 
 /// An implementation of [`Environment`] that can resolve placeholder for values.
@@ -155,7 +156,7 @@ pub struct SourceRegistry {
     #[allow(dead_code)]
     conf: Option<FileConfig>,
     #[cfg(feature = "enable_derive")]
-    default: std::sync::RwLock<(HashSet<String>, MapPropertySource)>,
+    default: Option<MapPropertySource>,
     sources: Vec<Box<dyn PropertySource>>,
 }
 
@@ -165,7 +166,7 @@ impl SourceRegistry {
         SourceRegistry {
             conf: None,
             #[cfg(feature = "enable_derive")]
-            default: std::sync::RwLock::new((HashSet::new(), MapPropertySource::empty("default"))),
+            default: None,
             sources: vec![],
         }
     }
@@ -274,15 +275,10 @@ impl Environment for SourceRegistry {
                     break;
                 }
             }
-            #[cfg(feature = "enable_derive")]
-            {
-                x = x.or_else(|| {
-                    self.default
-                        .read()
-                        .expect("READ lock failed")
-                        .1
-                        .get_property(name)
-                });
+            if x.is_none() {
+                if let Some(ps) = &self.default {
+                    x = ps.get_property(name);
+                }
             }
         }
         T::from_env(name, x, self)
@@ -350,6 +346,8 @@ pub struct SalakBuilder {
     args: Option<SysArgsMode>,
     enable_placeholder: bool,
     enable_default_registry: bool,
+    #[cfg(feature = "enable_derive")]
+    default: MapPropertySource,
 }
 
 impl Default for SalakBuilder {
@@ -392,9 +390,24 @@ impl SalakBuilder {
         self
     }
 
+    /// Add default properties to [`Environment`]
+    #[cfg(feature = "enable_derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
+    pub fn add_default<T: DefaultSourceFromEnvironment>(mut self) -> Self {
+        let p = T::prefix();
+
+        #[cfg(feature = "enable_log")]
+        info!("Register default {}", p);
+
+        for (k, v) in T::load_default() {
+            self.default.insert(format!("{}.{}", p, k), v);
+        }
+        self
+    }
+
     /// Build a [`Salak`] environment.
     pub fn build(self) -> Salak {
-        let sr = if self.enable_default_registry {
+        let mut sr = if self.enable_default_registry {
             let mut sr = SourceRegistry::new();
             // First Layer
             if let Some(p) = self.args {
@@ -415,6 +428,10 @@ impl SalakBuilder {
         } else {
             SourceRegistry::new()
         };
+        #[cfg(feature = "enable_derive")]
+        {
+            sr.default = Some(self.default);
+        }
         Salak(PlaceholderResolver::new(self.enable_placeholder, sr))
     }
 }
@@ -430,6 +447,8 @@ impl Salak {
             args: None,
             enable_placeholder: true,
             enable_default_registry: true,
+            #[cfg(feature = "enable_derive")]
+            default: MapPropertySource::empty("default"),
         }
     }
     /// Create default builder.

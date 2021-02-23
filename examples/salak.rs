@@ -19,6 +19,8 @@ pub struct DatabaseConfigDetail {
 #[salak(prefix = "database")]
 pub struct DatabaseConfig {
     url: String,
+    #[salak(default = "${database.username}")]
+    name: String,
     #[salak(default = "salak")]
     username: String,
     password: Option<String>,
@@ -39,9 +41,10 @@ fn main() {
     std::env::set_var("database.detail.option_arr[0]", "10");
     let env = Salak::new()
         .with_default_args(auto_read_sys_args_param!())
+        .add_default::<DatabaseConfig>()
         .build();
 
-    match env.require::<DatabaseConfig>("database") {
+    match env.load_config::<DatabaseConfig>() {
         Ok(h) => println!("{:?}", h),
         Err(e) => println!("{}", e),
     }
