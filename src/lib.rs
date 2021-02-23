@@ -94,7 +94,7 @@
 )]
 
 use crate::map::MapPropertySource;
-use crate::property::{FromProperty, IntoProperty};
+pub use crate::property::{FromProperty, IntoProperty};
 #[cfg(feature = "enable_log")]
 use log::*;
 use std::collections::HashSet;
@@ -107,7 +107,6 @@ extern crate quickcheck_macros;
 
 pub use crate::args::*;
 pub use crate::err::PropertyError;
-pub use crate::property::FromProperty;
 
 #[cfg(feature = "enable_derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
