@@ -34,10 +34,6 @@ A layered configuration loader with zero-boilerplate configuration management.
 1. `#[salak(default="string")]`
 2. `#[salak(default=1)]`
 
-##### attribute `disable_placeholder` to disable placeholder parsing.
-1. `#[salak(disable_placeholder)]`
-2. `#[salak(disable_placeholder = true)]`
-
 ### Features
 
 ##### Default features
@@ -98,5 +94,4 @@ cargo run --example salak --features="default enable_clap" -- -h
 ```
 
 ### TODO
-1. Support hashmap.
-2. Reload configurations.
+1. Reload configurations.

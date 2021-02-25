@@ -140,9 +140,11 @@ impl Environment for SourceRegistry {
         Err(PropertyError::parse_failed("Placeholder not implement"))
     }
     fn find_keys(&self, prefix: &str) -> Vec<String> {
-        self.sources
+        let s: HashSet<String> = self
+            .sources
             .iter()
             .flat_map(|p| p.find_keys(prefix))
-            .collect()
+            .collect();
+        s.into_iter().collect()
     }
 }
