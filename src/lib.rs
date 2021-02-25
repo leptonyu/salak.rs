@@ -77,7 +77,6 @@
 //! ```
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(docsrs, doc(include = "../README.md"))]
 #![warn(
     anonymous_parameters,
     missing_copy_implementations,
@@ -117,7 +116,6 @@ pub use crate::derive::{AutoDeriveFromEnvironment, DefaultSourceFromEnvironment}
 pub use salak_derive::FromEnvironment;
 
 mod err;
-mod property;
 mod utils;
 
 pub use crate::err::PropertyError;
@@ -179,12 +177,9 @@ pub trait PropertySource: Sync + Send {
     }
     /// Check if the source is empty.
     fn is_empty(&self) -> bool;
-}
 
-/// Allow to add property to source.
-pub trait MutPropertySource: PropertySource {
-    /// Insert key value.
-    fn insert<P: IntoProperty>(&mut self, name: String, value: P);
+    /// Find keys with prefix.
+    fn find_keys(&self, prefix: &str) -> Vec<String>;
 }
 
 /// An environment for getting properties in multiple [`PropertySource`]s.
@@ -223,6 +218,9 @@ pub trait Environment: Sync + Send + Sized {
     fn load_config<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require(T::prefix())
     }
+
+    /// Find keys with prefix.
+    fn find_keys(&self, prefix: &str) -> Vec<String>;
 }
 
 /// Generate object from [`Environment`].
@@ -255,6 +253,7 @@ pub trait FromEnvironment: Sized {
 #[cfg(test)]
 mod tests {
     use crate::*;
+    use std::collections::HashMap;
     #[derive(FromEnvironment, Debug)]
     struct DatabaseConfigObj {
         hello: String,
@@ -293,7 +292,7 @@ mod tests {
             ])
             .build();
 
-        let ret = env.require::<DatabaseConfig>("database");
+        let ret = env.load_config::<DatabaseConfig>();
         assert_eq!(true, ret.is_ok());
         let ret = ret.unwrap();
         assert_eq!("localhost:5432", ret.url);
@@ -308,5 +307,10 @@ mod tests {
         assert_eq!(10, ret.option_arr[0]);
         assert_eq!(0, ret.option_multi_arr.len());
         assert_eq!(2, ret.option_obj.len());
+
+        let ret = env.require::<HashMap<String, String>>("database");
+        assert_eq!(true, ret.is_ok());
+        let ret = ret.unwrap();
+        assert_eq!(3, ret.len());
     }
 }

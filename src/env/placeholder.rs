@@ -145,6 +145,9 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
     fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
         self.parse_value(&value, &mut HashSet::new())
     }
+    fn find_keys(&self, prefix: &str) -> Vec<String> {
+        self.env.find_keys(prefix)
+    }
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use crate::*;
 use clap::{App, Arg};
 #[cfg(feature = "enable_clap")]
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[cfg(feature = "enable_clap")]
 const NOT_POSSIBLE: &str = "Not possible";
@@ -65,11 +65,11 @@ impl SysArgs {
             SysArgsMode::Custom(arg) => arg,
         };
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         for (k, v) in args {
             map.insert(k, v);
         }
-        SysArgs(MapPropertySource::new("SystemArguments".to_owned(), map))
+        SysArgs(MapPropertySource::new("SystemArguments", map))
     }
 
     #[cfg(feature = "enable_clap")]

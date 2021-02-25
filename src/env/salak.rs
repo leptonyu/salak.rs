@@ -1,5 +1,6 @@
 //! Provide [`Environment`] implementations.
 use crate::*;
+use std::collections::BTreeMap;
 
 /// [`Salak`] builder.
 #[derive(Debug)]
@@ -8,7 +9,7 @@ pub struct SalakBuilder {
     enable_placeholder: bool,
     enable_default_registry: bool,
     #[cfg(feature = "enable_derive")]
-    default: MapPropertySource,
+    default: BTreeMap<String, Property>,
 }
 
 impl Default for SalakBuilder {
@@ -92,7 +93,7 @@ impl SalakBuilder {
         };
         #[cfg(feature = "enable_derive")]
         {
-            sr.default = Some(self.default);
+            sr.default = Some(MapPropertySource::new("default", self.default));
         }
         Salak(PlaceholderResolver::new(self.enable_placeholder, sr))
     }
@@ -110,7 +111,7 @@ impl Salak {
             enable_placeholder: true,
             enable_default_registry: true,
             #[cfg(feature = "enable_derive")]
-            default: MapPropertySource::empty("default"),
+            default: BTreeMap::new(),
         }
     }
     /// Create default builder.
@@ -142,83 +143,7 @@ impl Environment for Salak {
     fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
         self.0.resolve_placeholder(value)
     }
-}
-
-impl<P: FromProperty> FromEnvironment for P {
-    fn from_env(
-        n: &str,
-        property: Option<Property>,
-        _: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        if let Some(p) = property {
-            return P::from_property(p);
-        }
-        P::from_err(PropertyError::NotFound(n.to_owned()))
-    }
-}
-
-impl<P: FromEnvironment> FromEnvironment for Option<P> {
-    fn from_env(
-        n: &str,
-        property: Option<Property>,
-        env: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        match P::from_env(n, property, env) {
-            Ok(a) => Ok(Some(a)),
-            Err(err) => Self::from_err(err),
-        }
-    }
-    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
-        match err {
-            PropertyError::NotFound(_) => Ok(None),
-            _ => Err(err),
-        }
-    }
-    fn check_is_empty(&self) -> bool {
-        self.is_none()
-    }
-
-    fn load_default() -> Vec<(String, Property)> {
-        P::load_default()
-    }
-}
-
-impl<P: FromEnvironment> FromEnvironment for Vec<P> {
-    fn from_env(
-        name: &str,
-        _: Option<Property>,
-        env: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        let mut vs = vec![];
-        let mut i = 0;
-        let mut key = format!("{}[{}]", &name, i);
-        while let Some(v) =
-            <Option<P>>::from_env(&key, env.require::<Option<Property>>(&key)?, env)?
-        {
-            if v.check_is_empty() {
-                break;
-            }
-            vs.push(v);
-            i += 1;
-            key = format!("{}[{}]", &name, i);
-        }
-        Ok(vs)
-    }
-    fn check_is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
-
-impl<T, S> FromEnvironment for HashSet<T, S>
-where
-    T: Eq + Hash + FromEnvironment,
-    S: BuildHasher + Default,
-{
-    fn from_env(
-        name: &str,
-        p: Option<Property>,
-        env: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        Ok(<Vec<T>>::from_env(name, p, env)?.into_iter().collect())
+    fn find_keys(&self, prefix: &str) -> Vec<String> {
+        self.0.find_keys(prefix)
     }
 }

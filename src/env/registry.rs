@@ -32,7 +32,7 @@ impl SourceRegistry {
 
     /// Add system environment.
     pub fn with_sys_env(mut self) -> Self {
-        self.register_source(Box::new(SysEnvPropertySource));
+        self.register_source(Box::new(SysEnvPropertySource::new()));
         self
     }
 
@@ -138,5 +138,11 @@ impl Environment for SourceRegistry {
 
     fn resolve_placeholder(&self, _: String) -> Result<Option<Property>, PropertyError> {
         Err(PropertyError::parse_failed("Placeholder not implement"))
+    }
+    fn find_keys(&self, prefix: &str) -> Vec<String> {
+        self.sources
+            .iter()
+            .flat_map(|p| p.find_keys(prefix))
+            .collect()
     }
 }

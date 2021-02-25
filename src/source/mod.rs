@@ -2,6 +2,7 @@
 pub(crate) mod args;
 pub(crate) mod env;
 pub(crate) mod file;
+pub(crate) mod internal;
 pub(crate) mod map;
 // Enable register toml in [`Environment`].
 #[cfg(feature = "enable_toml")]

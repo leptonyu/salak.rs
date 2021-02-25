@@ -1,23 +1,26 @@
 //! Provide hashmap [`PropertySource`].
 use crate::*;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// A simple implementation of [`PropertySource`].
 #[derive(Debug, Clone)]
 pub struct MapPropertySource {
     name: String,
-    map: HashMap<String, Property>,
+    map: BTreeMap<String, Property>,
 }
 
 impl MapPropertySource {
     /// Create empty [`MapPropertySource`].
     pub fn empty(name: &str) -> Self {
-        Self::new(name.to_owned(), HashMap::new())
+        Self::new(name, BTreeMap::new())
     }
 
     /// Create a new [`MapPropertySource`].
-    pub fn new(name: String, map: HashMap<String, Property>) -> Self {
-        MapPropertySource { name, map }
+    pub fn new(name: &str, map: BTreeMap<String, Property>) -> Self {
+        MapPropertySource {
+            name: name.to_owned(),
+            map,
+        }
     }
 }
 
@@ -35,10 +38,15 @@ impl PropertySource for MapPropertySource {
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
-}
-
-impl MutPropertySource for MapPropertySource {
-    fn insert<T: IntoProperty>(&mut self, name: String, value: T) {
-        self.map.insert(name, value.into_property());
+    fn find_keys(&self, prefix: &str) -> Vec<String> {
+        if prefix.is_empty() {
+            return self.map.keys().map(|k| (&k[..]).to_first()).collect();
+        }
+        self.map
+            .range(format!("{}.", prefix)..format!("{}/", prefix))
+            .into_iter()
+            .flat_map(|(k, _)| k.strip_prefix(&format!("{}.", prefix)))
+            .map(|k| k.to_first())
+            .collect()
     }
 }

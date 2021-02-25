@@ -25,6 +25,9 @@ impl FileToPropertySource for Yaml {
         "yaml"
     }
 }
+lazy_static::lazy_static! {
+    static ref P: &'static [char] = &['.', '[', ']'];
+}
 
 impl PropertySource for YamlItem {
     fn name(&self) -> String {
@@ -33,9 +36,6 @@ impl PropertySource for YamlItem {
     fn get_property(&self, name: &str) -> Option<Property> {
         use yaml_rust::yaml::Yaml;
         let mut v = &self.value;
-        lazy_static::lazy_static! {
-            static ref P: &'static [char] = &['.', '[', ']'];
-        }
         for n in name.split(&P[..]) {
             if n.is_empty() {
                 continue;
@@ -59,6 +59,37 @@ impl PropertySource for YamlItem {
         match &self.value {
             Yaml::Hash(t) => t.is_empty(),
             _ => false,
+        }
+    }
+
+    fn find_keys(&self, prefix: &str) -> Vec<String> {
+        use yaml_rust::yaml::Yaml;
+        let mut v = &self.value;
+        for n in prefix.split(&P[..]) {
+            if n.is_empty() {
+                continue;
+            }
+            match v {
+                Yaml::Hash(t) => {
+                    if let Some(x) = t.get(&Yaml::String(n.to_string())) {
+                        v = x;
+                    } else {
+                        return vec![];
+                    }
+                }
+                _ => return vec![],
+            }
+        }
+        match v {
+            Yaml::Hash(t) => t
+                .keys()
+                .map(|x| match x {
+                    Yaml::String(v) => Some(v.to_string()),
+                    _ => None,
+                })
+                .flatten()
+                .collect(),
+            _ => vec![],
         }
     }
 }

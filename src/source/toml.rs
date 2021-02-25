@@ -25,15 +25,16 @@ impl FileToPropertySource for Toml {
     }
 }
 
+lazy_static::lazy_static! {
+    static ref P: &'static [char] = &['.', '[', ']'];
+}
+
 impl PropertySource for TomlItem {
     fn name(&self) -> String {
         self.name.to_owned()
     }
     fn get_property(&self, name: &str) -> Option<Property> {
         let mut v = &self.value;
-        lazy_static::lazy_static! {
-            static ref P: &'static [char] = &['.', '[', ']'];
-        }
         for n in name.split(&P[..]) {
             if n.is_empty() {
                 continue;
@@ -57,6 +58,28 @@ impl PropertySource for TomlItem {
         match &self.value {
             Value::Table(t) => t.is_empty(),
             _ => false,
+        }
+    }
+    fn find_keys(&self, prefix: &str) -> Vec<String> {
+        let mut v = &self.value;
+        for n in prefix.split(&P[..]) {
+            if n.is_empty() {
+                continue;
+            }
+            match v {
+                Value::Table(t) => {
+                    if let Some(x) = t.get(n) {
+                        v = x;
+                    } else {
+                        return vec![];
+                    }
+                }
+                _ => return vec![],
+            }
+        }
+        match v {
+            Value::Table(t) => t.keys().map(|x| x.to_string()).collect(),
+            _ => vec![],
         }
     }
 }
