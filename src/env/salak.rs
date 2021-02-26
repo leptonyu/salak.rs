@@ -81,11 +81,11 @@ impl SalakBuilder {
             // Third Layer
             #[cfg(feature = "enable_toml")]
             {
-                sr = sr.with_toml();
+                sr = sr.with_toml().expect("Toml load failed");
             }
             #[cfg(feature = "enable_yaml")]
             {
-                sr = sr.with_yaml();
+                sr = sr.with_yaml().expect("Yaml load failed");
             }
             sr
         } else {
@@ -145,5 +145,8 @@ impl Environment for Salak {
     }
     fn find_keys(&self, prefix: &str) -> Vec<String> {
         self.0.find_keys(prefix)
+    }
+    fn reload(&mut self) -> Result<(), PropertyError> {
+        self.0.reload()
     }
 }

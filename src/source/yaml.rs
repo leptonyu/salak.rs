@@ -2,6 +2,7 @@
 use crate::source::*;
 use crate::*;
 use std::path::PathBuf;
+use yaml_rust::ScanError;
 
 /// [`PropertySource`] read properties from yaml file.
 #[derive(Debug, Copy, Clone)]
@@ -9,17 +10,27 @@ pub struct Yaml;
 
 struct YamlItem {
     name: String,
+    path: PathBuf,
     value: yaml_rust::yaml::Yaml,
+}
+impl YamlItem {
+    fn new(path: PathBuf) -> Result<Self, PropertyError> {
+        Ok(YamlItem {
+            name: path.display().to_string(),
+            path: path.clone(),
+            value: yaml_rust::YamlLoader::load_from_str(&std::fs::read_to_string(path)?)?
+                .pop()
+                .ok_or(PropertyError::ParseFail("Empty yaml".to_owned()))?,
+        })
+    }
 }
 
 impl FileToPropertySource for Yaml {
-    fn to_property_source(&self, path: PathBuf) -> Option<Box<(dyn PropertySource)>> {
-        Some(Box::new(YamlItem {
-            name: path.display().to_string(),
-            value: yaml_rust::YamlLoader::load_from_str(&std::fs::read_to_string(path).ok()?)
-                .ok()?
-                .pop()?,
-        }))
+    fn to_property_source(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<Box<(dyn PropertySource)>>, PropertyError> {
+        Ok(Some(Box::new(YamlItem::new(path)?)))
     }
     fn extention(&self) -> &'static str {
         "yaml"
@@ -62,7 +73,7 @@ impl PropertySource for YamlItem {
         }
     }
 
-    fn find_keys(&self, prefix: &str) -> Vec<String> {
+    fn get_keys(&self, prefix: &str) -> Vec<String> {
         use yaml_rust::yaml::Yaml;
         let mut v = &self.value;
         for n in prefix.split(&P[..]) {
@@ -91,5 +102,14 @@ impl PropertySource for YamlItem {
                 .collect(),
             _ => vec![],
         }
+    }
+    fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Yaml.to_property_source(self.path.clone())
+    }
+}
+
+impl From<ScanError> for PropertyError {
+    fn from(err: ScanError) -> Self {
+        Self::ParseFail(err.to_string())
     }
 }

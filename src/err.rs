@@ -12,6 +12,8 @@ pub enum PropertyError {
     ParseFail(String),
     /// Resursive parsing same key.
     RecursiveParse(String),
+    /// Property reload failed.
+    ReloadFail(String),
 }
 
 impl PropertyError {
@@ -27,6 +29,7 @@ impl Display for PropertyError {
             PropertyError::NotFound(n) => write!(f, "Property {} not found.", n),
             PropertyError::ParseFail(e) => write!(f, "Parse failed: {}", e),
             PropertyError::RecursiveParse(n) => write!(f, "Property {} recursive.", &n),
+            PropertyError::ReloadFail(e) => write!(f, "Reload failed: {}", e),
         }
     }
 }
@@ -55,10 +58,8 @@ impl_parse_failed!(
     Infallible
 );
 
-#[cfg(feature = "enable_toml")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
-impl From<::toml::value::DatetimeParseError> for PropertyError {
-    fn from(err: ::toml::value::DatetimeParseError) -> Self {
+impl From<std::io::Error> for PropertyError {
+    fn from(err: std::io::Error) -> Self {
         Self::ParseFail(err.to_string())
     }
 }

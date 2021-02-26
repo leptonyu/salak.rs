@@ -10,15 +10,26 @@ pub struct Toml;
 
 struct TomlItem {
     name: String,
+    path: PathBuf,
     value: Value,
 }
 
-impl FileToPropertySource for Toml {
-    fn to_property_source(&self, path: PathBuf) -> Option<Box<(dyn PropertySource)>> {
-        Some(Box::new(TomlItem {
+impl TomlItem {
+    fn new(path: PathBuf) -> Result<Self, PropertyError> {
+        Ok(TomlItem {
             name: path.display().to_string(),
-            value: from_str(&std::fs::read_to_string(path).ok()?).ok()?,
-        }))
+            path: path.clone(),
+            value: from_str(&std::fs::read_to_string(path)?)?,
+        })
+    }
+}
+
+impl FileToPropertySource for Toml {
+    fn to_property_source(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<Box<(dyn PropertySource)>>, PropertyError> {
+        Ok(Some(Box::new(TomlItem::new(path)?)))
     }
     fn extention(&self) -> &'static str {
         "toml"
@@ -60,7 +71,7 @@ impl PropertySource for TomlItem {
             _ => false,
         }
     }
-    fn find_keys(&self, prefix: &str) -> Vec<String> {
+    fn get_keys(&self, prefix: &str) -> Vec<String> {
         let mut v = &self.value;
         for n in prefix.split(&P[..]) {
             if n.is_empty() {
@@ -81,5 +92,20 @@ impl PropertySource for TomlItem {
             Value::Table(t) => t.keys().map(|x| x.to_string()).collect(),
             _ => vec![],
         }
+    }
+    fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Toml.to_property_source(self.path.clone())
+    }
+}
+
+impl From<::toml::value::DatetimeParseError> for PropertyError {
+    fn from(err: ::toml::value::DatetimeParseError) -> Self {
+        Self::ParseFail(err.to_string())
+    }
+}
+
+impl From<::toml::de::Error> for PropertyError {
+    fn from(err: ::toml::de::Error) -> Self {
+        Self::ParseFail(err.to_string())
     }
 }

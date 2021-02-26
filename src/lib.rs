@@ -179,7 +179,10 @@ pub trait PropertySource: Sync + Send {
     fn is_empty(&self) -> bool;
 
     /// Find keys with prefix.
-    fn find_keys(&self, prefix: &str) -> Vec<String>;
+    fn get_keys(&self, prefix: &str) -> Vec<String>;
+
+    /// Reload [`PropertySource`]
+    fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError>;
 }
 
 /// An environment for getting properties in multiple [`PropertySource`]s.
@@ -221,6 +224,9 @@ pub trait Environment: Sync + Send + Sized {
 
     /// Find keys with prefix.
     fn find_keys(&self, prefix: &str) -> Vec<String>;
+
+    /// Reload configuration
+    fn reload(&mut self) -> Result<(), PropertyError>;
 }
 
 /// Generate object from [`Environment`].

@@ -148,6 +148,9 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
     fn find_keys(&self, prefix: &str) -> Vec<String> {
         self.env.find_keys(prefix)
     }
+    fn reload(&mut self) -> Result<(), PropertyError> {
+        self.env.reload()
+    }
 }
 
 #[cfg(test)]

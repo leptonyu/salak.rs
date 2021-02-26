@@ -38,7 +38,7 @@ impl PropertySource for MapPropertySource {
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
-    fn find_keys(&self, prefix: &str) -> Vec<String> {
+    fn get_keys(&self, prefix: &str) -> Vec<String> {
         if prefix.is_empty() {
             return self.map.keys().map(|k| (&k[..]).to_first()).collect();
         }
@@ -48,5 +48,8 @@ impl PropertySource for MapPropertySource {
             .flat_map(|(k, _)| k.strip_prefix(&format!("{}.", prefix)))
             .map(|k| k.to_first())
             .collect()
+    }
+    fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Ok(None)
     }
 }

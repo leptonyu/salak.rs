@@ -10,7 +10,6 @@ pub struct SourceRegistry {
     pub(crate) default: Option<MapPropertySource>,
     sources: Vec<Box<dyn PropertySource>>,
 }
-
 impl SourceRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
@@ -51,19 +50,19 @@ impl SourceRegistry {
     /// Add toml support.
     #[cfg(feature = "enable_toml")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
-    pub fn with_toml(mut self) -> Self {
+    pub fn with_toml(mut self) -> Result<Self, PropertyError> {
         let fc = self.build_conf();
-        self.register_sources(fc.build(Toml));
-        self
+        self.register_sources(fc.build(Toml)?);
+        Ok(self)
     }
 
     /// Add yaml support.
     #[cfg(feature = "enable_yaml")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
-    pub fn with_yaml(mut self) -> Self {
+    pub fn with_yaml(mut self) -> Result<Self, PropertyError> {
         let fc = self.build_conf();
-        self.register_sources(fc.build(Yaml));
-        self
+        self.register_sources(fc.build(Yaml)?);
+        Ok(self)
     }
 
     /// Add yaml support.
@@ -103,11 +102,11 @@ impl Default for SourceRegistry {
         sr = sr.with_sys_env();
         #[cfg(feature = "enable_toml")]
         {
-            sr = sr.with_toml();
+            sr = sr.with_toml().expect("Toml load failed");
         }
         #[cfg(feature = "enable_yaml")]
         {
-            sr = sr.with_yaml();
+            sr = sr.with_yaml().expect("Yaml load failed");
         }
         sr
     }
@@ -143,8 +142,16 @@ impl Environment for SourceRegistry {
         let s: HashSet<String> = self
             .sources
             .iter()
-            .flat_map(|p| p.find_keys(prefix))
+            .flat_map(|p| p.get_keys(prefix))
             .collect();
         s.into_iter().collect()
+    }
+    fn reload(&mut self) -> Result<(), PropertyError> {
+        for ps in self.sources.iter_mut() {
+            if let Some(p) = ps.load()? {
+                *ps = p;
+            }
+        }
+        Ok(())
     }
 }

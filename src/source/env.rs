@@ -32,58 +32,29 @@ impl PropertySource for SysEnvPropertySource {
     fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-    fn find_keys(&self, prefix: &str) -> Vec<String> {
-        self.0.find_keys(prefix)
+    fn get_keys(&self, prefix: &str) -> Vec<String> {
+        self.0.get_keys(prefix)
+    }
+
+    fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Ok(Some(Box::new(SysEnvPropertySource::new())))
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::*;
-//     #[test]
-//     fn name_tests() {
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name.url")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name.url"));
-//         assert_eq!(true, v.contains("NAME_URL"));
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME_URL")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name.url"));
-//         assert_eq!(true, v.contains("NAME_URL"));
-
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name[1].url")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name[1].url"));
-//         assert_eq!(true, v.contains("NAME_1_URL"));
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME_1_URL")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name.1.url"));
-//         assert_eq!(true, v.contains("NAME_1_URL"));
-
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name[1][2].url")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name[1][2].url"));
-//         assert_eq!(true, v.contains("NAME_1_2_URL"));
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME_1_2_URL")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name.1.2.url"));
-//         assert_eq!(true, v.contains("NAME_1_2_URL"));
-
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("name_family.url")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name_family.url"));
-//         assert_eq!(true, v.contains("NAME__FAMILY_URL"));
-//         let v: HashSet<String> = SysEnvPropertySource::normalize_keys("NAME__FAMILY_URL")
-//             .into_iter()
-//             .collect();
-//         assert_eq!(true, v.contains("name_family.url"));
-//         assert_eq!(true, v.contains("NAME__FAMILY_URL"));
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    #[test]
+    fn check_test() -> Result<(), PropertyError> {
+        let mut env: Box<dyn PropertySource> = Box::new(SysEnvPropertySource::new());
+        for i in 0..100 {
+            std::env::set_var("hello", format!("{}", i));
+            if let Some(e) = env.load()? {
+                env = e;
+            }
+            let p = String::from_property(env.get_property("hello").unwrap())?;
+            assert_eq!(format!("{}", i), p);
+        }
+        Ok(())
+    }
+}

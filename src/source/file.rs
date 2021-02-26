@@ -11,7 +11,10 @@ pub(crate) struct FileConfig {
 }
 
 pub(crate) trait FileToPropertySource {
-    fn to_property_source(&self, path: PathBuf) -> Option<Box<dyn PropertySource>>;
+    fn to_property_source(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<Box<dyn PropertySource>>, PropertyError>;
     fn extention(&self) -> &'static str;
 }
 
@@ -71,12 +74,18 @@ impl FileConfig {
     pub(crate) fn build<T: FileToPropertySource>(
         self,
         impl_file: T,
-    ) -> Vec<Box<dyn PropertySource>> {
-        self.build_path(impl_file.extention())
+    ) -> Result<Vec<Box<dyn PropertySource>>, PropertyError> {
+        let mut v = vec![];
+        for ps in self
+            .build_path(impl_file.extention())
             .into_iter()
             .map(|path| impl_file.to_property_source(path))
-            .flatten()
-            .collect()
+        {
+            if let Some(p) = ps? {
+                v.push(p);
+            }
+        }
+        Ok(v)
     }
 }
 
