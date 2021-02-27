@@ -39,9 +39,15 @@ pub trait Factory: Sized {
     fn env(&self) -> &Self::Env;
 
     /// Get reference of specified type.
-    /// If [`FactoryScope`] is [`Singleton`], then return cached value,
+    /// If [`FactoryScope`] is [`FactoryScope::Singleton`], then return cached value,
     /// otherwise create a new one.
     fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError>;
+
+    /// Initialize some value.
+    fn init<T: FromFactory>(&self) -> Result<(), PropertyError> {
+        let _ = self.get_or_build::<T>()?;
+        Ok(())
+    }
 }
 
 pub(crate) struct FactoryRegistry<T: Environment> {
