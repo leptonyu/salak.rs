@@ -144,7 +144,9 @@ pub use crate::err::PropertyError;
 pub use crate::utils::SalakStringUtil;
 
 mod env;
+pub(crate) use crate::env::factory::FactoryRegistry;
 pub use crate::env::{
+    factory::{FacRef, Factory, FromFactory},
     placeholder::PlaceholderResolver,
     registry::SourceRegistry,
     salak::{Salak, SalakBuilder},

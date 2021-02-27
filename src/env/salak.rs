@@ -92,13 +92,16 @@ impl SalakBuilder {
         {
             sr.default = Some(MapPropertySource::new("default", self.default));
         }
-        Salak(PlaceholderResolver::new(self.enable_placeholder, sr))
+        Salak(FactoryRegistry::new(PlaceholderResolver::new(
+            self.enable_placeholder,
+            sr,
+        )))
     }
 }
 
 /// A wrapper for [`Environment`], which can hide the implementation details.
 #[allow(missing_debug_implementations)]
-pub struct Salak(PlaceholderResolver<SourceRegistry>);
+pub struct Salak(FactoryRegistry<PlaceholderResolver<SourceRegistry>>);
 
 impl Salak {
     /// Register property source at last.
@@ -112,13 +115,17 @@ impl Salak {
             default: BTreeMap::new(),
         }
     }
+    fn get_registry(&mut self) -> &mut SourceRegistry {
+        &mut self.0.env.env
+    }
+
     /// Create default builder.
     pub fn register_source(&mut self, ps: Box<dyn PropertySource>) {
-        self.0.env.register_source(ps);
+        self.get_registry().register_source(ps);
     }
     /// Register property sources at last.
     pub fn register_sources(&mut self, sources: Vec<Box<dyn PropertySource>>) {
-        self.0.env.register_sources(sources);
+        self.get_registry().register_sources(sources);
     }
 }
 
@@ -132,10 +139,7 @@ impl Environment for Salak {
     fn contains(&self, name: &str) -> bool {
         self.0.contains(name)
     }
-    fn require<T>(&self, name: &str) -> Result<T, PropertyError>
-    where
-        T: FromEnvironment,
-    {
+    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
         self.0.require(name)
     }
     fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
@@ -146,5 +150,15 @@ impl Environment for Salak {
     }
     fn reload(&mut self) -> Result<(), PropertyError> {
         self.0.reload()
+    }
+}
+
+impl Factory for Salak {
+    type Env = Salak;
+    fn get_env(&self) -> &Self::Env {
+        self
+    }
+    fn fetch<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
+        self.0.fetch()
     }
 }
