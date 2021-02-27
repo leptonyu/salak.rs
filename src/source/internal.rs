@@ -95,6 +95,31 @@ impl FromProperty for String {
     }
 }
 
+impl FromProperty for char {
+    fn from_property(p: Property) -> Result<Self, PropertyError> {
+        match p {
+            Property::Str(str) => {
+                let mut chars = str.chars();
+                if let Some(c) = chars.next() {
+                    if chars.next().is_none() {
+                        return Ok(c);
+                    }
+                }
+                Err(PropertyError::parse_failed("Invalid char value"))
+            }
+            Property::Int(_) => Err(PropertyError::parse_failed(
+                "Integer value cannot convert to char",
+            )),
+            Property::Float(_) => Err(PropertyError::parse_failed(
+                "Float value cannot convert to char",
+            )),
+            Property::Bool(_) => Err(PropertyError::parse_failed(
+                "Bool value cannot convert to char",
+            )),
+        }
+    }
+}
+
 macro_rules! impl_from_property {
     ($x:ident) => {
         impl FromProperty for $x {
