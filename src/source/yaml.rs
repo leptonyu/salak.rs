@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use yaml_rust::ScanError;
 
 /// [`PropertySource`] read properties from yaml file.
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
 #[derive(Debug, Copy, Clone)]
 pub struct Yaml;
 

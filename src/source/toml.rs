@@ -5,6 +5,7 @@ use ::toml::{from_str, Value};
 use std::path::PathBuf;
 
 /// [`PropertySource`] read properties from toml file.
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
 #[derive(Debug, Copy, Clone)]
 pub struct Toml;
 

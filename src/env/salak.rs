@@ -102,6 +102,7 @@ pub struct Salak(PlaceholderResolver<SourceRegistry>);
 
 impl Salak {
     /// Register property source at last.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> SalakBuilder {
         SalakBuilder {
             args: None,
