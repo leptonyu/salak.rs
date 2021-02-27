@@ -4,6 +4,8 @@ pub(crate) mod env;
 pub(crate) mod file;
 pub(crate) mod internal;
 pub(crate) mod map;
+#[cfg(feature = "enable_rand")]
+pub(crate) mod rand;
 // Enable register toml in [`Environment`].
 #[cfg(feature = "enable_toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]

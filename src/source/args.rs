@@ -6,9 +6,6 @@ use clap::{App, Arg};
 use regex::Regex;
 use std::collections::BTreeMap;
 
-#[cfg(feature = "enable_clap")]
-const NOT_POSSIBLE: &str = "Not possible";
-
 /// Command line arguments parser mode.
 #[derive(Debug)]
 pub enum SysArgsMode {
@@ -136,8 +133,8 @@ impl SysArgs {
             .iter()
             .flat_map(|k| match RE.captures(&k) {
                 Some(ref v) => Some((
-                    v.get(1).unwrap().as_str().to_owned(),
-                    Property::Str(v.get(2).unwrap().as_str().to_owned()),
+                    v.get(1).expect(NOT_POSSIBLE).as_str().to_owned(),
+                    Property::Str(v.get(2).expect(NOT_POSSIBLE).as_str().to_owned()),
                 )),
                 _ => None,
             })

@@ -155,10 +155,10 @@ impl Environment for Salak {
 
 impl Factory for Salak {
     type Env = Salak;
-    fn get_env(&self) -> &Self::Env {
+    fn env(&self) -> &Self::Env {
         self
     }
-    fn fetch<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
-        self.0.fetch()
+    fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
+        self.0.get_or_build()
     }
 }

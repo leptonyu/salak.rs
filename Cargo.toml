@@ -31,6 +31,7 @@ clap = {version= "^2.33", optional=true}
 toml = {version= "^0.5", optional=true}
 log = {version="^0.4", optional=true}
 yaml-rust = {version="^0.4.5", optional=true}
+rand = {version="^0.8", optional=true}
 salak_derive = { path = "./salak_derive", version = "^0.2", optional = true }
 
 [dev-dependencies]
@@ -46,6 +47,7 @@ enable_clap = ["clap", "regex"]
 enable_log = ["log"]
 enable_derive = ["salak_derive"]
 enable_yaml = ["yaml-rust"]
+enable_rand = ["rand"]
 
 [workspace]
 members = [".", "salak_derive"]

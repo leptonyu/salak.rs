@@ -162,6 +162,9 @@ pub use crate::source::toml::Toml;
 pub use crate::source::yaml::Yaml;
 pub use crate::source::{args::*, env::SysEnvPropertySource, map::MapPropertySource};
 
+#[allow(unused)]
+pub(crate) const NOT_POSSIBLE: &str = "Not possible";
+
 /// Raw property.
 #[derive(Clone, Debug)]
 pub enum Property {

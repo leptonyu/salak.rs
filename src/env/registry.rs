@@ -13,12 +13,17 @@ pub struct SourceRegistry {
 impl SourceRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
-        SourceRegistry {
+        #[allow(unused_mut)]
+        let mut sr = SourceRegistry {
             conf: None,
             #[cfg(feature = "enable_derive")]
             default: None,
             sources: vec![],
-        }
+        };
+
+        #[cfg(feature = "enable_rand")]
+        sr.register_source(Box::new(crate::source::rand::Random));
+        sr
     }
 
     /// Add default command line arguments parser.

@@ -17,8 +17,17 @@ pub struct FacRef<T: Sized> {
 impl<T: 'static> Deref for FacRef<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        (*self.value).downcast_ref().unwrap()
+        (*self.value).downcast_ref().expect(NOT_POSSIBLE)
     }
+}
+
+/// Factory builder scope.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum FactoryScope {
+    /// Singleton.
+    Singleton,
+    /// Always create a new one.
+    AlwaysNewCreated,
 }
 
 /// A factory.
@@ -27,10 +36,12 @@ pub trait Factory: Sized {
     type Env: Environment;
 
     /// Get environment.
-    fn get_env(&self) -> &Self::Env;
+    fn env(&self) -> &Self::Env;
 
-    /// get object with specified type.
-    fn fetch<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError>;
+    /// Get reference of specified type.
+    /// If [`FactoryScope`] is [`Singleton`], then return cached value,
+    /// otherwise create a new one.
+    fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError>;
 }
 
 pub(crate) struct FactoryRegistry<T: Environment> {
@@ -49,16 +60,22 @@ impl<E: Environment> FactoryRegistry<E> {
 
 impl<E: Environment> Factory for FactoryRegistry<E> {
     type Env = E;
-    fn get_env(&self) -> &Self::Env {
+    fn env(&self) -> &Self::Env {
         &self.env
     }
-    fn fetch<T: 'static + FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
-        let mut map = self.repository.lock().unwrap();
+    fn get_or_build<T: 'static + FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
+        if T::scope() == FactoryScope::AlwaysNewCreated {
+            return Ok(FacRef {
+                value: Arc::new(T::build(self)),
+                _data: PhantomData,
+            });
+        }
+        let mut map = self.repository.lock().expect(NOT_POSSIBLE);
         let tid = TypeId::of::<T>();
         if map.get(&tid).is_none() {
             map.insert(tid, Arc::new(T::build(self)?));
         }
-        let value = map.get(&tid).unwrap();
+        let value = map.get(&tid).expect(NOT_POSSIBLE);
         Ok(FacRef {
             value: value.clone(),
             _data: PhantomData,
@@ -70,6 +87,11 @@ impl<E: Environment> Factory for FactoryRegistry<E> {
 pub trait FromFactory: Sync + Send + Sized + Any {
     /// Actual building blocks.
     fn build(fac: &impl Factory) -> Result<Self, PropertyError>;
+
+    /// Build scope.
+    fn scope() -> FactoryScope {
+        FactoryScope::Singleton
+    }
 }
 
 impl<E: Environment> Environment for FactoryRegistry<E> {
@@ -90,7 +112,7 @@ impl<E: Environment> Environment for FactoryRegistry<E> {
 #[cfg(feature = "enable_derive")]
 impl<F: 'static + Sync + Send + DefaultSourceFromEnvironment> FromFactory for F {
     fn build(fac: &impl Factory) -> Result<Self, PropertyError> {
-        fac.get_env().load_config()
+        fac.env().load_config()
     }
 }
 
@@ -113,8 +135,8 @@ mod tests {
     #[test]
     fn cache_test() {
         let fr = FactoryRegistry::new(SourceRegistry::new());
-        let a: &Connection = &*fr.fetch::<Connection>().unwrap();
-        let b: &Connection = &*fr.fetch::<Connection>().unwrap();
+        let a: &Connection = &*fr.get_or_build::<Connection>().unwrap();
+        let b: &Connection = &*fr.get_or_build::<Connection>().unwrap();
         let c = Connection::build(&fr).unwrap();
         assert_eq!(a.value, b.value);
         assert_ne!(c.value, b.value);
