@@ -25,6 +25,14 @@
 //!   - `#[salak(name="key")]` rename property key.
 //!   - `#[salak(prefix="salak.database")]` set prefix.
 //! * ** Supports load properties from various sources **
+//!   - Support following random property key.
+//!     - `random.u8`
+//!     - `random.u16`
+//!     - `random.u32`
+//!     - `random.i8`
+//!     - `random.i16`
+//!     - `random.i32`
+//!     - `random.i64`
 //!   - Load properties from command line arguments.
 //!   - Load properties from system environment.
 //!   - Load properties from toml config file.
@@ -33,6 +41,7 @@
 //! * Supports profile(develop/production) based configuration.
 //! * Supports placeholder resolve.
 //! * Supports reload configurations.
+//! * Supports factory builder.
 //!
 //! ## Placeholder
 //!
@@ -54,6 +63,7 @@
 //! ### Optional features
 //! 1. `enable_clap`, enable default command line arguments parsing by `clap`.
 //! 2. `enable_yaml`, enable yaml support.
+//! 3. `enable_rand`, enable random value support.
 //!
 //! ## Quick Example
 //!

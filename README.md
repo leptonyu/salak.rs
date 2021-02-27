@@ -40,6 +40,7 @@ Below are a few of the features which `salak` supports.
     - `random.i8`
     - `random.i16`
     - `random.i32`
+    - `random.i64`
   - Load properties from command line arguments.
   - Load properties from system environment.
   - Load properties from toml config file.
@@ -70,7 +71,7 @@ Below are a few of the features which `salak` supports.
 ### Optional features
 1. `enable_clap`, enable default command line arguments parsing by `clap`.
 2. `enable_yaml`, enable yaml support.
-2. `enable_rand`, enable random value support.
+3. `enable_rand`, enable random value support.
 
 ## Quick Example
 
