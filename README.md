@@ -8,90 +8,100 @@ A layered configuration loader with zero-boilerplate configuration management.
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/leptonyu/salak.rs/blob/master/LICENSE-MIT)
 [![Actions Status](https://github.com/leptonyu/salak.rs/workflows/Rust/badge.svg)](https://github.com/leptonyu/salak.rs/actions)
 
-### About
-`salak` try to provide an out-of-box configuration loader for creating new apps, such as cli, web, servers.
+1. [About](#about)
+2. [Features](#features)
+3. [Placeholder](#placeholder)
+4. [Key Convension](#key-convension)
+5. [Cargo Features](#cargo-features)
+    1. [Default features](#default-features)
+    2. [Optional features](#optional-features)
+6. [Quick Example](#quick-example)
 
-### Multi-Layered source environment.
-`salak` defines following default `PropertySource`s:
-1. Command line arguments using `clap` to parsing `-P, --propery KEY=VALUE`.
-2. System Environment.
-3. app.toml(*) in current dir and $HOME dir. Or if you specify `APP_CONF_DIR` dir, then only load toml in this dir.
 
-\* `APP_CONF_NAME` can be specified to replace `app`.
+## About
+`salak` is a rust version of layered configuration loader inspired by
+[spring-boot](https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.#boot-features-external-config).
+`salak` provide an [`Environment`] structure which load properties from various [`PropertySource`]s.
+Any structure which impmement [`FromEnvironment`] can get from [`Environment`] by a key.
+Feature `enable_derive` provide rust attributes for auto derive [`FromEnvironment`].
 
-### Placeholder format
-1. `${key:default}` means get value of `key`, if not exists then return `default`.
-2. `${key}` means get value of `key`, if not exists then return `PropertyError::NotFound(_)`.
+## Features
+Below are a few of the features which `salak` supports.
 
-### Key format
-1. `a.b.c` is a normal key separated by dot(`.`).
-2. `a.b[0]`, `a.b[1]`, `a.b[2]`... is a group of keys with arrays.
-3. System environment key will be changed from `HELLO_WORLD` <=> `hello.world`, `HELLO__WORLD_HOW` <=> `hello_world.how`, `hello[1].world` => `HELLO_1_WORLD` <=> `hello.1.world`.
+* Auto mapping properties into configuration struct.
+  - `#[salak(default="value")]` set default value.
+  - `#[salak(name="key")]` rename property key.
+  - `#[salak(prefix="salak.database")]` set prefix.
+* ** Supports load properties from various sources **
+  - Load properties from command line arguments.
+  - Load properties from system environment.
+  - Load properties from toml config file.
+  - Load properties from yaml config file.
+  - Easy to add a new property source.
+* Supports profile(develop/production) based configuration.
+* Supports placeholder resolve.
+* Supports reload configurations.
 
-### Auto derived parameters.
+## Placeholder
 
-##### attribute `default` to set default value.
-1. `#[salak(default="string")]`
-2. `#[salak(default=1)]`
+* `${key:default}` means get value of `key`, if not exists then return `default`.
+* `${key}` means get value of `key`, if not exists then return `PropertyError::NotFound(_)`.
+* `\$\{key\}` means escape to `${key}`.
 
-### Features
+## Key Convension
+* `a.b.c` is a normal key separated by dot(`.`).
+* `a.b[0]`, `a.b[1]`, `a.b[2]`... is a group of keys with arrays.
 
-##### Default features
+## Cargo Features
+
+### Default features
 1. `enable_log`, enable log record if enabled.
 2. `enable_toml`, enable toml support.
 3. `enable_derive`, enable auto derive [`FromEnvironment`] for struts.
 
-##### Optional features
+### Optional features
 1. `enable_clap`, enable default command line arguments parsing by `clap`.
 2. `enable_yaml`, enable yaml support.
 
+## Quick Example
 
-### Quick Code
 ```rust
 use salak::*;
+
 #[derive(FromEnvironment, Debug)]
+pub struct SslConfig {
+    key: String,
+    pem: String,
+}
+
+#[derive(FromEnvironment, Debug)]
+#[salak(prefix = "database")]
 pub struct DatabaseConfig {
-    url: String,
-    #[salak(default = "salak")]
-    username: String,
-    password: Option<String>,
-    description: String,
+  url: String,
+  #[salak(default = "salak")]
+  username: String,
+  password: Option<String>,
+  description: String,
+  #[salak(name="ssl")]
+  ssl_config: Option<SslConfig>,  
 }
 
-fn main() {
-  std::env::set_var("database.url", "localhost:5432");
-  std::env::set_var("database.description", "\\$\\{Hello\\}");
-  let env = Salak::new()
-     .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
-     .build();
- 
-  match env.require::<DatabaseConfig>("database") {
-      Ok(val) => println!("{:?}", val),
-      Err(e) => println!("{}", e),
-  }
+std::env::set_var("database.url", "localhost:5432");
+std::env::set_var("database.description", "\\$\\{Hello\\}");
+let env = Salak::new()
+   .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
+   .build();
+
+match env.load_config::<DatabaseConfig>() {
+    Ok(val) => println!("{:?}", val),
+    Err(e) => println!("{}", e),
 }
-// Output: DatabaseConfig { url: "localhost:5432", username: "salak", password: None, description: "${Hello}" }
-```
 
-### Quick Run
-```bash
-git clone https://github.com/leptonyu/salak.rs.git
-cd salak.rs
-cargo run --example salak --features="default enable_clap" -- -h
-# salak 0.5.0
-# Daniel Yu <leptonyu@gmail.com>
-# A rust configuration loader
-# 
-# USAGE:
-#     salak [OPTIONS]
-# 
-# FLAGS:
-#     -h, --help       Prints help information
-#     -V, --version    Prints version information
-# 
-# OPTIONS:
-#     -P, --property <KEY=VALUE>...    Set properties
+// Output: DatabaseConfig {
+//  url: "localhost:5432",
+//  username: "salak",
+//  password: None,
+//  description: "${Hello}",
+//  ssl_config: None,
+// }
 ```
-
-### TODO
-1. Reload configurations.

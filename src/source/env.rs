@@ -4,6 +4,13 @@ use crate::*;
 use std::collections::BTreeMap;
 
 /// [`PropertySource`] read properties from system environment.
+///
+/// [`SysEnvPropertySource`] will convert key from `SNAKE_UPPERCASE` to `dot.lowercase`.
+///
+/// * `NAME_URL` => `name.url`
+/// * `NAME__URL` => `name_url`
+/// * `DATABASE_USER__NAME` => `database.user_name`
+/// * `__CFBundleIdentifier` will not convert.
 #[derive(Debug, Clone)]
 pub struct SysEnvPropertySource(MapPropertySource);
 

@@ -9,14 +9,45 @@ use std::collections::BTreeMap;
 #[cfg(feature = "enable_clap")]
 const NOT_POSSIBLE: &str = "Not possible";
 
-/// CommandLine arguments parser mode.
+/// Command line arguments parser mode.
 #[derive(Debug)]
 pub enum SysArgsMode {
     #[cfg(feature = "enable_clap")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
-    /// Use default parser.
+    /// Use default `clap` parser. It has a OPTION named `-P` to set customized properties.
+    ///
+    /// ```no_run
+    /// use salak::*;
+    /// let env = Salak::new()
+    ///    .with_default_args(auto_read_sys_args_param!())
+    ///    .build();
+    ///
+    /// // Command line output:
+    /// // salak 0.0.0
+    /// // Daniel Yu <leptonyu@gmail.com>
+    /// // A rust configuration loader
+    /// //
+    /// // USAGE:
+    /// //     salak [OPTIONS]
+    /// //
+    /// // FLAGS:
+    /// //     -h, --help       Prints help information
+    /// //     -V, --version    Prints version information
+    /// //
+    /// // OPTIONS:
+    /// //     -P, --property <KEY=VALUE>...    Set properties
+    /// ```
     Auto(SysArgsParam),
-    /// Customize parser and provide a key value vector as [`PropertySource`].
+    /// Customize command line arguments parser, and provide a `Vec` to [`PropertySource`].
+    /// If you can use any cli parser.
+    ///
+    /// ```no_run
+    /// use salak::*;
+    /// let arg_props = vec![];  // replace `vec![]` with your cli parser process result.
+    /// let env = Salak::new()
+    ///    .with_custom_args(arg_props)
+    ///    .build();
+    /// ```
     Custom(Vec<(String, Property)>),
 }
 

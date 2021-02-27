@@ -1,5 +1,6 @@
 //! Provide [`Environment`] implementations.
 use crate::*;
+#[allow(unused_imports)]
 use std::collections::BTreeMap;
 
 /// [`Salak`] builder.
@@ -30,12 +31,8 @@ impl SalakBuilder {
 
     /// Use custom command line arguments parser.
     /// Users should provide a parser to produce [`Vec<(String, Property)>`].
-    pub fn with_custom_args<P: IntoProperty>(mut self, args: Vec<(String, P)>) -> Self {
-        self.args = Some(SysArgsMode::Custom(
-            args.into_iter()
-                .map(|(k, v)| (k, v.into_property()))
-                .collect(),
-        ));
+    pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
+        self.args = Some(SysArgsMode::Custom(args));
         self
     }
 

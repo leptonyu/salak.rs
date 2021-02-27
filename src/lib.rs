@@ -1,45 +1,57 @@
 //! A layered configuration loader with zero-boilerplate configuration management.
 //!
+//! 1. [About](#about)
+//! 2. [Features](#features)
+//! 3. [Placeholder](#placeholder)
+//! 4. [Key Convension](#key-convension)
+//! 5. [Cargo Features](#cargo-features)
+//!     1. [Default features](#default-features)
+//!     2. [Optional features](#optional-features)
+//! 6. [Quick Example](#quick-example)
+//!
+//!
 //! ## About
 //! `salak` is a rust version of layered configuration loader inspired by
 //! [spring-boot](https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-external-config).
-//! `salak` also has a [haskell version](https://hackage.haskell.org/package/salak).
+//! `salak` provide an [`Environment`] structure which load properties from various [`PropertySource`]s.
+//! Any structure which impmement [`FromEnvironment`] can get from [`Environment`] by a key.
+//! Feature `enable_derive` provide rust attributes for auto derive [`FromEnvironment`].
 //!
-//! `salak` defines following default [`PropertySource`]s:
-//! 1. Command line arguments using `clap` to parsing `-P, --propery KEY=VALUE`.
-//! 2. System Environment.
-//! 3. app.toml(*) in current dir and $HOME dir. Or if you specify `APP_CONF_DIR` dir, then only load toml in this dir.
+//! ## Features
+//! Below are a few of the features which `salak` supports.
 //!
-//! \* `APP_CONF_NAME` can be specified to replace `app`.
+//! * Auto mapping properties into configuration struct.
+//!   - `#[salak(default="value")]` set default value.
+//!   - `#[salak(name="key")]` rename property key.
+//!   - `#[salak(prefix="salak.database")]` set prefix.
+//! * ** Supports load properties from various sources **
+//!   - Load properties from command line arguments.
+//!   - Load properties from system environment.
+//!   - Load properties from toml config file.
+//!   - Load properties from yaml config file.
+//!   - Easy to add a new property source.
+//! * Supports profile(develop/production) based configuration.
+//! * Supports placeholder resolve.
+//! * Supports reload configurations.
 //!
-//! ### Placeholder format
-//! 1. `${key:default}` means get value of `key`, if not exists then return `default`.
-//! 2. `${key}` means get value of `key`, if not exists then return `PropertyError::NotFound(_)`.
-//! 3. `\$\{key\}` means escape to `${key}` or u can use `disable_placeholder` attribute.
+//! ## Placeholder
 //!
-//! ### Key format
-//! 1. `a.b.c` is a normal key separated by dot(`.`).
-//! 2. `a.b[0]`, `a.b[1]`, `a.b[2]`... is a group of keys with arrays.
-//! 3. System environment key will be changed from `HELLO_WORLD` <=> `hello.world`, `HELLO__WORLD_HOW` <=> `hello_world.how`, `hello[1].world` => `HELLO_1_WORLD` <=> `hello.1.world`.
+//! * `${key:default}` means get value of `key`, if not exists then return `default`.
+//! * `${key}` means get value of `key`, if not exists then return `PropertyError::NotFound(_)`.
+//! * `\$\{key\}` means escape to `${key}`.
 //!
-//! ### Auto derived parameters.
+//! ## Key Convension
+//! * `a.b.c` is a normal key separated by dot(`.`).
+//! * `a.b[0]`, `a.b[1]`, `a.b[2]`... is a group of keys with arrays.
 //!
-//! ##### attribute `default` to set default value.
-//! 1. `#[salak(default="string")]`
-//! 2. `#[salak(default=1)]`
+//! ## Cargo Features
 //!
-//! ##### attribute `disable_placeholder` to disable placeholder parsing.
-//! 1. `#[salak(disable_placeholder)]`
-//! 2. `#[salak(disable_placeholder = true)]`
-//!
-//! ### Features
-//!
-//! ##### Default features
+//! ### Default features
 //! 1. `enable_log`, enable log record if enabled.
 //! 2. `enable_toml`, enable toml support.
 //! 3. `enable_derive`, enable auto derive [`FromEnvironment`] for struts.
 //!
-//! ##### Optional features
+//! ### Optional features
 //! 1. `enable_clap`, enable default command line arguments parsing by `clap`.
 //! 2. `enable_yaml`, enable yaml support.
 //!
@@ -47,13 +59,23 @@
 //!
 //! ```
 //! use salak::*;
+//!
 //! #[derive(FromEnvironment, Debug)]
+//! pub struct SslConfig {
+//!     key: String,
+//!     pem: String,
+//! }
+//!
+//! #[derive(FromEnvironment, Debug)]
+//! #[salak(prefix = "database")]
 //! pub struct DatabaseConfig {
-//!     url: String,
-//!     #[salak(default = "salak")]
-//!     username: String,
-//!     password: Option<String>,
-//!     description: String,
+//!   url: String,
+//!   #[salak(default = "salak")]
+//!   username: String,
+//!   password: Option<String>,
+//!   description: String,
+//!   #[salak(name="ssl")]
+//!   ssl_config: Option<SslConfig>,  
 //! }
 //!
 //! std::env::set_var("database.url", "localhost:5432");
@@ -62,17 +84,17 @@
 //!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
 //!    .build();
 //!
-//! match env.require::<DatabaseConfig>("database") {
+//! match env.load_config::<DatabaseConfig>() {
 //!     Ok(val) => println!("{:?}", val),
 //!     Err(e) => println!("{}", e),
 //! }
 //!
 //! // Output: DatabaseConfig {
 //! //  url: "localhost:5432",
-//! //  name: "salak",
 //! //  username: "salak",
 //! //  password: None,
-//! //  description: "${Hello}"
+//! //  description: "${Hello}",
+//! //  ssl_config: None,
 //! // }
 //! ```
 //!
@@ -138,17 +160,16 @@ pub use crate::source::toml::Toml;
 pub use crate::source::yaml::Yaml;
 pub use crate::source::{args::*, env::SysEnvPropertySource, map::MapPropertySource};
 
-/// Unified property structure.
+/// Raw property.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub enum Property {
-    // String
+    /// String value.
     Str(String),
-    // Integer
+    /// Integer value.
     Int(i64),
-    // Float
+    /// Float value.
     Float(f64),
-    // Bool
+    /// Bool value.
     Bool(bool),
 }
 
@@ -158,97 +179,102 @@ pub trait IntoProperty: Sized {
     fn into_property(self) -> Property;
 }
 
-/// Convert value from [`Property`].
+/// Convert from [`Property`].
 pub trait FromProperty: Sized {
     /// Convert from property.
     fn from_property(_: Property) -> Result<Self, PropertyError>;
 }
 
 /// An abstract source loader from various sources,
-/// such as commandline arguments, system environment, files, etc.
+/// such as command line arguments, system environment, files, etc.
 pub trait PropertySource: Sync + Send {
-    /// Name
+    /// [`PropertySource`] name.
     fn name(&self) -> String;
-    /// Get property with name.
-    fn get_property(&self, name: &str) -> Option<Property>;
-    /// Check if property with name exists.
-    fn contains_property(&self, name: &str) -> bool {
-        self.get_property(name).is_some()
+    /// Get property by name.
+    fn get_property(&self, key: &str) -> Option<Property>;
+    /// Check whether property exists.
+    fn contains_property(&self, key: &str) -> bool {
+        self.get_property(key).is_some()
     }
-    /// Check if the source is empty.
+    /// Check whether the [`PropertySource`] is empty.
+    /// Empty source will not be ignored when register to registry.
     fn is_empty(&self) -> bool;
 
-    /// Find keys with prefix.
+    /// Find all next level keys with prefix.
     fn get_keys(&self, prefix: &str) -> Vec<String>;
 
-    /// Reload [`PropertySource`]
+    /// Reload [`PropertySource`], if this [`PropertySource`] not support reload, then just return `Ok(None)`.
     fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError>;
 }
 
-/// An environment for getting properties in multiple [`PropertySource`]s.
+/// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
 pub trait Environment: Sync + Send + Sized {
-    /// Check if the environment has property.
-    fn contains(&self, name: &str) -> bool {
-        self.require::<Property>(name).is_ok()
+    /// Check whether property exists.
+    fn contains(&self, key: &str) -> bool {
+        self.require::<Property>(key).is_ok()
     }
-    /// Get required value, or return error.
-    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError>;
+    /// Get property with specific type.
+    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError>;
 
-    /// Get required value, if not exists then return default value, otherwise return error.
-    fn require_or<T: FromEnvironment>(&self, name: &str, default: T) -> Result<T, PropertyError> {
-        match self.require::<Option<T>>(name) {
+    /// Get property with specific type, if property not exists, then return default value.
+    fn require_or<T: FromEnvironment>(&self, key: &str, default: T) -> Result<T, PropertyError> {
+        match self.require::<Option<T>>(key) {
             Ok(Some(a)) => Ok(a),
             Ok(None) => Ok(default),
             Err(e) => Err(e),
         }
     }
-
-    /// Get optional value, this function will ignore property parse error.
-    fn get<T: FromEnvironment>(&self, name: &str) -> Option<T> {
-        self.require(name).ok()
+    /// Get property with specific type, if error happens then return [`None`].
+    fn get<T: FromEnvironment>(&self, key: &str) -> Option<T> {
+        self.require(key).ok()
     }
-    /// Get value or using default, this function will ignore property parse error.
-    fn get_or<T: FromEnvironment>(&self, name: &str, default: T) -> T {
-        self.get(name).unwrap_or(default)
+    /// Get property with specific type, if error happens then return default value.
+    fn get_or<T: FromEnvironment>(&self, key: &str, default: T) -> T {
+        self.get(key).unwrap_or(default)
     }
 
-    /// Resolve placeholder.
+    /// Resolve placeholder value.
     fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
 
-    /// Load properties
+    /// Load properties which has `#[salak(prefix="prefix")]`
     #[cfg(feature = "enable_derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
     fn load_config<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require(T::prefix())
     }
 
-    /// Find keys with prefix.
+    /// Find all next level keys with prefix.
     fn find_keys(&self, prefix: &str) -> Vec<String>;
 
-    /// Reload configuration
+    /// Reload [`Environment`].
     fn reload(&mut self) -> Result<(), PropertyError>;
 }
 
-/// Generate object from [`Environment`].
+/// Convert from [`Environment`].
 pub trait FromEnvironment: Sized {
-    /// Generate object from env.
+    /// Generate object from [`Environment`].
+    /// * `prefix` - Property prefix.
+    /// * `property` - Property value with key is `prefix`.
+    /// * `env` - Instance of [`Environment`]
     fn from_env(
         prefix: &str,
-        p: Option<Property>,
+        property: Option<Property>,
         env: &impl Environment,
     ) -> Result<Self, PropertyError>;
 
+    /// Empty check for some containers, such as [`Vec<T>`] or [`Option<T>`].
+    fn check_is_empty(&self) -> bool {
+        false
+    }
+
+    #[doc(hidden)]
     /// Handle special case such as property not found.
     fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
         Err(err)
     }
 
-    /// Notify if the value is empty value. Such as `Vec<T>` or `Option<T>`.
-    fn check_is_empty(&self) -> bool {
-        false
-    }
-
-    /// Load default value.
+    #[doc(hidden)]
+    #[cfg(feature = "enable_derive")]
     fn load_default() -> Vec<(String, Property)> {
         vec![]
     }
@@ -291,10 +317,16 @@ mod tests {
     fn integration_tests() {
         let env = Salak::new()
             .with_custom_args(vec![
-                ("database.detail.option_arr[0]".to_owned(), "10"),
-                ("database.url".to_owned(), "localhost:5432"),
-                ("database.name".to_owned(), "salak"),
-                ("database.description".to_owned(), "\\$\\{Hello\\}"),
+                (
+                    "database.detail.option_arr[0]".to_owned(),
+                    "10".into_property(),
+                ),
+                ("database.url".to_owned(), "localhost:5432".into_property()),
+                ("database.name".to_owned(), "salak".into_property()),
+                (
+                    "database.description".to_owned(),
+                    "\\$\\{Hello\\}".into_property(),
+                ),
             ])
             .build();
 

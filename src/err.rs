@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use crate::*;
 use core::num::{ParseFloatError, ParseIntError, TryFromIntError};
 use core::str::ParseBoolError;
 use std::convert::Infallible;
@@ -6,13 +8,13 @@ use std::fmt::{Display, Error, Formatter};
 /// Property Error
 #[derive(Debug, PartialEq, Eq)]
 pub enum PropertyError {
-    /// Property not found
+    /// [`Property`] not found
     NotFound(String),
-    /// Property parse failed.
+    /// [`Property`] parse failed.
     ParseFail(String),
     /// Resursive parsing same key.
     RecursiveParse(String),
-    /// Property reload failed.
+    /// [`PropertySource`] reload failed.
     ReloadFail(String),
 }
 

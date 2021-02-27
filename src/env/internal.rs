@@ -35,6 +35,7 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
         self.is_none()
     }
 
+    #[cfg(feature = "enable_derive")]
     fn load_default() -> Vec<(String, Property)> {
         P::load_default()
     }

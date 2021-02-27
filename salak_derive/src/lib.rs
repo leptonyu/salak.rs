@@ -55,12 +55,13 @@ fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
 fn parse_field_attribute(
     attrs: Vec<Attribute>,
     get_val: quote::__private::TokenStream,
-    name: Ident,
+    name: &mut Ident,
 ) -> (
     quote::__private::TokenStream,
     Option<quote::__private::TokenStream>,
 ) {
     let mut def = None;
+    let mut rename = None;
     for attr in attrs {
         if let Ok(v) = attr.parse_meta() {
             match v {
@@ -70,7 +71,8 @@ fn parse_field_attribute(
                             match meta {
                                 Meta::NameValue(nv) => match &parse_path(nv.path)[..] {
                                     "default" => def = Some(parse_lit(nv.lit)),
-                                    _ => panic!("Only support default"),
+                                    "name" => rename = Some(parse_lit(nv.lit)),
+                                    _ => panic!("Only support default/name"),
                                 },
                                 _ => panic!("Not support Meta::List"),
                             }
@@ -80,6 +82,9 @@ fn parse_field_attribute(
                 _ => panic!("Not support Path/NameValue"),
             }
         }
+    }
+    if let Some(rename) = rename {
+        *name = quote::format_ident!("{}", rename);
     }
 
     match def {
@@ -111,10 +116,11 @@ fn derive_field(
     let get_value = quote! {
       env.require::<Option<Property>>(&#temp_name)?
     };
-    let (get_value, def) = parse_field_attribute(field.attrs, get_value, name.clone());
+    let mut rename = name.clone();
+    let (get_value, def) = parse_field_attribute(field.attrs, get_value, &mut rename);
     (
         quote! {
-            let #temp_name = format!("{}{}", name ,stringify!(#name));
+            let #temp_name = format!("{}{}", name ,stringify!(#rename));
         },
         quote! {
             #name: <#ty>::from_env(&#temp_name,
@@ -189,7 +195,7 @@ fn derive_enum(
     attrs: Vec<Attribute>,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let (def, _) = parse_field_attribute(attrs, quote! { property }, type_name.clone());
+    let (def, _) = parse_field_attribute(attrs, quote! { property }, &mut type_name.clone());
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;
