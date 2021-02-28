@@ -7,10 +7,12 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+type ASS = dyn Any + Send + Sync;
+
 /// Factory smart pointer reference.
 #[derive(Debug)]
 pub struct FacRef<T: Sized> {
-    value: Arc<dyn Any + Send + Sync>,
+    value: Arc<ASS>,
     _data: PhantomData<T>,
 }
 
@@ -39,7 +41,7 @@ pub trait Factory: Sized {
     fn env(&self) -> &Self::Env;
 
     /// Get reference of specified type.
-    /// If [`FactoryScope`] is [`FactoryScope::Singleton`], then return cached value,
+    /// If [`FactoryScope`] is [`FactoryScope::registrySingleton`], then return cached value,
     /// otherwise create a new one.
     fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError>;
 
@@ -52,7 +54,7 @@ pub trait Factory: Sized {
 
 pub(crate) struct FactoryRegistry<T: Environment> {
     pub(crate) env: T,
-    repository: Mutex<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>,
+    repository: Mutex<HashMap<TypeId, Arc<ASS>>>,
 }
 
 impl<E: Environment> FactoryRegistry<E> {
@@ -76,14 +78,21 @@ impl<E: Environment> Factory for FactoryRegistry<E> {
                 _data: PhantomData,
             });
         }
-        let mut map = self.repository.lock().expect(NOT_POSSIBLE);
         let tid = TypeId::of::<T>();
-        if map.get(&tid).is_none() {
-            map.insert(tid, Arc::new(T::build(self)?));
+        if let Some(value) = self.repository.lock().expect(NOT_POSSIBLE).get(&tid) {
+            return Ok(FacRef {
+                value: value.clone(),
+                _data: PhantomData,
+            });
         }
-        let value = map.get(&tid).expect(NOT_POSSIBLE);
+        let value = Arc::new(T::build(self)?);
+        self.repository
+            .lock()
+            .expect(NOT_POSSIBLE)
+            .entry(tid)
+            .or_insert(value.clone());
         Ok(FacRef {
-            value: value.clone(),
+            value,
             _data: PhantomData,
         })
     }
@@ -132,19 +141,44 @@ mod tests {
         value: u64,
     }
 
+    impl Connection {
+        fn value(&self) -> u64 {
+            self.value
+        }
+    }
+
     impl FromFactory for Connection {
         fn build(_: &impl Factory) -> Result<Self, PropertyError> {
             Ok(Connection { value: random() })
         }
     }
 
+    struct Repository {
+        conn: FacRef<Connection>,
+    }
+    impl FromFactory for Repository {
+        fn build(fac: &impl Factory) -> Result<Self, PropertyError> {
+            Ok(Repository {
+                conn: fac.get_or_build()?,
+            })
+        }
+    }
+    impl Repository {
+        fn value(&self) -> u64 {
+            (*self.conn).value()
+        }
+    }
+
     #[test]
     fn cache_test() {
         let fr = FactoryRegistry::new(SourceRegistry::new());
-        let a: &Connection = &*fr.get_or_build::<Connection>().unwrap();
-        let b: &Connection = &*fr.get_or_build::<Connection>().unwrap();
+        let a = fr.get_or_build::<Connection>().unwrap();
+        let b = fr.get_or_build::<Connection>().unwrap();
         let c = Connection::build(&fr).unwrap();
-        assert_eq!(a.value, b.value);
-        assert_ne!(c.value, b.value);
+        assert_eq!(a.value(), b.value());
+        assert_ne!(c.value, b.value());
+
+        let r = fr.get_or_build::<Repository>().unwrap();
+        assert_eq!(a.value(), r.value());
     }
 }
