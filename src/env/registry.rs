@@ -140,8 +140,11 @@ impl Environment for SourceRegistry {
         T::from_env(name, x, self)
     }
 
-    fn resolve_placeholder(&self, _: String) -> Result<Option<Property>, PropertyError> {
-        Err(PropertyError::parse_failed("Placeholder not implement"))
+    fn resolve_placeholder(&self, v: String) -> Result<Option<Property>, PropertyError> {
+        Err(PropertyError::ParseFail(format!(
+            "Placeholder not implement: {}",
+            v
+        )))
     }
     fn find_keys(&self, prefix: &str) -> Vec<String> {
         let s: HashSet<String> = self

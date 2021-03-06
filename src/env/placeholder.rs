@@ -135,7 +135,7 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
     where
         T: FromEnvironment,
     {
-        if self.enabled && !name.is_empty() {
+        if self.enabled {
             self.require_with_parse::<T>(name, &mut HashSet::new())
         } else {
             self.env.require(name)

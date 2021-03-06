@@ -328,6 +328,7 @@ mod tests {
         description: String,
         detail: DatabaseConfigDetail,
     }
+
     #[test]
     fn integration_tests() {
         let env = Salak::new()
@@ -365,5 +366,26 @@ mod tests {
         assert_eq!(true, ret.is_ok());
         let ret = ret.unwrap();
         assert_eq!(3, ret.len());
+    }
+
+    #[derive(FromEnvironment, Debug)]
+    struct Options {
+        #[salak(default = "cidr")]
+        mode: String,
+        #[salak(default = "\t")]
+        sep: String,
+        #[salak(default = "false")]
+        count: bool,
+    }
+
+    #[test]
+    fn placeholder_tests() {
+        let env = Salak::new().build();
+        let ret = env.require::<Options>("");
+        assert_eq!(true, ret.is_ok());
+        let ret = ret.unwrap();
+        assert_eq!("cidr", ret.mode);
+        assert_eq!("\t", ret.sep);
+        assert_eq!(false, ret.count);
     }
 }
