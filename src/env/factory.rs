@@ -1,11 +1,11 @@
 use crate::*;
-use std::any::Any;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::{any::Any, sync::MutexGuard};
 
 type ASS = dyn Any + Send + Sync;
 
@@ -41,7 +41,7 @@ pub trait Factory: Sized {
     fn env(&self) -> &Self::Env;
 
     /// Get reference of specified type.
-    /// If [`FactoryScope`] is [`FactoryScope::registrySingleton`], then return cached value,
+    /// If [`FactoryScope`] is [`FactoryScope::Singleton`], then return cached value,
     /// otherwise create a new one.
     fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError>;
 
@@ -52,9 +52,56 @@ pub trait Factory: Sized {
     }
 }
 
+type FacRepo = HashMap<TypeId, Arc<ASS>>;
+
+/// Factory Context.
+#[derive(Debug)]
+pub struct FactoryContext<'a> {
+    guard: MutexGuard<'a, FacRepo>,
+}
+
+impl FactoryContext<'_> {
+    /// Get instance from factory.
+    pub fn get<T: 'static + FromFactory>(
+        &mut self,
+        env: &impl Environment,
+    ) -> Result<FacRef<T>, PropertyError> {
+        if T::scope() == FactoryScope::AlwaysNewCreated {
+            return Ok(FacRef {
+                value: Arc::new(T::build(self, env)?),
+                _data: PhantomData,
+            });
+        }
+        let tid = TypeId::of::<T>();
+        if let Some(value) = self.guard.get(&tid) {
+            return Ok(FacRef {
+                value: value.clone(),
+                _data: PhantomData,
+            });
+        }
+        let value = Arc::new(T::build(self, env)?);
+        self.guard.insert(tid, value.clone());
+        Ok(FacRef {
+            value,
+            _data: PhantomData,
+        })
+    }
+}
+
+/// Build object from [`Factory`]
+pub trait FromFactory: Sync + Send + Sized + Any {
+    /// Actual building blocks.
+    fn build(_: &mut FactoryContext<'_>, _: &impl Environment) -> Result<Self, PropertyError>;
+
+    /// Build scope.
+    fn scope() -> FactoryScope {
+        FactoryScope::Singleton
+    }
+}
+
 pub(crate) struct FactoryRegistry<T: Environment> {
     pub(crate) env: T,
-    repository: Mutex<HashMap<TypeId, Arc<ASS>>>,
+    repository: Mutex<FacRepo>,
 }
 
 impl<E: Environment> FactoryRegistry<E> {
@@ -72,40 +119,10 @@ impl<E: Environment> Factory for FactoryRegistry<E> {
         &self.env
     }
     fn get_or_build<T: 'static + FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
-        if T::scope() == FactoryScope::AlwaysNewCreated {
-            return Ok(FacRef {
-                value: Arc::new(T::build(self)),
-                _data: PhantomData,
-            });
+        FactoryContext {
+            guard: self.repository.lock().expect(NOT_POSSIBLE),
         }
-        let tid = TypeId::of::<T>();
-        if let Some(value) = self.repository.lock().expect(NOT_POSSIBLE).get(&tid) {
-            return Ok(FacRef {
-                value: value.clone(),
-                _data: PhantomData,
-            });
-        }
-        let value = Arc::new(T::build(self)?);
-        self.repository
-            .lock()
-            .expect(NOT_POSSIBLE)
-            .entry(tid)
-            .or_insert(value.clone());
-        Ok(FacRef {
-            value,
-            _data: PhantomData,
-        })
-    }
-}
-
-/// Build object from [`Factory`]
-pub trait FromFactory: Sync + Send + Sized + Any {
-    /// Actual building blocks.
-    fn build(fac: &impl Factory) -> Result<Self, PropertyError>;
-
-    /// Build scope.
-    fn scope() -> FactoryScope {
-        FactoryScope::Singleton
+        .get(&self.env)
     }
 }
 
@@ -126,14 +143,14 @@ impl<E: Environment> Environment for FactoryRegistry<E> {
 
 #[cfg(feature = "enable_derive")]
 impl<F: 'static + Sync + Send + DefaultSourceFromEnvironment> FromFactory for F {
-    fn build(fac: &impl Factory) -> Result<Self, PropertyError> {
-        fac.env().load_config()
+    fn build(_: &mut FactoryContext<'_>, env: &impl Environment) -> Result<Self, PropertyError> {
+        env.load_config()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use super::*;
     use rand::random;
 
     #[derive(Eq, PartialEq)]
@@ -148,7 +165,7 @@ mod tests {
     }
 
     impl FromFactory for Connection {
-        fn build(_: &impl Factory) -> Result<Self, PropertyError> {
+        fn build(_: &mut FactoryContext<'_>, _: &impl Environment) -> Result<Self, PropertyError> {
             Ok(Connection { value: random() })
         }
     }
@@ -156,10 +173,14 @@ mod tests {
     struct Repository {
         conn: FacRef<Connection>,
     }
+
     impl FromFactory for Repository {
-        fn build(fac: &impl Factory) -> Result<Self, PropertyError> {
+        fn build(
+            context: &mut FactoryContext<'_>,
+            env: &impl Environment,
+        ) -> Result<Self, PropertyError> {
             Ok(Repository {
-                conn: fac.get_or_build()?,
+                conn: context.get(env)?,
             })
         }
     }
@@ -168,17 +189,41 @@ mod tests {
             (*self.conn).value()
         }
     }
+    struct PrototypeConnection {
+        value: u64,
+    }
+
+    impl PrototypeConnection {
+        fn value(&self) -> u64 {
+            self.value
+        }
+    }
+
+    impl FromFactory for PrototypeConnection {
+        fn build(_: &mut FactoryContext<'_>, _: &impl Environment) -> Result<Self, PropertyError> {
+            Ok(PrototypeConnection { value: random() })
+        }
+
+        fn scope() -> FactoryScope {
+            FactoryScope::AlwaysNewCreated
+        }
+    }
 
     #[test]
-    fn cache_test() {
+    fn singleton_test() {
         let fr = FactoryRegistry::new(SourceRegistry::new());
         let a = fr.get_or_build::<Connection>().unwrap();
         let b = fr.get_or_build::<Connection>().unwrap();
-        let c = Connection::build(&fr).unwrap();
         assert_eq!(a.value(), b.value());
-        assert_ne!(c.value, b.value());
-
         let r = fr.get_or_build::<Repository>().unwrap();
         assert_eq!(a.value(), r.value());
+    }
+
+    #[test]
+    fn prototype_test() {
+        let fr = FactoryRegistry::new(SourceRegistry::new());
+        let a = fr.get_or_build::<PrototypeConnection>().unwrap();
+        let b = fr.get_or_build::<PrototypeConnection>().unwrap();
+        assert_ne!(a.value(), b.value());
     }
 }

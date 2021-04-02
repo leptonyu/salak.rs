@@ -158,6 +158,7 @@ impl Factory for Salak {
     fn env(&self) -> &Self::Env {
         self
     }
+
     fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
         self.0.get_or_build()
     }

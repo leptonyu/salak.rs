@@ -156,7 +156,7 @@ pub use crate::utils::SalakStringUtil;
 mod env;
 pub(crate) use crate::env::factory::FactoryRegistry;
 pub use crate::env::{
-    factory::{FacRef, Factory, FactoryScope, FromFactory},
+    factory::{FacRef, Factory, FactoryContext, FactoryScope, FromFactory},
     placeholder::PlaceholderResolver,
     registry::SourceRegistry,
     salak::{Salak, SalakBuilder},
@@ -223,7 +223,7 @@ pub trait PropertySource: Sync + Send {
 }
 
 /// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
-pub trait Environment: Sync + Send + Sized {
+pub trait Environment: Sync + Send {
     /// Check whether property exists.
     fn contains(&self, key: &str) -> bool {
         self.require::<Property>(key).is_ok()
