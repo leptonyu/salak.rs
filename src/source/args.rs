@@ -152,6 +152,7 @@ impl Default for SysArgs {
 }
 
 #[cfg(test)]
+#[cfg(feature = "enable_clap")]
 mod tests {
     #[test]
     #[cfg(feature = "enable_clap")]

@@ -12,10 +12,12 @@ pub enum PropertyError {
     NotFound(String),
     /// [`Property`] parse failed.
     ParseFail(String),
-    /// Resursive parsing same key.
+    /// Recursive parsing same key.
     RecursiveParse(String),
     /// [`PropertySource`] reload failed.
     ReloadFail(String),
+    /// Recursive build instance.
+    RecursiveBuild(String),
 }
 
 impl PropertyError {
@@ -32,6 +34,7 @@ impl Display for PropertyError {
             PropertyError::ParseFail(e) => write!(f, "Parse failed: {}", e),
             PropertyError::RecursiveParse(n) => write!(f, "Property {} recursive.", &n),
             PropertyError::ReloadFail(e) => write!(f, "Reload failed: {}", e),
+            PropertyError::RecursiveBuild(e) => write!(f, "Recursive build failed: {}", e),
         }
     }
 }

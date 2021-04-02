@@ -58,33 +58,40 @@ type FacRepo = HashMap<TypeId, Arc<ASS>>;
 #[derive(Debug)]
 pub struct FactoryContext<'a> {
     guard: MutexGuard<'a, FacRepo>,
+    index: HashSet<TypeId>,
 }
 
 impl FactoryContext<'_> {
+    fn do_get<T: 'static + FromFactory>(
+        &mut self,
+        env: &impl Environment,
+        is_weak: bool,
+    ) -> Result<(Arc<ASS>, PhantomData<T>), PropertyError> {
+        let value = if T::scope() == FactoryScope::AlwaysNewCreated {
+            Arc::new(T::build(self, env)?)
+        } else {
+            let tid = TypeId::of::<T>();
+            if !is_weak && !self.index.insert(tid.clone()) {
+                return Err(PropertyError::RecursiveBuild(format!("{:?}", tid)));
+            }
+            if let Some(value) = self.guard.get(&tid) {
+                value.clone()
+            } else {
+                let value = Arc::new(T::build(self, env)?);
+                self.guard.insert(tid, value.clone());
+                value
+            }
+        };
+        Ok((value, PhantomData))
+    }
+
     /// Get instance from factory.
     pub fn get<T: 'static + FromFactory>(
         &mut self,
         env: &impl Environment,
     ) -> Result<FacRef<T>, PropertyError> {
-        if T::scope() == FactoryScope::AlwaysNewCreated {
-            return Ok(FacRef {
-                value: Arc::new(T::build(self, env)?),
-                _data: PhantomData,
-            });
-        }
-        let tid = TypeId::of::<T>();
-        if let Some(value) = self.guard.get(&tid) {
-            return Ok(FacRef {
-                value: value.clone(),
-                _data: PhantomData,
-            });
-        }
-        let value = Arc::new(T::build(self, env)?);
-        self.guard.insert(tid, value.clone());
-        Ok(FacRef {
-            value,
-            _data: PhantomData,
-        })
+        let (value, _data) = self.do_get(env, false)?;
+        Ok(FacRef { value, _data })
     }
 }
 
@@ -121,6 +128,7 @@ impl<E: Environment> Factory for FactoryRegistry<E> {
     fn get_or_build<T: 'static + FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
         FactoryContext {
             guard: self.repository.lock().expect(NOT_POSSIBLE),
+            index: HashSet::new(),
         }
         .get(&self.env)
     }
@@ -225,5 +233,37 @@ mod tests {
         let a = fr.get_or_build::<PrototypeConnection>().unwrap();
         let b = fr.get_or_build::<PrototypeConnection>().unwrap();
         assert_ne!(a.value(), b.value());
+    }
+
+    struct A<T> {
+        _b: FacRef<T>,
+    }
+
+    struct B {
+        _a: FacRef<A<B>>,
+    }
+
+    impl FromFactory for A<B> {
+        fn build(
+            cxt: &mut FactoryContext<'_>,
+            env: &impl Environment,
+        ) -> Result<Self, PropertyError> {
+            Ok(A { _b: cxt.get(env)? })
+        }
+    }
+
+    impl FromFactory for B {
+        fn build(
+            cxt: &mut FactoryContext<'_>,
+            env: &impl Environment,
+        ) -> Result<Self, PropertyError> {
+            Ok(B { _a: cxt.get(env)? })
+        }
+    }
+
+    #[test]
+    fn recursive_test() {
+        let fr = FactoryRegistry::new(SourceRegistry::new());
+        assert!(fr.get_or_build::<B>().is_err());
     }
 }
