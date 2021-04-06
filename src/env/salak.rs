@@ -22,8 +22,11 @@ impl Default for SalakBuilder {
 impl SalakBuilder {
     /// Use default command line arguments parser.
     /// Please use macro [`auto_read_sys_args_param!`] to generate [`SysArgsParam`].
-    #[cfg(feature = "enable_clap")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
+    #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "enable_clap", feature = "enable_pico")))
+    )]
     pub fn with_default_args(mut self, param: SysArgsParam) -> Self {
         self.args = Some(SysArgsMode::Auto(param));
         self

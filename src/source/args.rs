@@ -1,16 +1,20 @@
 //! Provide command line arguments [`PropertySource`].
 use crate::*;
 #[cfg(feature = "enable_clap")]
+#[cfg(not(feature = "enable_pico"))]
 use clap::{App, Arg};
-#[cfg(feature = "enable_clap")]
+#[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
 use regex::Regex;
 use std::collections::BTreeMap;
 
 /// Command line arguments parser mode.
 #[derive(Debug)]
 pub enum SysArgsMode {
-    #[cfg(feature = "enable_clap")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
+    #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "enable_clap", feature = "enable_pico")))
+    )]
     /// Use default `clap` parser. It has a OPTION named `-P` to set customized properties.
     ///
     /// ```no_run
@@ -49,8 +53,11 @@ pub enum SysArgsMode {
 }
 
 /// Command line help info, such as name, version, author, etc.
-#[cfg(feature = "enable_clap")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
+#[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "enable_clap", feature = "enable_pico")))
+)]
 #[derive(Debug, Copy, Clone)]
 pub struct SysArgsParam {
     /// App name.
@@ -67,8 +74,11 @@ pub struct SysArgsParam {
 ///
 /// Due to macro [`env!`] will generate value at compile time, so users should call it at final project.
 #[macro_export]
-#[cfg(feature = "enable_clap")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
+#[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "enable_clap", feature = "enable_pico")))
+)]
 macro_rules! auto_read_sys_args_param {
     () => {
         SysArgsParam {
@@ -89,7 +99,10 @@ impl SysArgs {
     pub(crate) fn new(args: SysArgsMode) -> Self {
         let args = match args {
             #[cfg(feature = "enable_clap")]
+            #[cfg(not(feature = "enable_pico"))]
             SysArgsMode::Auto(arg) => Self::new_default_args(arg),
+            #[cfg(feature = "enable_pico")]
+            SysArgsMode::Auto(arg) => Self::parse_args(arg).unwrap_or_default(),
             SysArgsMode::Custom(arg) => arg,
         };
 
@@ -101,6 +114,7 @@ impl SysArgs {
     }
 
     #[cfg(feature = "enable_clap")]
+    #[cfg(not(feature = "enable_pico"))]
     fn new_default_args(param: SysArgsParam) -> Vec<(String, Property)> {
         let mut app = App::new(param.name).version(param.version);
         if let Some(a) = param.author {
@@ -140,9 +154,62 @@ impl SysArgs {
             })
             .collect()
     }
+
+    #[cfg(feature = "enable_pico")]
+    fn parse_args(param: SysArgsParam) -> Result<Vec<(String, Property)>, pico_args::Error> {
+        let mut title = "".to_owned();
+        if let Some(author) = param.author {
+            title.push('\n');
+            title.push_str(author);
+        }
+        if let Some(about) = param.about {
+            title.push('\n');
+            title.push_str(about);
+        }
+        let help = format!(
+            "\
+{} {}{}
+USAGE:
+  {} [OPTIONS] -p KEY=VALUE 
+
+FLAGS:
+  -h, --help            Prints help information
+
+OPTIONS:
+  -P, --property <KEY=VALUE>...    Set properties
+",
+            param.name, param.version, title, param.name
+        );
+        let mut pargs = pico_args::Arguments::from_env();
+
+        // Help has a higher priority and should be handled separately.
+        if pargs.contains(["-h", "--help"]) {
+            print!("{}", &help);
+            std::process::exit(0);
+        }
+
+        lazy_static::lazy_static! {
+            static ref RE: Regex = Regex::new(
+                r"^([^=]+)=(.+)$"
+            )
+            .expect(NOT_POSSIBLE);
+        }
+        Ok(pargs
+            .values_from_str(["-P", "--property"])?
+            .iter()
+            .flat_map(|k: &String| match RE.captures(k) {
+                Some(ref v) => Some((
+                    v.get(1).expect(NOT_POSSIBLE).as_str().to_owned(),
+                    Property::Str(v.get(2).expect(NOT_POSSIBLE).as_str().to_owned()),
+                )),
+                _ => None,
+            })
+            .collect())
+    }
 }
 
 #[cfg(feature = "enable_clap")]
+#[cfg(not(feature = "enable_pico"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
 impl Default for SysArgs {
     /// A simple implementation using `clap`.
@@ -152,7 +219,6 @@ impl Default for SysArgs {
 }
 
 #[cfg(test)]
-#[cfg(feature = "enable_clap")]
 mod tests {
     #[test]
     #[cfg(feature = "enable_clap")]

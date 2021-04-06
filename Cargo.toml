@@ -1,6 +1,6 @@
 [package]
 name = "salak"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Daniel Yu <leptonyu@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -28,6 +28,7 @@ all-features = true
 lazy_static = "^1.4"
 regex = {version= "^1.4", optional=true}
 clap = {version= "^2.33", optional=true}
+pico-args = {version= "^0.4", optional=true}
 toml = {version= "^0.5", optional=true}
 log = {version="^0.4", optional=true}
 yaml-rust = {version="^0.4.5", optional=true}
@@ -44,6 +45,7 @@ rand = "0.8"
 default = ["enable_derive", "enable_toml", "enable_log"]
 enable_toml = ["toml"]
 enable_clap = ["clap", "regex"]
+enable_pico = ["pico-args", "regex"]
 enable_log = ["log"]
 enable_derive = ["salak_derive"]
 enable_yaml = ["yaml-rust"]
@@ -54,4 +56,4 @@ members = [".", "salak_derive"]
 
 [[example]]
 name = "salak"
-required-features = ["default", "enable_clap"]
+required-features = ["default", "enable_pico"]
