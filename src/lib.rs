@@ -61,6 +61,7 @@
 //! 3. `enable_derive`, enable auto derive [`FromEnvironment`] for struts.
 //!
 //! ### Optional features
+//! 1. `enable_pico`, enable default command line arguments parsing by `pico-args`.
 //! 1. `enable_clap`, enable default command line arguments parsing by `clap`.
 //! 2. `enable_yaml`, enable yaml support.
 //! 3. `enable_rand`, enable random value support.
