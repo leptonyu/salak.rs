@@ -4,13 +4,14 @@ use crate::*;
 use std::collections::BTreeMap;
 
 /// [`Salak`] builder.
-#[derive(Debug)]
+#[allow(missing_debug_implementations)]
 pub struct SalakBuilder {
     args: Option<SysArgsMode>,
     enable_placeholder: bool,
     enable_default_registry: bool,
     #[cfg(feature = "enable_derive")]
     default: BTreeMap<String, Property>,
+    default_sources: Vec<Box<dyn PropertySource>>,
 }
 
 impl Default for SalakBuilder {
@@ -36,6 +37,12 @@ impl SalakBuilder {
     /// Users should provide a parser to produce [`Vec<(String, Property)>`].
     pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
         self.args = Some(SysArgsMode::Custom(args));
+        self
+    }
+
+    /// Add default source
+    pub fn add_default_source(mut self, source: Box<dyn PropertySource>) -> Self {
+        self.default_sources.push(source);
         self
     }
 
@@ -95,6 +102,7 @@ impl SalakBuilder {
         {
             sr.default = Some(MapPropertySource::new("default", self.default));
         }
+        sr.register_sources(self.default_sources);
         Salak(FactoryRegistry::new(PlaceholderResolver::new(
             self.enable_placeholder,
             sr,
@@ -116,6 +124,7 @@ impl Salak {
             enable_default_registry: true,
             #[cfg(feature = "enable_derive")]
             default: BTreeMap::new(),
+            default_sources: vec![],
         }
     }
     fn get_registry(&mut self) -> &mut SourceRegistry {

@@ -95,7 +95,11 @@ mod tests {
     use crate::*;
     #[test]
     fn build_test() {
-        let fc = FileConfig::new(&SourceRegistry::new());
+        let mut sr = SourceRegistry::new();
+        let mut map = std::collections::BTreeMap::new();
+        map.insert("app.conf.dir".to_owned(), Property::Str("src".to_owned()));
+        sr.register_source(Box::new(MapPropertySource::new("xxx", map)));
+        let fc = FileConfig::new(&sr);
         let path = fc.build_path("toml");
         assert_eq!(false, path.is_empty());
     }

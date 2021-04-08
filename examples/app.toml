@@ -1,10 +1,10 @@
 hello = "world"
 
-[database.detail]
+[database.ssl]
 option_arr = [1,2,3,4,5]
 
 
-[[database.detail.option_obj]]
+[[database.ssl.option_obj]]
 hello="How are you?"
-[[database.detail.option_obj]]
+[[database.ssl.option_obj]]
 hello="How old are you?"

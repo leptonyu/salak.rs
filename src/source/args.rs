@@ -1,8 +1,5 @@
 //! Provide command line arguments [`PropertySource`].
 use crate::*;
-#[cfg(feature = "enable_clap")]
-#[cfg(not(feature = "enable_pico"))]
-use clap::{App, Arg};
 #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
 use regex::Regex;
 use std::collections::BTreeMap;
@@ -15,7 +12,7 @@ pub enum SysArgsMode {
         docsrs,
         doc(cfg(any(feature = "enable_clap", feature = "enable_pico")))
     )]
-    /// Use default `clap` parser. It has a OPTION named `-P` to set customized properties.
+    /// Use default `pico-args` parser. It has a OPTION named `-P` to set customized properties.
     ///
     /// ```no_run
     /// use salak::*;
@@ -100,9 +97,9 @@ impl SysArgs {
         let args = match args {
             #[cfg(feature = "enable_clap")]
             #[cfg(not(feature = "enable_pico"))]
-            SysArgsMode::Auto(arg) => Self::new_default_args(arg),
+            SysArgsMode::Auto(arg) => Self::parse_args_by_clap(arg),
             #[cfg(feature = "enable_pico")]
-            SysArgsMode::Auto(arg) => Self::parse_args(arg).unwrap_or_default(),
+            SysArgsMode::Auto(arg) => Self::parse_args_by_pico(arg),
             SysArgsMode::Custom(arg) => arg,
         };
 
@@ -115,8 +112,8 @@ impl SysArgs {
 
     #[cfg(feature = "enable_clap")]
     #[cfg(not(feature = "enable_pico"))]
-    fn new_default_args(param: SysArgsParam) -> Vec<(String, Property)> {
-        let mut app = App::new(param.name).version(param.version);
+    fn parse_args_by_clap(param: SysArgsParam) -> Vec<(String, Property)> {
+        let mut app = clap::App::new(param.name).version(param.version);
         if let Some(a) = param.author {
             app = app.author(a);
         }
@@ -125,7 +122,7 @@ impl SysArgs {
         }
         let matches = app
             .arg(
-                Arg::with_name("property")
+                clap::Arg::with_name("property")
                     .short("P")
                     .long("property")
                     .value_name("KEY=VALUE")
@@ -135,28 +132,11 @@ impl SysArgs {
                     .help("Set properties"),
             )
             .get_matches();
-        lazy_static::lazy_static! {
-            static ref RE: Regex = Regex::new(
-                r"^([^=]+)=(.+)$"
-            )
-            .expect(NOT_POSSIBLE);
-        }
-        matches
-            .values_of_lossy("property")
-            .unwrap_or_default()
-            .iter()
-            .flat_map(|k| match RE.captures(&k) {
-                Some(ref v) => Some((
-                    v.get(1).expect(NOT_POSSIBLE).as_str().to_owned(),
-                    Property::Str(v.get(2).expect(NOT_POSSIBLE).as_str().to_owned()),
-                )),
-                _ => None,
-            })
-            .collect()
+        Self::parse_properties(matches.values_of_lossy("property").unwrap_or_default())
     }
 
     #[cfg(feature = "enable_pico")]
-    fn parse_args(param: SysArgsParam) -> Result<Vec<(String, Property)>, pico_args::Error> {
+    fn parse_args_by_pico(param: SysArgsParam) -> Vec<(String, Property)> {
         let mut title = "".to_owned();
         if let Some(author) = param.author {
             title.push('\n');
@@ -170,7 +150,7 @@ impl SysArgs {
             "\
 {} {}{}
 USAGE:
-  {} [OPTIONS] -p KEY=VALUE 
+  {} [OPTIONS]
 
 FLAGS:
   -h, --help            Prints help information
@@ -188,15 +168,22 @@ OPTIONS:
             std::process::exit(0);
         }
 
+        Self::parse_properties(
+            pargs
+                .values_from_str(["-P", "--property"])
+                .unwrap_or_default(),
+        )
+    }
+
+    #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
+    fn parse_properties(iter: Vec<String>) -> Vec<(String, Property)> {
         lazy_static::lazy_static! {
             static ref RE: Regex = Regex::new(
                 r"^([^=]+)=(.+)$"
             )
             .expect(NOT_POSSIBLE);
         }
-        Ok(pargs
-            .values_from_str(["-P", "--property"])?
-            .iter()
+        iter.iter()
             .flat_map(|k: &String| match RE.captures(k) {
                 Some(ref v) => Some((
                     v.get(1).expect(NOT_POSSIBLE).as_str().to_owned(),
@@ -204,7 +191,7 @@ OPTIONS:
                 )),
                 _ => None,
             })
-            .collect())
+            .collect()
     }
 }
 

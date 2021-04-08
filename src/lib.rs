@@ -91,7 +91,9 @@
 //! std::env::set_var("database.url", "localhost:5432");
 //! std::env::set_var("database.description", "\\$\\{Hello\\}");
 //! let env = Salak::new()
-//!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_clap`.
+//!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_pico`.
+//!     .add_default::<DatabaseConfig>()
+//!     .add_default_source(inline_toml!("app.toml"))
 //!    .build();
 //!
 //! match env.load_config::<DatabaseConfig>() {
@@ -357,10 +359,10 @@ mod tests {
         let ret = ret.detail;
         assert_eq!("str", ret.option_str);
         assert_eq!(1, ret.option_i64);
-        assert_eq!(5, ret.option_arr.len());
+        assert_eq!(1, ret.option_arr.len());
         assert_eq!(10, ret.option_arr[0]);
         assert_eq!(0, ret.option_multi_arr.len());
-        assert_eq!(2, ret.option_obj.len());
+        assert_eq!(0, ret.option_obj.len());
 
         let ret = env.require::<HashMap<String, String>>("database");
         assert_eq!(true, ret.is_ok());

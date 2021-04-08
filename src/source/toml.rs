@@ -9,7 +9,36 @@ use std::path::PathBuf;
 #[derive(Debug, Copy, Clone)]
 pub struct Toml;
 
-struct TomlItem {
+impl Toml {
+    #[doc(hidden)]
+    pub fn inline_toml(
+        name: String,
+        path: PathBuf,
+        body: &str,
+    ) -> Result<Box<(dyn PropertySource)>, PropertyError> {
+        Ok(Box::new(TomlItem {
+            name,
+            path: path.clone(),
+            value: from_str(body)?,
+        }))
+    }
+}
+
+/// Inline toml file as [`PropertySource`].
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
+#[macro_export]
+macro_rules! inline_toml {
+    ($x:expr) => {
+        Toml::inline_toml(
+            format!("inline_toml:{}", $x),
+            std::path::PathBuf::from($x),
+            include_str!($x),
+        )
+        .unwrap()
+    };
+}
+
+pub(crate) struct TomlItem {
     name: String,
     path: PathBuf,
     value: Value,

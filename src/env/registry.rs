@@ -27,8 +27,11 @@ impl SourceRegistry {
     }
 
     /// Add default command line arguments parser.
-    #[cfg(feature = "enable_clap")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "enable_clap")))]
+    #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "enable_clap", feature = "enable_pico")))
+    )]
     pub fn with_args(mut self, mode: SysArgsMode) -> Self {
         self.register_source(Box::new(SysArgs::new(mode).0));
         self

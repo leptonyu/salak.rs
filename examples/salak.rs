@@ -43,6 +43,7 @@ fn main() {
     let env = Salak::new()
         .with_default_args(auto_read_sys_args_param!())
         .add_default::<DatabaseConfig>()
+        .add_default_source(inline_toml!("app.toml"))
         .build();
 
     match env.load_config::<DatabaseConfig>() {
