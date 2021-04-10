@@ -21,16 +21,19 @@ use salak::*;
 #[cfg(feature = "enable_pool")]
 mod pool;
 #[cfg(feature = "enable_pool")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 pub use crate::pool::*;
 
 #[cfg(feature = "enable_postgres")]
 mod postgres;
 #[cfg(feature = "enable_postgres")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 pub use crate::postgres::{PostgresConfig, PostgresConnectionManager};
 
 #[cfg(feature = "enable_redis")]
 mod redis;
 #[cfg(feature = "enable_redis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 pub use crate::redis::{RedisConfig, RedisConnectionManager};
 
 /// Buildable component from [`Environment`].
@@ -38,19 +41,35 @@ pub trait Buildable: Sized + FromEnvironment {
     /// Target product.
     type Product;
 
+    /// Customize when building.
+    type Customizer: Default;
+
     /// Configuration prefix.
     fn prefix() -> &'static str;
 
     /// Build product.
-    fn build(namespace: &str, env: &impl Environment) -> Result<Self::Product, PropertyError> {
+    fn build_with_customizer(
+        namespace: &str,
+        env: &impl Environment,
+        customize: Self::Customizer,
+    ) -> Result<Self::Product, PropertyError> {
         let config = if namespace == "primary" {
             env.require(Self::prefix())
         } else {
             env.require(&format!("{}.{}", Self::prefix(), namespace))
         };
-        Self::build_with_key(config?, env)
+        Self::build_with_key(config?, env, customize)
+    }
+
+    /// Build product.
+    fn build(namespace: &str, env: &impl Environment) -> Result<Self::Product, PropertyError> {
+        Self::build_with_customizer(namespace, env, Default::default())
     }
 
     /// Build with specified prefix.
-    fn build_with_key(self, env: &impl Environment) -> Result<Self::Product, PropertyError>;
+    fn build_with_key(
+        self,
+        env: &impl Environment,
+        customize: Self::Customizer,
+    ) -> Result<Self::Product, PropertyError>;
 }

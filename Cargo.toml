@@ -7,7 +7,7 @@ required-features = [
 
 [package]
 name = 'salak'
-version = '0.7.1'
+version = '0.8.0'
 authors = ['Daniel Yu <leptonyu@gmail.com>']
 edition = '2018'
 license = 'MIT'

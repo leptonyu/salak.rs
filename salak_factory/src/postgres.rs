@@ -1,6 +1,7 @@
 use super::*;
 use ::postgres::{
     config::{ChannelBinding, TargetSessionAttrs},
+    error::DbError,
     tls::{MakeTlsConnect, TlsConnect},
     Client, Config, Error, NoTls, Socket,
 };
@@ -22,7 +23,8 @@ pub struct PostgresConfig {
     connect_timeout: Option<Duration>,
     keepalives: Option<bool>,
     keepalives_idle: Option<Duration>,
-    must_allow_write: Option<bool>,
+    #[salak(default = "true")]
+    must_allow_write: bool,
     channel_binding: Option<String>,
     pool: PoolConfig,
 }
@@ -70,14 +72,35 @@ macro_rules! set_option_field {
     };
 }
 
+#[allow(missing_debug_implementations)]
+pub struct PostgresCustomizer {
+    pub notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
+    pub pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
+}
+
+impl Default for PostgresCustomizer {
+    fn default() -> Self {
+        PostgresCustomizer {
+            notice_callback: None,
+            pool: PoolCustomizer::default(),
+        }
+    }
+}
+
 impl Buildable for PostgresConfig {
     type Product = Pool<PostgresConnectionManager<NoTls>>;
+
+    type Customizer = PostgresCustomizer;
 
     fn prefix() -> &'static str {
         "postgresql"
     }
 
-    fn build_with_key(self, _: &impl Environment) -> Result<Self::Product, PropertyError> {
+    fn build_with_key(
+        self,
+        _: &impl Environment,
+        customizer: Self::Customizer,
+    ) -> Result<Self::Product, PropertyError> {
         let mut config = match self.url {
             Some(url) => std::str::FromStr::from_str(&url)
                 .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?,
@@ -93,8 +116,9 @@ impl Buildable for PostgresConfig {
         set_option_field!(self, config, connect_timeout);
         set_option_field!(self, config, keepalives);
         set_option_field!(self, config, keepalives_idle);
+        set_option_field!(customizer, config, notice_callback);
 
-        if self.must_allow_write.unwrap_or(false) {
+        if self.must_allow_write {
             config.target_session_attrs(TargetSessionAttrs::ReadWrite);
         } else {
             config.target_session_attrs(TargetSessionAttrs::Any);
@@ -109,13 +133,11 @@ impl Buildable for PostgresConfig {
             }?);
         }
 
-        //TODO notice_callback
-
         let m = PostgresConnectionManager {
             config,
             tls_connector: NoTls,
         };
-        self.pool.build_pool(m)
+        self.pool.build_pool(m, customizer.pool)
     }
 }
 

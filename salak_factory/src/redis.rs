@@ -24,7 +24,7 @@ pub struct RedisConfig {
 }
 
 /// Redis connection manager
-#[derive(Debug)]
+#[allow(missing_debug_implementations)]
 pub struct RedisConnectionManager {
     config: ConnectionInfo,
     connect_timeout: Option<Duration>,
@@ -58,12 +58,17 @@ impl ManageConnection for RedisConnectionManager {
 
 impl Buildable for RedisConfig {
     type Product = Pool<RedisConnectionManager>;
+    type Customizer = PoolCustomizer<RedisConnectionManager>;
 
     fn prefix() -> &'static str {
         "redis"
     }
 
-    fn build_with_key(self, _: &impl Environment) -> Result<Self::Product, PropertyError> {
+    fn build_with_key(
+        self,
+        _: &impl Environment,
+        customizer: Self::Customizer,
+    ) -> Result<Self::Product, PropertyError> {
         let config = if let Some(url) = self.url {
             ConnectionInfo::from_str(&url)
                 .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?
@@ -86,12 +91,15 @@ impl Buildable for RedisConfig {
                 passwd: self.password,
             }
         };
-        self.pool.build_pool(RedisConnectionManager {
-            config,
-            connect_timeout: self.connect_timeout,
-            read_timeout: self.read_timeout,
-            write_timeout: self.write_timeout,
-        })
+        self.pool.build_pool(
+            RedisConnectionManager {
+                config,
+                connect_timeout: self.connect_timeout,
+                read_timeout: self.read_timeout,
+                write_timeout: self.write_timeout,
+            },
+            customizer,
+        )
     }
 }
 

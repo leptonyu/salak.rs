@@ -140,7 +140,14 @@ impl Environment for SourceRegistry {
                 }
             }
         }
-        T::from_env(name, x, self)
+        match T::from_env(name, x, self) {
+            Err(PropertyError::NotFound(v)) => Err(PropertyError::NotFound(if v.is_empty() {
+                name.to_string()
+            } else {
+                v
+            })),
+            val => val,
+        }
     }
 
     fn resolve_placeholder(&self, v: String) -> Result<Option<Property>, PropertyError> {

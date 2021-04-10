@@ -4,7 +4,7 @@ version = '0.1.0'
 authors = ['Daniel Yu <leptonyu@gmail.com>']
 edition = '2018'
 license = 'MIT'
-description = 'Salak factory'
+description = 'Salak factory to package initialization.'
 documentation = 'https://docs.rs/salak_factory/'
 repository = 'https://github.com/leptonyu/salak.rs'
 homepage = 'https://github.com/leptonyu/salak.rs'
@@ -17,6 +17,10 @@ keywords = [
     'environment',
 ]
 categories = ['config']
+[dependencies.salak]
+path = '..'
+version = '^0.8'
+
 [dependencies.postgres]
 version = '0.19'
 optional = true
@@ -24,10 +28,6 @@ optional = true
 [dependencies.redis]
 version = '0.20'
 optional = true
-
-[dependencies.salak]
-path = '..'
-version = '^0.7.1'
 
 [dependencies.r2d2]
 version = '^0.8'
