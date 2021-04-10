@@ -1,26 +1,26 @@
 [package]
-name = "salak_derive"
-version = "0.2.0"
-authors = ["Daniel Yu <leptonyu@gmail.com>"]
-edition = "2018"
-license = "MIT"
-description = "A rust configuration loader"
-documentation = "https://docs.rs/salak/"
-repository = "https://github.com/leptonyu/salak.rs"
-homepage = "https://github.com/leptonyu/salak.rs"
-readme = "README.md"
+name = 'salak_derive'
+version = '0.2.1'
+authors = ['Daniel Yu <leptonyu@gmail.com>']
+edition = '2018'
+license = 'MIT'
+description = 'A rust configuration loader'
+documentation = 'https://docs.rs/salak_derive/'
+repository = 'https://github.com/leptonyu/salak.rs'
+homepage = 'https://github.com/leptonyu/salak.rs'
+readme = 'README.md'
 keywords = [
-    "configuration",
-    "config",
-    "settings",
-    "env",
-    "environment"
+    'configuration',
+    'config',
+    'settings',
+    'env',
+    'environment',
 ]
-categories = ["config"]
+categories = ['config']
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = "1"
-quote = "1"
+syn = '1'
+quote = '1'

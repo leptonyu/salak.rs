@@ -24,28 +24,23 @@ fn parse_lit(lit: Lit) -> String {
 
 fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     for attr in attrs {
-        if let Ok(v) = attr.parse_meta() {
-            match v {
-                Meta::List(list) => {
-                    for m in list.nested {
-                        if let NestedMeta::Meta(meta) = m {
-                            match meta {
-                                Meta::NameValue(nv) => {
-                                    if parse_path(nv.path) == "prefix" {
-                                        match nv.lit {
-                                            Lit::Str(s) => return Some(s.value()),
-                                            _ => panic!("Only support string"),
-                                        }
-                                    } else {
-                                        panic!("Only support prefix");
-                                    }
+        if let Ok(Meta::List(list)) = attr.parse_meta() {
+            for m in list.nested {
+                if let NestedMeta::Meta(meta) = m {
+                    match meta {
+                        Meta::NameValue(nv) => {
+                            if parse_path(nv.path) == "prefix" {
+                                match nv.lit {
+                                    Lit::Str(s) => return Some(s.value()),
+                                    _ => panic!("Only support string"),
                                 }
-                                _ => panic!("Only support prefix=\"xxx\""),
+                            } else {
+                                panic!("Only support prefix");
                             }
                         }
+                        _ => panic!("Only support prefix=\"xxx\""),
                     }
                 }
-                _ => panic!("Only support #[salak(prefix=\"hello.world\")]"),
             }
         }
     }
@@ -150,9 +145,9 @@ fn derive_fields(
             n.push(quote! {
                 (stringify!(#name), <#ty>::load_default())
             });
-            let (a, b, def) = derive_field(field);
-            k.push(a);
-            v.push(b);
+            let (temp_name, get_env, def) = derive_field(field);
+            k.push(temp_name);
+            v.push(get_env);
             if let Some(def) = def {
                 d.push(def);
             }

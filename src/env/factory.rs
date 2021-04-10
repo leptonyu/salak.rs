@@ -7,12 +7,12 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::{any::Any, sync::MutexGuard};
 
-type ASS = dyn Any + Send + Sync;
+type Ass = dyn Any + Send + Sync;
 
 /// Factory smart pointer reference.
 #[derive(Debug)]
 pub struct FacRef<T: Sized> {
-    value: Arc<ASS>,
+    value: Arc<Ass>,
     _data: PhantomData<T>,
 }
 
@@ -52,7 +52,7 @@ pub trait Factory: Sized {
     }
 }
 
-type FacRepo = HashMap<TypeId, Arc<ASS>>;
+type FacRepo = HashMap<TypeId, Arc<Ass>>;
 
 /// Factory Context.
 #[derive(Debug)]
@@ -66,12 +66,12 @@ impl FactoryContext<'_> {
         &mut self,
         env: &impl Environment,
         is_weak: bool,
-    ) -> Result<(Arc<ASS>, PhantomData<T>), PropertyError> {
+    ) -> Result<(Arc<Ass>, PhantomData<T>), PropertyError> {
         let value = if T::scope() == FactoryScope::AlwaysNewCreated {
             Arc::new(T::build(self, env)?)
         } else {
             let tid = TypeId::of::<T>();
-            if !is_weak && !self.index.insert(tid.clone()) {
+            if !is_weak && !self.index.insert(tid) {
                 return Err(PropertyError::RecursiveBuild(format!("{:?}", tid)));
             }
             if let Some(value) = self.guard.get(&tid) {
@@ -149,12 +149,12 @@ impl<E: Environment> Environment for FactoryRegistry<E> {
     }
 }
 
-#[cfg(feature = "enable_derive")]
-impl<F: 'static + Sync + Send + DefaultSourceFromEnvironment> FromFactory for F {
-    fn build(_: &mut FactoryContext<'_>, env: &impl Environment) -> Result<Self, PropertyError> {
-        env.load_config()
-    }
-}
+// #[cfg(feature = "enable_derive")]
+// impl<F: 'static + Sync + Send + DefaultSourceFromEnvironment> FromFactory for F {
+//     fn build(_: &mut FactoryContext<'_>, env: &impl Environment) -> Result<Self, PropertyError> {
+//         env.load_config()
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

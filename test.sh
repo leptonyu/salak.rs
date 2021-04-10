@@ -11,3 +11,8 @@ cargo test --verbose --lib --no-default-features --features=enable_yaml
 cargo test --verbose --lib --no-default-features --features=enable_derive
 
 cargo run --example salak --features="default enable_pico"
+
+cd salak_factory
+cargo test --verbose --all-features
+cargo test --verbose --lib ## Default feature
+cd -

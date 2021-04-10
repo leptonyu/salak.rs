@@ -1,6 +1,9 @@
 //! [`Property`] converter.
 use crate::*;
 use core::convert::TryFrom;
+use regex::*;
+use std::time::Duration;
+use std::{collections::HashMap, marker::PhantomData};
 
 impl IntoProperty for Property {
     fn into_property(self) -> Property {
@@ -125,7 +128,11 @@ macro_rules! impl_from_property {
         impl FromProperty for $x {
             fn from_property(p: Property) -> Result<Self, PropertyError> {
                 match p {
-                    Property::Str(str) => Ok(str.parse::<$x>()?),
+                    Property::Str(str) => if str.is_empty() {
+                        Err(PropertyError::NotFound("".to_string()))
+                    } else {
+                        Ok(str.parse::<$x>()?)
+                    },
                     Property::Int(i64) => Ok(<$x>::try_from(i64)?),
                     Property::Float(f64) => Ok(check_f64(f64)? as $x),
                     Property::Bool(_) => Err(PropertyError::ParseFail(
@@ -149,7 +156,11 @@ macro_rules! impl_float_from_property {
             #[allow(trivial_numeric_casts)]
             fn from_property(p: Property) -> Result<Self, PropertyError> {
                 match p {
-                    Property::Str(str) => Ok(str.parse::<$x>()?),
+                    Property::Str(str) => if str.is_empty() {
+                        Err(PropertyError::NotFound("".to_string()))
+                    } else {
+                        Ok(str.parse::<$x>()?)
+                    },
                     Property::Int(i64) => Ok(i64 as $x),
                     Property::Float(f64) => Ok(check_f64(f64)? as $x),
                     Property::Bool(_) => Err(PropertyError::ParseFail(
@@ -180,6 +191,8 @@ impl FromProperty for bool {
                     Ok(true)
                 } else if STR_NO.contains(&str) {
                     Ok(false)
+                } else if str.is_empty() {
+                    Err(PropertyError::NotFound("".to_string()))
                 } else {
                     Err(PropertyError::parse_failed("Str cannot convert to bool"))
                 }
@@ -196,7 +209,13 @@ impl FromProperty for ::toml::value::Datetime {
     fn from_property(p: Property) -> Result<Self, PropertyError> {
         use std::str::FromStr;
         match p {
-            Property::Str(v) => Ok(Self::from_str(&v)?),
+            Property::Str(v) => {
+                if v.is_empty() {
+                    Err(PropertyError::NotFound("".to_string()))
+                } else {
+                    Ok(Self::from_str(&v)?)
+                }
+            }
             _ => Err(PropertyError::parse_failed(
                 "Datetime only support string value parse.",
             )),
@@ -204,8 +223,67 @@ impl FromProperty for ::toml::value::Datetime {
     }
 }
 
+impl FromProperty for Duration {
+    fn from_property(p: Property) -> Result<Self, PropertyError> {
+        match p {
+            Property::Str(du) => parse_duration_from_str(&du),
+            Property::Int(seconds) => Ok(Duration::new(seconds as u64, 0)),
+            Property::Float(sec) => Ok(Duration::new(0, 0).mul_f64(sec)),
+            Property::Bool(_) => Err(PropertyError::parse_failed(
+                "Datetime only support string value parse.",
+            )),
+        }
+    }
+}
+
+const NS: u32 = 1_000_000_000;
+
+fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
+    lazy_static::lazy_static! {
+        static ref RE: Regex = Regex::new(
+            r"^([0-9]+)(h|m|s|ms|us|ns)?$"
+        )
+        .expect(NOT_POSSIBLE);
+        static ref ML: HashMap<String, (u64,u32)> = vec![("h",(3600,0))
+        ,("m",(60,0))
+        ,("s",(1,0))
+        ,("ms",(0, 1_000_000))
+        ,("us",(0, 1000))
+        ,("ns",(0, 1))]
+            .into_iter()
+            .map(|(k,v)|(k.to_owned(),v))
+            .collect();
+    }
+    if du.is_empty() {
+        return Err(PropertyError::NotFound("".to_string()));
+    }
+    match RE.captures(du) {
+        Some(ref cap) => {
+            let unit = cap.get(2).map(|r| r.as_str()).unwrap_or("s");
+            let (a, b) = ML.get(unit).unwrap_or(&(1, 0));
+            let i: u64 = cap.get(1).expect(NOT_POSSIBLE).as_str().parse()?;
+            let mut a = a * i;
+            let mut b = b * (i as u32);
+            if b > NS {
+                a += (b / NS) as u64;
+                b %= NS;
+            }
+            Ok(Duration::new(a, b))
+        }
+        _ => Err(PropertyError::parse_failed("Invalid duration format")),
+    }
+}
+
+impl<T> FromProperty for PhantomData<T> {
+    fn from_property(_: Property) -> Result<Self, PropertyError> {
+        Ok(PhantomData)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use source::internal::parse_duration_from_str;
+
     use crate::*;
     #[test]
     fn bool_tests() {
@@ -397,5 +475,30 @@ mod tests {
         ]
         .iter()
         .all(|a| *a)
+    }
+
+    #[test]
+    fn duration_tests() {
+        use std::time::Duration;
+        assert_eq!(Ok(Duration::new(123, 0)), parse_duration_from_str("123"));
+        assert_eq!(Ok(Duration::new(123, 0)), parse_duration_from_str("123s"));
+        assert_eq!(
+            Ok(Duration::new(10 * 60, 0)),
+            parse_duration_from_str("10m")
+        );
+        assert_eq!(
+            Ok(Duration::new(123 * 3600, 0)),
+            parse_duration_from_str("123h")
+        );
+        assert_eq!(
+            Ok(Duration::new(0, 123 * 1000_000)),
+            parse_duration_from_str("123ms")
+        );
+        assert_eq!(
+            Ok(Duration::new(0, 123 * 1000)),
+            parse_duration_from_str("123us")
+        );
+        assert_eq!(Ok(Duration::new(0, 123)), parse_duration_from_str("123ns"));
+        assert_eq!(Ok(Duration::new(1, 0)), parse_duration_from_str("1000ms"));
     }
 }

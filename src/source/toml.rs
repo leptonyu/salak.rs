@@ -18,7 +18,7 @@ impl Toml {
     ) -> Result<Box<(dyn PropertySource)>, PropertyError> {
         Ok(Box::new(TomlItem {
             name,
-            path: path.clone(),
+            path,
             value: from_str(body)?,
         }))
     }

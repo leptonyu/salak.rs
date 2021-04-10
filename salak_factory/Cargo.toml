@@ -1,0 +1,53 @@
+[package]
+name = 'salak_factory'
+version = '0.1.0'
+authors = ['Daniel Yu <leptonyu@gmail.com>']
+edition = '2018'
+license = 'MIT'
+description = 'Salak factory'
+documentation = 'https://docs.rs/salak_factory/'
+repository = 'https://github.com/leptonyu/salak.rs'
+homepage = 'https://github.com/leptonyu/salak.rs'
+readme = 'README.md'
+keywords = [
+    'configuration',
+    'config',
+    'settings',
+    'env',
+    'environment',
+]
+categories = ['config']
+[dependencies.postgres]
+version = '0.19'
+optional = true
+
+[dependencies.redis]
+version = '0.20'
+optional = true
+
+[dependencies.salak]
+path = '..'
+version = '^0.7.1'
+
+[dependencies.r2d2]
+version = '^0.8'
+optional = true
+
+[dependencies.scheduled-thread-pool]
+version = '^0.2'
+optional = true
+
+[features]
+default = []
+enable_pool = [
+    'r2d2',
+    'scheduled-thread-pool',
+]
+enable_redis = [
+    'redis',
+    'enable_pool',
+]
+enable_postgres = [
+    'postgres',
+    'enable_pool',
+]
