@@ -103,16 +103,13 @@ impl SalakBuilder {
             sr.default = Some(MapPropertySource::new("default", self.default));
         }
         sr.register_sources(self.default_sources);
-        Salak(FactoryRegistry::new(PlaceholderResolver::new(
-            self.enable_placeholder,
-            sr,
-        )))
+        Salak(PlaceholderResolver::new(self.enable_placeholder, sr))
     }
 }
 
 /// A wrapper for [`Environment`], which can hide the implementation details.
 #[allow(missing_debug_implementations)]
-pub struct Salak(FactoryRegistry<PlaceholderResolver<SourceRegistry>>);
+pub struct Salak(PlaceholderResolver<SourceRegistry>);
 
 impl Salak {
     /// Register property source at last.
@@ -128,7 +125,7 @@ impl Salak {
         }
     }
     fn get_registry(&mut self) -> &mut SourceRegistry {
-        &mut self.0.env.env
+        &mut self.0.env
     }
 
     /// Create default builder.
@@ -165,13 +162,13 @@ impl Environment for Salak {
     }
 }
 
-impl Factory for Salak {
-    type Env = Salak;
-    fn env(&self) -> &Self::Env {
-        self
-    }
+// impl Factory for Salak {
+//     type Env = Salak;
+//     fn env(&self) -> &Self::Env {
+//         self
+//     }
 
-    fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
-        self.0.get_or_build()
-    }
-}
+//     fn get_or_build<T: FromFactory>(&self) -> Result<FacRef<T>, PropertyError> {
+//         self.0.get_or_build()
+//     }
+// }

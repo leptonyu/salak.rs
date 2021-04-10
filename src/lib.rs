@@ -41,7 +41,6 @@
 //! * Supports profile(develop/production) based configuration.
 //! * Supports placeholder resolve.
 //! * Supports reload configurations.
-//! * Supports factory builder.
 //!
 //! ## Placeholder
 //!
@@ -62,9 +61,9 @@
 //!
 //! ### Optional features
 //! 1. `enable_pico`, enable default command line arguments parsing by `pico-args`.
-//! 1. `enable_clap`, enable default command line arguments parsing by `clap`.
-//! 2. `enable_yaml`, enable yaml support.
-//! 3. `enable_rand`, enable random value support.
+//! 2. `enable_clap`, enable default command line arguments parsing by `clap`.
+//! 3. `enable_yaml`, enable yaml support.
+//! 4. `enable_rand`, enable random value support.
 //!
 //! ## Quick Example
 //!
@@ -157,9 +156,9 @@ pub use crate::err::PropertyError;
 pub use crate::utils::SalakStringUtil;
 
 mod env;
-pub(crate) use crate::env::factory::FactoryRegistry;
+// pub(crate) use crate::env::factory::FactoryRegistry;
 pub use crate::env::{
-    factory::{FacRef, Factory, FactoryContext, FactoryScope, FromFactory},
+    // factory::{FacRef, Factory, FactoryContext, FactoryScope, FromFactory},
     placeholder::PlaceholderResolver,
     registry::SourceRegistry,
     salak::{Salak, SalakBuilder},

@@ -49,7 +49,6 @@ Below are a few of the features which `salak` supports.
 * Supports profile(develop/production) based configuration.
 * Supports placeholder resolve.
 * Supports reload configurations.
-* Supports factory builder.
 
 ## Placeholder
 
@@ -69,9 +68,10 @@ Below are a few of the features which `salak` supports.
 3. `enable_derive`, enable auto derive [`FromEnvironment`] for struts.
 
 ### Optional features
-1. `enable_clap`, enable default command line arguments parsing by `clap`.
-2. `enable_yaml`, enable yaml support.
-3. `enable_rand`, enable random value support.
+1. `enable_pico`, enable default command line arguments parsing by `pico-args`.
+2. `enable_clap`, enable default command line arguments parsing by `clap`.
+3. `enable_yaml`, enable yaml support.
+4. `enable_rand`, enable random value support.
 
 ## Quick Example
 
