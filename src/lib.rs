@@ -295,6 +295,12 @@ pub trait FromEnvironment: Sized {
     fn load_default() -> Vec<(String, Property)> {
         vec![]
     }
+
+    #[doc(hidden)]
+    #[cfg(feature = "enable_derive")]
+    fn load_keys() -> Vec<(String, Option<Property>)> {
+        vec![]
+    }
 }
 
 #[cfg(feature = "enable_toml")]
@@ -330,6 +336,9 @@ mod tests {
         description: String,
         detail: DatabaseConfigDetail,
     }
+
+    #[derive(FromEnvironment, Debug)]
+    struct NoField {}
 
     #[test]
     fn integration_tests() {

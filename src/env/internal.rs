@@ -39,6 +39,11 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
     fn load_default() -> Vec<(String, Property)> {
         P::load_default()
     }
+
+    #[cfg(feature = "enable_derive")]
+    fn load_keys() -> Vec<(String, Option<Property>)> {
+        P::load_keys()
+    }
 }
 
 impl<P: FromEnvironment> FromEnvironment for Vec<P> {

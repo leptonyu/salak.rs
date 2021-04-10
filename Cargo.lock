@@ -719,8 +719,9 @@ dependencies = [
 
 [[package]]
 name = "salak_derive"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
+ "lazy_static",
  "quote",
  "syn",
 ]

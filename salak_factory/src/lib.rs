@@ -53,7 +53,7 @@ pub trait Buildable: Sized + FromEnvironment {
         env: &impl Environment,
         customize: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
-        let config = if namespace == "primary" {
+        let config = if namespace.is_empty() || namespace == "primary" {
             env.require(Self::prefix())
         } else {
             env.require(&format!("{}.{}", Self::prefix(), namespace))
