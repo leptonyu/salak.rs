@@ -90,7 +90,13 @@ fn check_f64(f: f64) -> Result<f64, PropertyError> {
 impl FromProperty for String {
     fn from_property(p: Property) -> Result<Self, PropertyError> {
         match p {
-            Property::Str(str) => Ok(str),
+            Property::Str(str) => {
+                if str.is_empty() {
+                    Err(PropertyError::NotFound("".to_string()))
+                } else {
+                    Ok(str)
+                }
+            }
             Property::Int(i64) => Ok(i64.to_string()),
             Property::Float(f64) => Ok(check_f64(f64)?.to_string()),
             Property::Bool(bool) => Ok(bool.to_string()),

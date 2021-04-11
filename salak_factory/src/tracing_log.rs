@@ -32,8 +32,8 @@ pub struct TracingLogConfig {
 
 #[derive(FromEnvironment, Debug, Clone)]
 struct TracingLogSubscriberConfig {
-    #[salak(default = "${app.name}")]
-    app_name: String,
+    #[salak(default = "${app.name:}")]
+    app_name: Option<String>,
 }
 
 impl Buildable for TracingLogConfig {
@@ -102,12 +102,16 @@ impl<S: Subscriber> Layer<S> for TracingLogSubscriberConfig {
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                 event.metadata().level()
             );
-            let _ = write!(&mut buf, " [{}]", self.app_name);
-            let _ = write!(
-                &mut buf,
-                " {}: ",
-                event.metadata().module_path().unwrap_or("")
-            );
+            if let Some(name) = &self.app_name {
+                if !name.is_empty() {
+                    let _ = write!(&mut buf, " [{}]", name);
+                }
+            }
+            if let Some(path) = event.metadata().module_path() {
+                let _ = write!(&mut buf, " {}:", path);
+            }
+            let _ = write!(&mut buf, " ");
+
             event.record(&mut EventWriter(&mut buf));
             let _ = writeln!(&mut buf);
             use std::io::Write;
