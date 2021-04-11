@@ -109,8 +109,13 @@ mod tests {
     #[test]
     fn redis_tests() {
         let env = Salak::new().build();
-        let pool = RedisConfig::build(&env);
+        let pool = env.build::<RedisConfig>();
         assert_eq!(true, pool.is_ok());
+
+        let redis_pool = env.build::<RedisConfig>().unwrap();
+        let mut redis_conn = redis_pool.get().unwrap();
+        let key = "hello";
+        let _: u64 = redis_conn.set(key, 1u64).unwrap();
 
         for (k, o, v) in RedisConfig::list_keys("primary") {
             if let Some(v) = v {

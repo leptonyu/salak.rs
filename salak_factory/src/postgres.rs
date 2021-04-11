@@ -72,9 +72,12 @@ macro_rules! set_option_field {
     };
 }
 
+/// Postgres Customizer
 #[allow(missing_debug_implementations)]
 pub struct PostgresCustomizer {
+    /// Sets the notice callback.
     pub notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
+    /// Set pool customizer.
     pub pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
 }
 
@@ -147,7 +150,7 @@ mod tests {
     #[test]
     fn postgres_tests() {
         let env = Salak::new().build();
-        let pool = PostgresConfig::build(&env);
+        let pool = env.build::<PostgresConfig>();
         assert_eq!(true, pool.is_ok());
     }
 }

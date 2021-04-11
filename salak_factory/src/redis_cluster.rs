@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn redis_tests() {
         let env = Salak::new().build();
-        let pool = RedisClusterConfig::build(&env);
+        let pool = env.build::<RedisClusterConfig>();
         assert_eq!(true, pool.is_ok());
 
         for (k, o, v) in RedisClusterConfig::list_keys("primary") {

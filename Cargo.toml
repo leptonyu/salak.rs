@@ -80,6 +80,7 @@ default = [
     'enable_derive',
     'enable_toml',
     'enable_log',
+    'enable_pico',
 ]
 enable_toml = ['toml']
 enable_clap = ['clap']

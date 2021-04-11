@@ -16,6 +16,7 @@ A layered configuration loader with zero-boilerplate configuration management.
     1. [Default features](#default-features)
     2. [Optional features](#optional-features)
 6. [Quick Example](#quick-example)
+7. [Factory](#salak-factory)
 
 
 ## About
@@ -114,4 +115,14 @@ match env.load_config::<DatabaseConfig>() {
 //  description: "${Hello}",
 //  ssl_config: None,
 // }
+```
+
+## Salak Factory
+salak_factory is out-of-box crate for using well known components, such as redis, postgresql, etc.
+```rust
+let env = Salak::new().build();
+let redis_pool = env.build::<RedisConfig>().unwrap();
+let redis_conn = redis_pool.get().unwrap();
+let _: u64 = redis_conn.set("hello", 1u64).unwrap();
+/// Use redis_conn.
 ```

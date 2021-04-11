@@ -28,7 +28,7 @@ pub use crate::pool::*;
 mod postgres;
 #[cfg(feature = "enable_postgres")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
-pub use crate::postgres::{PostgresConfig, PostgresConnectionManager};
+pub use crate::postgres::{PostgresConfig, PostgresConnectionManager, PostgresCustomizer};
 
 #[cfg(feature = "enable_redis")]
 mod redis;
@@ -42,6 +42,9 @@ mod redis_cluster;
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
 pub use crate::redis_cluster::{RedisClusterConfig, RedisClusterConnectionManager};
 
+/// Default namespace
+pub const DEFAULT_NAMESPACE: &str = "primary";
+
 /// Buildable component from [`Environment`].
 pub trait Buildable: Sized + FromEnvironment {
     /// Target product.
@@ -54,30 +57,17 @@ pub trait Buildable: Sized + FromEnvironment {
     fn prefix() -> &'static str;
 
     /// Build product.
-    fn build_with_customizer(
+    fn build(
         namespace: &str,
         env: &impl Environment,
         customize: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
-        let config = if namespace.is_empty() || namespace == "primary" {
+        let config = if namespace.is_empty() || namespace == DEFAULT_NAMESPACE {
             env.require(Self::prefix())
         } else {
             env.require(&format!("{}.{}", Self::prefix(), namespace))
         };
         Self::build_with_key(config?, env, customize)
-    }
-
-    /// Build product.
-    fn build(env: &impl Environment) -> Result<Self::Product, PropertyError> {
-        Self::build_by_namespace("primary", env)
-    }
-
-    /// Build product.
-    fn build_by_namespace(
-        namespace: &str,
-        env: &impl Environment,
-    ) -> Result<Self::Product, PropertyError> {
-        Self::build_with_customizer(namespace, env, Default::default())
     }
 
     /// Build with specified prefix.
@@ -90,7 +80,7 @@ pub trait Buildable: Sized + FromEnvironment {
     /// List All Keys
     fn list_keys(namespace: &str) -> Vec<(String, bool, Option<String>)> {
         let v = Self::load_keys();
-        let prefix = if namespace.is_empty() || namespace == "primary" {
+        let prefix = if namespace.is_empty() || namespace == DEFAULT_NAMESPACE {
             Self::prefix().to_string()
         } else {
             format!("{}.{}", Self::prefix(), namespace)
@@ -99,7 +89,7 @@ pub trait Buildable: Sized + FromEnvironment {
             .map(|(k, o, v)| {
                 (
                     format!("{}.{}", prefix, k),
-                    o.clone(),
+                    *o,
                     match v {
                         Some(p) => String::from_property(p.clone()).ok(),
                         _ => None,
@@ -107,5 +97,46 @@ pub trait Buildable: Sized + FromEnvironment {
                 )
             })
             .collect()
+    }
+}
+
+/// Factory for build buildable
+pub trait Factory: Environment {
+    /// Build by namespace
+    fn build<T: Buildable>(&self) -> Result<T::Product, PropertyError> {
+        self.build_by_namespace::<T>(DEFAULT_NAMESPACE)
+    }
+
+    /// Build by namespace
+    fn build_by_namespace<T: Buildable>(
+        &self,
+        namespace: &str,
+    ) -> Result<T::Product, PropertyError> {
+        self.build_by_namespace_and_customizer::<T>(namespace, T::Customizer::default())
+    }
+
+    /// Build by namespace
+    fn build_by_customizer<T: Buildable>(
+        &self,
+        customizer: T::Customizer,
+    ) -> Result<T::Product, PropertyError> {
+        self.build_by_namespace_and_customizer::<T>(DEFAULT_NAMESPACE, customizer)
+    }
+
+    /// Build by namespace and customizer
+    fn build_by_namespace_and_customizer<T: Buildable>(
+        &self,
+        namespace: &str,
+        customizer: T::Customizer,
+    ) -> Result<T::Product, PropertyError>;
+}
+
+impl Factory for Salak {
+    fn build_by_namespace_and_customizer<T: Buildable>(
+        &self,
+        namespace: &str,
+        customizer: T::Customizer,
+    ) -> Result<T::Product, PropertyError> {
+        T::build(namespace, self, customizer)
     }
 }
