@@ -14,7 +14,6 @@ cargo test --verbose --lib --no-default-features --features=enable_derive
 cargo run --example salak
 
 cd salak_factory
-cargo test --verbose
 cargo test --verbose --all-features
 cargo test --verbose --lib ## Default feature
 cargo test --verbose --lib --no-default-features --features=enable_redis
