@@ -44,7 +44,11 @@ enable_pool = [
     'scheduled-thread-pool',
 ]
 enable_redis = [
-    'redis',
+    'redis/default',
+    'enable_pool',
+]
+enable_redis_cluster = [
+    'redis/cluster',
     'enable_pool',
 ]
 enable_postgres = [

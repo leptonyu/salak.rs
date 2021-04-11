@@ -25,21 +25,21 @@ fn parse_lit(lit: Lit) -> String {
 fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     for attr in attrs {
         if let Ok(Meta::List(list)) = attr.parse_meta() {
+            if !is_salak(&list) {
+                continue;
+            }
             for m in list.nested {
-                if let NestedMeta::Meta(meta) = m {
-                    match meta {
-                        Meta::NameValue(nv) => {
-                            if parse_path(nv.path) == "prefix" {
-                                match nv.lit {
-                                    Lit::Str(s) => return Some(s.value()),
-                                    _ => panic!("Only support string"),
-                                }
-                            } else {
-                                panic!("Only support prefix");
-                            }
+                if let NestedMeta::Meta(Meta::NameValue(nv)) = m {
+                    if parse_path(nv.path) == "prefix" {
+                        match nv.lit {
+                            Lit::Str(s) => return Some(s.value()),
+                            _ => panic!("Only support string"),
                         }
-                        _ => panic!("Only support prefix=\"xxx\""),
+                    } else {
+                        panic!("Only support prefix");
                     }
+                } else {
+                    panic!("Only support prefix=\"xxx\"");
                 }
             }
         }
@@ -47,10 +47,18 @@ fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     None
 }
 
+fn is_salak(list: &MetaList) -> bool {
+    if let Some(v) = list.path.segments.iter().next() {
+        return v.ident == "salak";
+    }
+    false
+}
+
 fn parse_field_attribute(
     attrs: Vec<Attribute>,
     get_val: quote::__private::TokenStream,
     name: &mut Ident,
+    optional: bool,
 ) -> (
     quote::__private::TokenStream,
     Option<quote::__private::TokenStream>,
@@ -59,23 +67,20 @@ fn parse_field_attribute(
     let mut def = None;
     let mut rename = None;
     for attr in attrs {
-        if let Ok(v) = attr.parse_meta() {
-            match v {
-                Meta::List(list) => {
-                    for m in list.nested {
-                        if let NestedMeta::Meta(meta) = m {
-                            match meta {
-                                Meta::NameValue(nv) => match &parse_path(nv.path)[..] {
-                                    "default" => def = Some(parse_lit(nv.lit)),
-                                    "name" => rename = Some(parse_lit(nv.lit)),
-                                    _ => panic!("Only support default/name"),
-                                },
-                                _ => panic!("Not support Meta::List"),
-                            }
-                        }
+        if let Ok(Meta::List(list)) = attr.parse_meta() {
+            if !is_salak(&list) {
+                continue;
+            }
+            for m in list.nested {
+                if let NestedMeta::Meta(Meta::NameValue(nv)) = m {
+                    match &parse_path(nv.path)[..] {
+                        "default" => def = Some(parse_lit(nv.lit)),
+                        "name" => rename = Some(parse_lit(nv.lit)),
+                        _ => panic!("Only support default/name"),
                     }
+                } else {
+                    panic!("Only support NestedMeta::Meta(Meta::NameValue)");
                 }
-                _ => panic!("Not support Path/NameValue"),
             }
         }
     }
@@ -83,6 +88,7 @@ fn parse_field_attribute(
         *name = quote::format_ident!("{}", rename);
     }
 
+    let required = !optional;
     match def {
         Some(def) => (
             quote! {
@@ -102,7 +108,7 @@ fn parse_field_attribute(
             get_val,
             None,
             quote! {
-                (stringify!(#name).to_owned(), true, None)
+                (stringify!(#name).to_owned(), #required, None)
             },
         ),
     }
@@ -110,6 +116,7 @@ fn parse_field_attribute(
 
 fn derive_field(
     field: Field,
+    optional: bool,
 ) -> (
     quote::__private::TokenStream,
     quote::__private::TokenStream,
@@ -123,7 +130,8 @@ fn derive_field(
       env.require::<Option<Property>>(&#temp_name)?
     };
     let mut rename = name.clone();
-    let (get_value, def, def_all) = parse_field_attribute(field.attrs, get_value, &mut rename);
+    let (get_value, def, def_all) =
+        parse_field_attribute(field.attrs, get_value, &mut rename, optional);
     (
         quote! {
             let #temp_name = format!("{}{}", name ,stringify!(#rename));
@@ -142,12 +150,13 @@ fn is_primitive(ty: &Type) -> bool {
     lazy_static::lazy_static! {
     static ref PRIMITIVE: std::collections::HashSet<String>
     = vec!["String", "u8", "u16", "u32", "u64", "u128", "usize"
-    , "i8", "i16", "i32", "i64", "i128", "isize", "f64", "f32", "bool"]
+    , "i8", "i16", "i32", "i64", "i128", "isize", "f64", "f32", "bool"
+    , "Duration", "DateTime"]
         .into_iter().map(|a|a.to_owned()).collect();
     }
     if let Type::Path(x) = &ty {
         if let Some(ident) = x.path.segments.iter().next() {
-            if ident.ident == "Option" {
+            if is_container(&ident.ident) {
                 if let PathArguments::AngleBracketed(params) =
                     &x.path.segments.iter().next().unwrap().arguments
                 {
@@ -158,6 +167,19 @@ fn is_primitive(ty: &Type) -> bool {
             } else if PRIMITIVE.contains(&format!("{}", ident.ident)) {
                 return true;
             }
+        }
+    }
+    false
+}
+
+fn is_container(ident: &Ident) -> bool {
+    ident == "Option" || ident == "Vec" || ident == "HashMap" || ident == "HashSet"
+}
+
+fn is_option(ty: &Type) -> bool {
+    if let Type::Path(x) = &ty {
+        if let Some(ident) = x.path.segments.iter().next() {
+            return is_container(&ident.ident);
         }
     }
     false
@@ -190,7 +212,7 @@ fn derive_fields(
                     (stringify!(#name), <#ty>::load_default())
                 });
             }
-            let (temp_name, get_env, def, def_all) = derive_field(field);
+            let (temp_name, get_env, def, def_all) = derive_field(field, is_option(&ty));
             k.push(temp_name);
             v.push(get_env);
             if let Some(def) = def {
@@ -267,7 +289,8 @@ fn derive_enum(
     attrs: Vec<Attribute>,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let (def, _, _) = parse_field_attribute(attrs, quote! { property }, &mut type_name.clone());
+    let (def, _, _) =
+        parse_field_attribute(attrs, quote! { property }, &mut type_name.clone(), false);
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;

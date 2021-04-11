@@ -22,6 +22,6 @@ categories = ['config']
 proc-macro = true
 
 [dependencies]
-syn = '1'
+syn = {version='1', features = ['extra-traits']}
 quote = '1'
 lazy_static = '^1.4'

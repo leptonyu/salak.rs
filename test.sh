@@ -15,4 +15,6 @@ cargo run --example salak --features="default enable_pico"
 cd salak_factory
 cargo test --verbose --all-features
 cargo test --verbose --lib ## Default feature
+cargo test --verbose --lib --no-default-features --features=redis
+cargo test --verbose --lib --no-default-features --features=enable_postgres
 cd -

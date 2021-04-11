@@ -36,6 +36,12 @@ mod redis;
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 pub use crate::redis::{RedisConfig, RedisConnectionManager};
 
+#[cfg(feature = "enable_redis_cluster")]
+mod redis_cluster;
+#[cfg(feature = "enable_redis_cluster")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
+pub use crate::redis_cluster::{RedisClusterConfig, RedisClusterConnectionManager};
+
 /// Buildable component from [`Environment`].
 pub trait Buildable: Sized + FromEnvironment {
     /// Target product.
