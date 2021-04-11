@@ -100,6 +100,15 @@ pub trait Buildable: Sized + FromEnvironment {
     }
 }
 
+#[allow(dead_code)]
+fn print_keys<T: Buildable>() {
+    println!("/// |property|required|default|");
+    println!("/// |-|-|-|");
+    for (k, r, v) in T::list_keys(DEFAULT_NAMESPACE) {
+        println!("/// |{}|{}|{}|", k, r, v.unwrap_or("".to_owned()));
+    }
+}
+
 /// Factory for build buildable
 pub trait Factory: Environment {
     /// Build by namespace

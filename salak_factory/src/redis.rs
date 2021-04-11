@@ -3,6 +3,29 @@ use ::redis::*;
 use std::str::FromStr;
 
 /// Redis Connection Pool Configuration.
+///
+/// |property|required|default|
+/// |-|-|-|
+/// |redis.url|false||
+/// |redis.host|false|localhost|
+/// |redis.port|false|6379|
+/// |redis.ssl|false|false|
+/// |redis.ssl_insecure|false|false|
+/// |redis.db|false||
+/// |redis.user|false||
+/// |redis.password|false||
+/// |redis.connect_timeout|false||
+/// |redis.read_timeout|false||
+/// |redis.write_timeout|false||
+/// |redis.pool.max_size|false|${pool.max_size:}|
+/// |redis.pool.min_idle|false|${pool.min_idle:}|
+/// |redis.pool.thread_name|false|${pool.thread_name:}|
+/// |redis.pool.thread_nums|false|${pool.thread_nums:}|
+/// |redis.pool.test_on_check_out|false|${pool.test_on_check_out:}|
+/// |redis.pool.max_lifetime|false|${pool.max_lifetime:}|
+/// |redis.pool.idle_timeout|false|${pool.idle_timeout:}|
+/// |redis.pool.connection_timeout|false|${pool.connection_timeout:5s}|
+/// |redis.pool.wait_for_init|false|${pool.wait_for_init:false}|
 #[derive(FromEnvironment, Debug)]
 pub struct RedisConfig {
     url: Option<String>,
@@ -112,17 +135,6 @@ mod tests {
         let pool = env.build::<RedisConfig>();
         assert_eq!(true, pool.is_ok());
 
-        let redis_pool = env.build::<RedisConfig>().unwrap();
-        let mut redis_conn = redis_pool.get().unwrap();
-        let key = "hello";
-        let _: u64 = redis_conn.set(key, 1u64).unwrap();
-
-        for (k, o, v) in RedisConfig::list_keys("primary") {
-            if let Some(v) = v {
-                println!("{}[required={}]: {}", k, o, v);
-            } else {
-                println!("{}[required={}]", k, o);
-            }
-        }
+        print_keys::<RedisConfig>();
     }
 }

@@ -66,6 +66,7 @@ fn parse_field_attribute(
 ) {
     let mut def = None;
     let mut rename = None;
+    let mut required = None;
     for attr in attrs {
         if let Ok(Meta::List(list)) = attr.parse_meta() {
             if !is_salak(&list) {
@@ -76,7 +77,12 @@ fn parse_field_attribute(
                     match &parse_path(nv.path)[..] {
                         "default" => def = Some(parse_lit(nv.lit)),
                         "name" => rename = Some(parse_lit(nv.lit)),
-                        _ => panic!("Only support default/name"),
+                        "required" => match &parse_lit(nv.lit)[..] {
+                            "true" => required = Some(true),
+                            "false" => required = Some(false),
+                            _ => panic!("required only support bool value"),
+                        },
+                        _ => panic!("Only support default/name/required"),
                     }
                 } else {
                     panic!("Only support NestedMeta::Meta(Meta::NameValue)");
@@ -88,7 +94,7 @@ fn parse_field_attribute(
         *name = quote::format_ident!("{}", rename);
     }
 
-    let required = !optional;
+    let required = if let Some(v) = required { v } else { !optional };
     match def {
         Some(def) => (
             quote! {

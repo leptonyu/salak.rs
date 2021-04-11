@@ -8,6 +8,31 @@ use ::postgres::{
 use std::time::Duration;
 
 /// Postgres Connection Pool Configuration.
+///
+/// |property|required|default|
+/// |-|-|-|
+/// |postgresql.url|false|postgresql://postgres@localhost|
+/// |postgresql.host|false||
+/// |postgresql.port|false||
+/// |postgresql.user|false||
+/// |postgresql.password|false||
+/// |postgresql.dbname|false||
+/// |postgresql.options|false||
+/// |postgresql.application_name|false||
+/// |postgresql.connect_timeout|false|1s|
+/// |postgresql.keepalives|false||
+/// |postgresql.keepalives_idle|false||
+/// |postgresql.must_allow_write|false|true|
+/// |postgresql.channel_binding|false||
+/// |postgresql.pool.max_size|false|${pool.max_size:}|
+/// |postgresql.pool.min_idle|false|${pool.min_idle:}|
+/// |postgresql.pool.thread_name|false|${pool.thread_name:}|
+/// |postgresql.pool.thread_nums|false|${pool.thread_nums:}|
+/// |postgresql.pool.test_on_check_out|false|${pool.test_on_check_out:}|
+/// |postgresql.pool.max_lifetime|false|${pool.max_lifetime:}|
+/// |postgresql.pool.idle_timeout|false|${pool.idle_timeout:}|
+/// |postgresql.pool.connection_timeout|false|${pool.connection_timeout:5s}|
+/// |postgresql.pool.wait_for_init|false|${pool.wait_for_init:false}|
 #[derive(FromEnvironment, Debug)]
 pub struct PostgresConfig {
     #[salak(default = "postgresql://postgres@localhost")]
@@ -152,5 +177,6 @@ mod tests {
         let env = Salak::new().build();
         let pool = env.build::<PostgresConfig>();
         assert_eq!(true, pool.is_ok());
+        print_keys::<PostgresConfig>();
     }
 }
