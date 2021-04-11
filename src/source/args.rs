@@ -94,6 +94,11 @@ impl SysArgs {
     /// Create [`SysArgs`].
     #[allow(clippy::infallible_destructuring_match)]
     pub(crate) fn new(args: SysArgsMode) -> Self {
+        let mut map = BTreeMap::new();
+        if let SysArgsMode::Auto(arg) = &args {
+            map.insert("app.name".to_string(), arg.name.into_property());
+            map.insert("app.version".to_string(), arg.version.into_property());
+        }
         let args = match args {
             #[cfg(feature = "enable_clap")]
             #[cfg(not(feature = "enable_pico"))]
@@ -103,7 +108,6 @@ impl SysArgs {
             SysArgsMode::Custom(arg) => arg,
         };
 
-        let mut map = BTreeMap::new();
         for (k, v) in args {
             map.insert(k, v);
         }

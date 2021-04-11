@@ -280,6 +280,45 @@ impl<T> FromProperty for PhantomData<T> {
     }
 }
 
+#[cfg(feature = "enable_log")]
+impl FromProperty for LevelFilter {
+    fn from_property(p: Property) -> Result<Self, PropertyError> {
+        match p {
+            Property::Str(du) => match &du.to_lowercase()[..] {
+                "off" => Ok(LevelFilter::Off),
+                "trace" => Ok(LevelFilter::Trace),
+                "debug" => Ok(LevelFilter::Debug),
+                "info" => Ok(LevelFilter::Info),
+                "warn" => Ok(LevelFilter::Warn),
+                "error" => Ok(LevelFilter::Error),
+                _ => Err(PropertyError::parse_failed("Invalid LevelFilter")),
+            },
+            _ => Err(PropertyError::parse_failed(
+                "LevelFilter only support string",
+            )),
+        }
+    }
+}
+
+#[cfg(feature = "enable_log")]
+impl FromProperty for Level {
+    fn from_property(p: Property) -> Result<Self, PropertyError> {
+        match p {
+            Property::Str(du) => match &du.to_lowercase()[..] {
+                "trace" => Ok(Level::Trace),
+                "debug" => Ok(Level::Debug),
+                "info" => Ok(Level::Info),
+                "warn" => Ok(Level::Warn),
+                "error" => Ok(Level::Error),
+                _ => Err(PropertyError::parse_failed("Invalid LevelFilter")),
+            },
+            _ => Err(PropertyError::parse_failed(
+                "LevelFilter only support string",
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use source::internal::parse_duration_from_str;

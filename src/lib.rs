@@ -129,6 +129,7 @@
 
 #[cfg(feature = "enable_log")]
 use log::*;
+
 use std::collections::HashSet;
 use std::hash::BuildHasher;
 use std::hash::Hash;

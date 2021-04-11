@@ -157,7 +157,7 @@ fn is_primitive(ty: &Type) -> bool {
     static ref PRIMITIVE: std::collections::HashSet<String>
     = vec!["String", "u8", "u16", "u32", "u64", "u128", "usize"
     , "i8", "i16", "i32", "i64", "i128", "isize", "f64", "f32", "bool"
-    , "Duration", "DateTime"]
+    , "Duration", "DateTime", "LevelFilter", "Level"]
         .into_iter().map(|a|a.to_owned()).collect();
     }
     if let Type::Path(x) = &ty {

@@ -37,11 +37,11 @@ pub enum Hello {
 
 fn main() {
     env_logger::init();
-    std::env::set_var("database.url", "localhost:5432");
-    std::env::set_var("database.description", "\\$\\{Hello\\}");
-    std::env::set_var("database.ssl.option_arr[0]", "10");
     let env = Salak::new()
         .with_default_args(auto_read_sys_args_param!())
+        .set_property("database.url", "localhost:5432")
+        .set_property("database.description", "\\$\\{Hello\\}")
+        .set_property("database.ssl.option_arr[0]", "10")
         .add_default::<DatabaseConfig>()
         .add_default_source(inline_toml!("app.toml"))
         .build();

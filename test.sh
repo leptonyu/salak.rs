@@ -19,6 +19,7 @@ cargo test --verbose --lib ## Default feature
 cargo test --verbose --lib --no-default-features --features=enable_redis
 cargo test --verbose --lib --no-default-features --features=enable_redis_cluster
 cargo test --verbose --lib --no-default-features --features=enable_postgres
+cargo test --verbose --lib --no-default-features --features=enable_tracing_log
 
 cargo run --example redis --features='default enable_redis'
 cd -
