@@ -41,8 +41,11 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
     }
 
     #[cfg(feature = "enable_derive")]
-    fn load_keys() -> Vec<(String, Option<Property>)> {
+    fn load_keys() -> Vec<(String, bool, Option<Property>)> {
         P::load_keys()
+            .into_iter()
+            .map(|(k, _, v)| (k, false, v))
+            .collect()
     }
 }
 
@@ -70,6 +73,14 @@ impl<P: FromEnvironment> FromEnvironment for Vec<P> {
     fn check_is_empty(&self) -> bool {
         self.is_empty()
     }
+
+    #[cfg(feature = "enable_derive")]
+    fn load_keys() -> Vec<(String, bool, Option<Property>)> {
+        P::load_keys()
+            .into_iter()
+            .map(|(k, _, v)| (format!("*.{}", k), false, v))
+            .collect()
+    }
 }
 
 impl<T, S> FromEnvironment for HashSet<T, S>
@@ -86,6 +97,14 @@ where
     }
     fn check_is_empty(&self) -> bool {
         self.is_empty()
+    }
+
+    #[cfg(feature = "enable_derive")]
+    fn load_keys() -> Vec<(String, bool, Option<Property>)> {
+        T::load_keys()
+            .into_iter()
+            .map(|(k, _, v)| (format!("*.{}", k), false, v))
+            .collect()
     }
 }
 

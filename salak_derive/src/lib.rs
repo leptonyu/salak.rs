@@ -95,14 +95,14 @@ fn parse_field_attribute(
                 (stringify!(#name).to_owned(), Property::Str(#def.to_owned()))
             }),
             quote! {
-                (stringify!(#name).to_owned(), Some(Property::Str(#def.to_owned())))
+                (stringify!(#name).to_owned(), false, Some(Property::Str(#def.to_owned())))
             },
         ),
         _ => (
             get_val,
             None,
             quote! {
-                (stringify!(#name).to_owned(), None)
+                (stringify!(#name).to_owned(), true, None)
             },
         ),
     }
@@ -176,8 +176,10 @@ fn derive_fields(
     if let Fields::Named(fields) = fields {
         let mut k = vec![];
         let mut v = vec![];
+        // Only field with defaults.
         let mut d = vec![];
         let mut n = vec![];
+        // All fields.
         let mut dl = vec![];
         let mut nl = vec![];
         for field in fields.named {
@@ -194,10 +196,14 @@ fn derive_fields(
             if let Some(def) = def {
                 d.push(def);
             }
-            dl.push(def_all);
-            nl.push(quote! {
-                (stringify!(#name), <#ty>::load_keys())
-            });
+
+            if !is_primitive(&ty) {
+                nl.push(quote! {
+                    (stringify!(#name), <#ty>::load_keys())
+                });
+            } else {
+                dl.push(def_all);
+            }
         }
         let n = if n.is_empty() {
             quote! {}
@@ -215,8 +221,8 @@ fn derive_fields(
         } else {
             quote! {
                 for (p, vs) in vec![#(#nl),*] {
-                    for (n, s) in vs {
-                        v.push((format!("{}.{}", p, n), s));
+                    for (n, o, s) in vs {
+                        v.push((format!("{}.{}", p, n), o, s));
                     }
                 }
             }
@@ -246,7 +252,7 @@ fn derive_struct(
                 #ns
                 v
             }
-            fn load_keys() -> Vec<(String, Option<Property>)> {
+            fn load_keys() -> Vec<(String, bool, Option<Property>)> {
                 let mut v = vec![];
                 #(v.push(#def_all);)*
                 #nl

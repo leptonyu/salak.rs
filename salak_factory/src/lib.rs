@@ -62,7 +62,15 @@ pub trait Buildable: Sized + FromEnvironment {
     }
 
     /// Build product.
-    fn build(namespace: &str, env: &impl Environment) -> Result<Self::Product, PropertyError> {
+    fn build(env: &impl Environment) -> Result<Self::Product, PropertyError> {
+        Self::build_by_namespace("primary", env)
+    }
+
+    /// Build product.
+    fn build_by_namespace(
+        namespace: &str,
+        env: &impl Environment,
+    ) -> Result<Self::Product, PropertyError> {
         Self::build_with_customizer(namespace, env, Default::default())
     }
 
@@ -72,4 +80,26 @@ pub trait Buildable: Sized + FromEnvironment {
         env: &impl Environment,
         customize: Self::Customizer,
     ) -> Result<Self::Product, PropertyError>;
+
+    /// List All Keys
+    fn list_keys(namespace: &str) -> Vec<(String, bool, Option<String>)> {
+        let v = Self::load_keys();
+        let prefix = if namespace.is_empty() || namespace == "primary" {
+            Self::prefix().to_string()
+        } else {
+            format!("{}.{}", Self::prefix(), namespace)
+        };
+        v.iter()
+            .map(|(k, o, v)| {
+                (
+                    format!("{}.{}", prefix, k),
+                    o.clone(),
+                    match v {
+                        Some(p) => String::from_property(p.clone()).ok(),
+                        _ => None,
+                    },
+                )
+            })
+            .collect()
+    }
 }

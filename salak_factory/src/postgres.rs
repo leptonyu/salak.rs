@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn postgres_tests() {
         let env = Salak::new().build();
-        let pool = PostgresConfig::build("primary", &env);
+        let pool = PostgresConfig::build(&env);
         assert_eq!(true, pool.is_ok());
     }
 }

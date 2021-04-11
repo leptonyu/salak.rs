@@ -298,7 +298,7 @@ pub trait FromEnvironment: Sized {
 
     #[doc(hidden)]
     #[cfg(feature = "enable_derive")]
-    fn load_keys() -> Vec<(String, Option<Property>)> {
+    fn load_keys() -> Vec<(String, bool, Option<Property>)> {
         vec![]
     }
 }
