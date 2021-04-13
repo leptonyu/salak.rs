@@ -5,8 +5,9 @@ use std::fmt::Write;
 use std::{cell::RefCell, sync::Mutex};
 use std::{fmt::Debug, io::BufWriter};
 use tracing::{
+    dispatcher::DefaultGuard,
     field::{Field, Visit},
-    subscriber::set_global_default,
+    subscriber::set_default,
     Event, Level, Subscriber,
 };
 use tracing_subscriber::{
@@ -54,7 +55,7 @@ struct TracingLogWriter<W: std::io::Write> {
 }
 
 impl Buildable for TracingLogConfig {
-    type Product = ();
+    type Product = DefaultGuard;
 
     type Customizer = TracingLogCustomizer;
 
@@ -79,15 +80,15 @@ impl Buildable for TracingLogConfig {
         } else {
             Box::new(std::io::stdout())
         };
+        builder
+            .init()
+            .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
+
         let registry = Registry::default().with(TracingLogWriter {
             name: self.app_name,
             writer: Mutex::new(BufWriter::with_capacity(self.write_capacity, w)),
         });
-        set_global_default(registry).map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
-
-        builder
-            .init()
-            .map_err(|e| PropertyError::ParseFail(format!("{}", e)))
+        Ok(set_default(registry))
     }
 }
 
