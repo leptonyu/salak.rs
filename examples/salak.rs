@@ -50,4 +50,8 @@ fn main() {
         Ok(h) => println!("{:?}", h),
         Err(e) => println!("{}", e),
     }
+
+    for x in env.find_keys("") {
+        println!("{}", &x);
+    }
 }
