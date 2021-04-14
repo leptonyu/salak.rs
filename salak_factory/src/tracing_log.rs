@@ -54,8 +54,10 @@ pub struct TracingLogWriter<W: std::io::Write> {
 }
 
 impl Buildable for TracingLogConfig {
-    type Product =
-        Layered<TracingLogWriter<Box<dyn std::io::Write + 'static + Send + Sync>>, Registry>;
+    type Product = Layered<
+        TracingLogWriter<Box<dyn std::io::Write + 'static + Send + Sync>>,
+        registry::Registry,
+    >;
 
     type Customizer = TracingLogCustomizer;
 
