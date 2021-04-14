@@ -33,8 +33,8 @@ pub struct TracingLogConfig {
     max_level: Option<LevelFilter>,
     #[salak(default = "${app.name:}")]
     app_name: Option<String>,
-    #[salak(default = 65536)]
-    write_capacity: usize,
+    #[salak(default = 8912)]
+    buffer_size: usize,
 }
 
 /// Tracing Log customizer.
@@ -86,7 +86,7 @@ impl Buildable for TracingLogConfig {
 
         let registry = Registry::default().with(TracingLogWriter {
             name: self.app_name,
-            writer: Mutex::new(BufWriter::with_capacity(self.write_capacity, w)),
+            writer: Mutex::new(BufWriter::with_capacity(self.buffer_size, w)),
         });
         Ok(set_default(registry))
     }

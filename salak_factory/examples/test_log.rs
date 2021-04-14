@@ -9,6 +9,6 @@ fn main() {
     let _guard = env.build::<TracingLogConfig>().unwrap();
 
     for i in 0..10_000_000 {
-        info!("Hello {:0>100}", i);
+        info!("Hello {} 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 {:0<10}", "world!", i);
     }
 }
