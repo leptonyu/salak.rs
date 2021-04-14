@@ -104,8 +104,10 @@ impl Visit for EventWriter<'_> {
 
 struct LogBuf {
     buf: String,
-    last: i64,
+    seconds: i64,
+    milli: u32,
     time: (usize, usize, usize),
+    lev: Level,
     level: (usize, usize),
     reserve: usize,
 }
@@ -121,7 +123,7 @@ fn level_to_string(level: &Level) -> &str {
 }
 
 impl LogBuf {
-    fn new(name: &Option<String>, level: &Level) -> Self {
+    fn new(name: &Option<String>, lev: &Level) -> Self {
         let mut buf = String::new();
         let mut reserve = 0;
         let last = Utc::now();
@@ -131,7 +133,7 @@ impl LogBuf {
         let time = (0, len - 4, len - 1);
         buf.push_str(&time_str);
         reserve += 7;
-        buf.push_str(&format!(" {} ", level_to_string(level)));
+        buf.push_str(&format!(" {} ", level_to_string(lev)));
         let level = (reserve - 6, reserve - 1);
         if let Some(name) = name {
             reserve += name.len() + 3;
@@ -140,30 +142,39 @@ impl LogBuf {
         Self {
             buf,
             time,
+            seconds: last.timestamp(),
+            milli: last.timestamp_subsec_millis(),
+            lev: lev.clone(),
             level,
             reserve,
-            last: last.timestamp(),
         }
     }
 
     fn reset(&mut self, level: &Level) {
         let now = Utc::now();
-        let last = now.timestamp();
-        if last == self.last {
-            self.buf.replace_range(
-                self.time.1..self.time.2,
-                &format!("{:0>3}", now.timestamp_subsec_millis()),
-            );
-        } else {
-            self.last = last;
+        let seconds = now.timestamp();
+        if seconds != self.seconds {
+            self.seconds = seconds;
             self.buf.replace_range(
                 self.time.0..=self.time.2,
                 &now.to_rfc3339_opts(SecondsFormat::Millis, true),
             );
+        } else {
+            let milli = now.timestamp_subsec_millis();
+            if milli != self.milli {
+                self.buf.replace_range(
+                    self.time.1..self.time.2,
+                    &format!("{:0>3}", now.timestamp_subsec_millis()),
+                );
+                self.milli = milli;
+            }
         }
 
-        self.buf
-            .replace_range(self.level.0..self.level.1, level_to_string(level));
+        if self.lev != *level {
+            self.buf
+                .replace_range(self.level.0..self.level.1, level_to_string(level));
+        }
+
         self.buf.truncate(self.reserve);
     }
 }

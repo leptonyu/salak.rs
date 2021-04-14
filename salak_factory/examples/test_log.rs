@@ -8,7 +8,7 @@ fn main() {
         .build();
     let _guard = env.build::<TracingLogConfig>().unwrap();
 
-    for i in 0..100 {
+    for i in 0..10_000_000 {
         info!("Hello {:0>100}", i);
     }
 }
