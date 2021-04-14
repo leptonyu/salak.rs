@@ -95,8 +95,14 @@ impl Buildable for TracingLogConfig {
 struct EventWriter<'a>(&'a mut String);
 
 impl Visit for EventWriter<'_> {
+    fn record_str(&mut self, f: &Field, value: &str) {
+        if "message" == f.name() {
+            self.0.push_str(value);
+        }
+    }
+
     fn record_debug(&mut self, f: &Field, value: &dyn Debug) {
-        if let "message" = f.name() {
+        if "message" == f.name() {
             let _ = write!(self.0, "{:?}", value);
         }
     }
@@ -124,7 +130,7 @@ fn level_to_string(level: &Level) -> &str {
 
 impl LogBuf {
     fn new(name: &Option<String>, lev: &Level) -> Self {
-        let mut buf = String::new();
+        let mut buf = String::with_capacity(8192);
         let mut reserve = 0;
         let last = Utc::now();
         let time_str = last.to_rfc3339_opts(SecondsFormat::Millis, true);
@@ -155,17 +161,18 @@ impl LogBuf {
         let seconds = now.timestamp();
         if seconds != self.seconds {
             self.seconds = seconds;
-            self.buf.replace_range(
-                self.time.0..=self.time.2,
-                &now.to_rfc3339_opts(SecondsFormat::Millis, true),
-            );
+            unsafe {
+                self.buf.as_bytes_mut()[self.time.0..=self.time.2]
+                    .copy_from_slice(now.to_rfc3339_opts(SecondsFormat::Millis, true).as_bytes());
+            }
         } else {
             let milli = now.timestamp_subsec_millis();
             if milli != self.milli {
-                self.buf.replace_range(
-                    self.time.1..self.time.2,
-                    &format!("{:0>3}", now.timestamp_subsec_millis()),
-                );
+                unsafe {
+                    self.buf.as_bytes_mut()[self.time.1..self.time.2].copy_from_slice(
+                        format!("{:0>3}", now.timestamp_subsec_millis()).as_bytes(),
+                    );
+                }
                 self.milli = milli;
             }
         }
@@ -198,6 +205,9 @@ impl<S: Subscriber, W: std::io::Write + 'static> Layer<S> for TracingLogWriter<W
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
         thread_local! {
             static BUF: RefCell<Option<LogBuf>> = RefCell::new(None);
+        }
+        if event.metadata().name() != "log event" {
+            return;
         }
         BUF.with(|buf| {
             if let Ok(mut opt_buf) = buf.try_borrow_mut() {
