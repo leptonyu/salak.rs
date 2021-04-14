@@ -5,15 +5,12 @@ use std::fmt::Write;
 use std::{cell::RefCell, sync::Mutex};
 use std::{fmt::Debug, io::BufWriter};
 use tracing::{
-    dispatcher::DefaultGuard,
     field::{Field, Visit},
-    subscriber::set_default,
     Event, Level, Subscriber,
 };
 use tracing_subscriber::{
-    layer::{Context, SubscriberExt},
-    registry::Registry,
-    Layer,
+    layer::{Context, Layered, SubscriberExt},
+    registry, Layer,
 };
 
 use super::*;
@@ -49,13 +46,16 @@ impl Default for TracingLogCustomizer {
     }
 }
 
-struct TracingLogWriter<W: std::io::Write> {
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct TracingLogWriter<W: std::io::Write> {
     name: Option<String>,
     writer: Mutex<BufWriter<W>>,
 }
 
 impl Buildable for TracingLogConfig {
-    type Product = DefaultGuard;
+    type Product =
+        Layered<TracingLogWriter<Box<dyn std::io::Write + 'static + Send + Sync>>, Registry>;
 
     type Customizer = TracingLogCustomizer;
 
@@ -84,11 +84,11 @@ impl Buildable for TracingLogConfig {
             .init()
             .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
 
-        let registry = Registry::default().with(TracingLogWriter {
+        let registry = registry().with(TracingLogWriter {
             name: self.app_name,
             writer: Mutex::new(BufWriter::with_capacity(self.buffer_size, w)),
         });
-        Ok(set_default(registry))
+        Ok(registry)
     }
 }
 
