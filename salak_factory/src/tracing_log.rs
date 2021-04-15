@@ -2,7 +2,7 @@ use ::tracing_log::LogTracer;
 use chrono::{SecondsFormat, Utc};
 use log::LevelFilter;
 use std::fmt::Write;
-use std::{cell::RefCell, sync::Mutex};
+use std::{cell::RefCell, ops::RangeBounds, sync::Mutex};
 use std::{fmt::Debug, io::BufWriter};
 use tracing::{
     field::{Field, Visit},
@@ -97,12 +97,14 @@ impl Buildable for TracingLogConfig {
 struct EventWriter<'a>(&'a mut String);
 
 impl Visit for EventWriter<'_> {
+    #[inline]
     fn record_str(&mut self, f: &Field, value: &str) {
         if "message" == f.name() {
             self.0.push_str(value);
         }
     }
 
+    #[inline]
     fn record_debug(&mut self, f: &Field, value: &dyn Debug) {
         if "message" == f.name() {
             let _ = write!(self.0, "{:?}", value);
@@ -120,6 +122,7 @@ struct LogBuf {
     reserve: usize,
 }
 
+#[inline]
 fn level_to_string(level: &Level) -> &str {
     match *level {
         Level::TRACE => "TRACE",
@@ -158,37 +161,42 @@ impl LogBuf {
         }
     }
 
+    #[inline]
     fn reset(&mut self, level: &Level) {
         let now = Utc::now();
         let seconds = now.timestamp();
         if seconds != self.seconds {
             self.seconds = seconds;
-            unsafe {
-                self.buf.as_bytes_mut()[self.time.0..=self.time.2]
-                    .copy_from_slice(now.to_rfc3339_opts(SecondsFormat::Millis, true).as_bytes());
-            }
+            self.set_str(
+                self.time.0..=self.time.2,
+                &now.to_rfc3339_opts(SecondsFormat::Millis, true),
+            );
         } else {
             let milli = now.timestamp_subsec_millis();
             if milli != self.milli {
-                unsafe {
-                    self.buf.as_bytes_mut()[self.time.1..self.time.2].copy_from_slice(
-                        format!("{:0>3}", now.timestamp_subsec_millis()).as_bytes(),
-                    );
-                }
+                self.set_str(
+                    self.time.1..self.time.2,
+                    &format!("{:0>3}", now.timestamp_subsec_millis()),
+                );
                 self.milli = milli;
             }
         }
 
         if self.lev != *level {
-            self.buf
-                .replace_range(self.level.0..self.level.1, level_to_string(level));
+            self.set_str(self.level.0..self.level.1, level_to_string(level));
         }
 
         self.buf.truncate(self.reserve);
     }
+
+    #[inline]
+    fn set_str<R: RangeBounds<usize>>(&mut self, range: R, msg: &str) {
+        self.buf.replace_range(range, msg);
+    }
 }
 
 impl<W: std::io::Write> TracingLogWriter<W> {
+    #[inline]
     fn write_log(&self, buf: &mut String, event: &Event<'_>) {
         if let Some(path) = event.metadata().module_path() {
             buf.push_str(path);
@@ -204,6 +212,7 @@ impl<W: std::io::Write> TracingLogWriter<W> {
 }
 
 impl<S: Subscriber, W: std::io::Write + 'static> Layer<S> for TracingLogWriter<W> {
+    #[inline]
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
         thread_local! {
             static BUF: RefCell<Option<LogBuf>> = RefCell::new(None);
