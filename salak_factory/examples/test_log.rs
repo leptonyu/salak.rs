@@ -13,16 +13,19 @@ fn main() {
 
     let _ = set_global_default(registry().with(layer));
 
+    let max = 1000_000;
+    let num = num_cpus::get();
     let mut join = vec![];
-    let max = 100_1000;
-    for i in 0..10 {
+    for i in 0..num {
         join.push(std::thread::spawn(move || {
+            let max = max / 10;
             let i = i * max;
             for j in 0..max {
                 info!("Hello {:0>10}", i + j);
             }
         }));
     }
+
     for h in join {
         let _ = h.join();
     }
