@@ -1,17 +1,14 @@
 use ::tracing_log::LogTracer;
 use chrono::{SecondsFormat, Utc};
 use log::LevelFilter;
-use std::fmt::Write;
-use std::{cell::RefCell, ops::RangeBounds, sync::Mutex};
+use std::sync::Arc;
+use std::{cell::RefCell, io::Write, ops::RangeBounds, sync::Mutex};
 use std::{fmt::Debug, io::BufWriter};
 use tracing::{
     field::{Field, Visit},
     Event, Level, Subscriber,
 };
-use tracing_subscriber::{
-    layer::{Context, Layered, SubscriberExt},
-    registry, Layer,
-};
+use tracing_subscriber::{layer::Context, Layer};
 
 use super::*;
 
@@ -37,7 +34,7 @@ pub struct TracingLogConfig {
 /// Tracing Log customizer.
 #[allow(missing_debug_implementations)]
 pub struct TracingLogCustomizer {
-    writer: Option<Box<dyn std::io::Write + 'static + Sync + Send>>,
+    writer: Option<Box<dyn Write + 'static + Send>>,
 }
 
 impl Default for TracingLogCustomizer {
@@ -48,16 +45,27 @@ impl Default for TracingLogCustomizer {
 
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]
-pub struct TracingLogWriter<W: std::io::Write> {
+pub struct TracingLogWriter {
     name: Option<String>,
-    writer: Mutex<BufWriter<W>>,
+    writer: Arc<Mutex<BufWriter<Box<dyn Write + 'static + Send>>>>,
+}
+
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct TracingLogGuard {
+    writer: Arc<Mutex<BufWriter<Box<dyn Write + Send>>>>,
+}
+
+impl Drop for TracingLogGuard {
+    fn drop(&mut self) {
+        if let Ok(mut f) = self.writer.lock() {
+            let _ = (*f).flush();
+        }
+    }
 }
 
 impl Buildable for TracingLogConfig {
-    type Product = Layered<
-        TracingLogWriter<Box<dyn std::io::Write + 'static + Send + Sync>>,
-        registry::Registry,
-    >;
+    type Product = (TracingLogGuard, TracingLogWriter);
 
     type Customizer = TracingLogCustomizer;
 
@@ -86,11 +94,16 @@ impl Buildable for TracingLogConfig {
             .init()
             .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
 
-        let registry = registry().with(TracingLogWriter {
+        let wr = TracingLogWriter {
             name: self.app_name,
-            writer: Mutex::new(BufWriter::with_capacity(self.buffer_size, w)),
-        });
-        Ok(registry)
+            writer: Arc::new(Mutex::new(BufWriter::with_capacity(self.buffer_size, w))),
+        };
+        Ok((
+            TracingLogGuard {
+                writer: wr.writer.clone(),
+            },
+            wr,
+        ))
     }
 }
 
@@ -107,6 +120,7 @@ impl Visit for EventWriter<'_> {
     #[inline]
     fn record_debug(&mut self, f: &Field, value: &dyn Debug) {
         if "message" == f.name() {
+            use std::fmt::Write;
             let _ = write!(self.0, "{:?}", value);
         }
     }
@@ -195,7 +209,7 @@ impl LogBuf {
     }
 }
 
-impl<W: std::io::Write> TracingLogWriter<W> {
+impl TracingLogWriter {
     #[inline]
     fn write_log(&self, buf: &mut String, event: &Event<'_>) {
         if let Some(path) = event.metadata().module_path() {
@@ -205,13 +219,12 @@ impl<W: std::io::Write> TracingLogWriter<W> {
         event.record(&mut EventWriter(buf));
         buf.push('\n');
         if let Ok(mut w) = self.writer.lock() {
-            use std::io::Write;
             let _ = w.write_all(buf.as_bytes());
         }
     }
 }
 
-impl<S: Subscriber, W: std::io::Write + 'static> Layer<S> for TracingLogWriter<W> {
+impl<S: Subscriber> Layer<S> for TracingLogWriter {
     #[inline]
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
         thread_local! {

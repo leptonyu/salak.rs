@@ -1,16 +1,29 @@
 use log::*;
 use salak::*;
 use salak_factory::*;
+use tracing::subscriber::set_global_default;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::registry;
 
 fn main() {
     let env = Salak::new()
         .with_default_args(auto_read_sys_args_param!())
         .build();
-    let log = env.build::<TracingLogConfig>().unwrap();
+    let (_guard, layer) = env.build::<TracingLogConfig>().unwrap();
 
-    let _guard = tracing::subscriber::set_default(log);
+    let _ = set_global_default(registry().with(layer));
 
-    for i in 0..10_000_000 {
-        info!("Hello {} 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 {:0<10}", "world!", i);
+    let mut join = vec![];
+    let max = 100_1000;
+    for i in 0..10 {
+        join.push(std::thread::spawn(move || {
+            let i = i * max;
+            for j in 0..max {
+                info!("Hello {:0>10}", i + j);
+            }
+        }));
+    }
+    for h in join {
+        let _ = h.join();
     }
 }
