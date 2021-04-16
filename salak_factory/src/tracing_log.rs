@@ -122,6 +122,7 @@ struct LogBuffer {
     con: Consumer<u8>,
     out: Arc<Stdout>,
     reserve: usize,
+    msg: String,
 }
 
 impl LogBuffer {
@@ -141,6 +142,7 @@ impl LogBuffer {
             pro,
             con,
             reserve,
+            msg: String::new(),
         }
     }
 }
@@ -152,12 +154,15 @@ impl Drop for LogBuffer {
 }
 
 impl LogBuffer {
-    fn write_all(&mut self, msg: &[u8]) -> std::io::Result<usize> {
-        let size = self.reserve + msg.len();
+    fn write_all(&mut self, msg: &dyn Debug) -> std::io::Result<usize> {
+        self.msg.clear();
+        use std::fmt::Write;
+        let _ = writeln!(self.msg, "{:?}", msg);
+        let size = self.reserve + self.msg.len();
         if self.pro.remaining() < size {
             self.flush_all()?;
         }
-        let mut size = msg.len() + 1;
+        let mut size = self.msg.len() + 1;
         let buf = self.time.load().as_bytes();
         size += buf.len() + 1;
         let _ = self.pro.write_all(buf);
@@ -170,8 +175,7 @@ impl LogBuffer {
             let _ = self.pro.write_all(n.as_bytes());
             size += n.len();
         }
-        let _ = self.pro.write_all(msg);
-        let _ = self.pro.write(b"\n");
+        let _ = self.pro.write_all(self.msg.as_bytes());
         Ok(size)
     }
 
@@ -188,16 +192,9 @@ struct EventWriter<'a>(&'a mut LogBuffer);
 
 impl Visit for EventWriter<'_> {
     #[inline]
-    fn record_str(&mut self, f: &Field, value: &str) {
-        if "message" == f.name() {
-            let _ = self.0.write_all(value.as_bytes());
-        }
-    }
-
-    #[inline]
     fn record_debug(&mut self, f: &Field, value: &dyn Debug) {
         if "message" == f.name() {
-            let _ = self.0.write_all(format!("{:?}", value).as_bytes());
+            let _ = self.0.write_all(value);
         }
     }
 }
