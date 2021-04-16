@@ -1,5 +1,5 @@
 use ::tracing_log::LogTracer;
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{SecondsFormat, Utc};
 use log::LevelFilter;
 use ringbuf::*;
 use std::fmt::Debug;
@@ -89,33 +89,35 @@ struct FieldBuf<K> {
     value: String,
 }
 
-impl UpdateField for FieldBuf<DateTime<Utc>> {
+impl UpdateField for FieldBuf<(i64, u32)> {
     fn load(&mut self) -> &str {
         let key = Utc::now();
         let seconds = key.timestamp();
-        if seconds != self.key.timestamp() {
+        let mi = key.timestamp_subsec_millis();
+        if seconds != self.key.0 {
             self.value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
-        } else if key.timestamp_subsec_millis() != self.key.timestamp_subsec_millis() {
+            self.key = (seconds, mi);
+        } else if mi != self.key.1 {
             let n = self.value.len();
-            self.value.replace_range(
-                n - 4..n - 1,
-                &format!("{:0>3}", self.key.timestamp_subsec_millis()),
-            );
+            self.value
+                .replace_range(n - 4..n - 1, &format!("{:0>3}", mi));
+            self.key.1 = mi;
         }
         &self.value
     }
 }
 
-impl FieldBuf<DateTime<Utc>> {
+impl FieldBuf<(i64, u32)> {
     fn new() -> Self {
         let key = Utc::now();
         let value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
+        let key = (key.timestamp(), key.timestamp_subsec_millis());
         Self { key, value }
     }
 }
 
 struct LogBuffer {
-    time: FieldBuf<DateTime<Utc>>,
+    time: FieldBuf<(i64, u32)>,
     level: Level,
     name: Option<String>,
     pro: Producer<u8>,
