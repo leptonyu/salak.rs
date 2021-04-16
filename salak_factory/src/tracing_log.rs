@@ -1,9 +1,13 @@
 use ::tracing_log::LogTracer;
-use chrono::{SecondsFormat, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use log::LevelFilter;
+use ringbuf::*;
+use std::fmt::Debug;
 use std::sync::Arc;
-use std::{cell::RefCell, io::Write, ops::RangeBounds, sync::Mutex};
-use std::{fmt::Debug, io::BufWriter};
+use std::{
+    cell::RefCell,
+    io::{stdout, Stdout, Write},
+};
 use tracing::{
     field::{Field, Visit},
     Event, Level, Subscriber,
@@ -22,7 +26,7 @@ use super::*;
 /// |logging.write_capacity|false|65536|
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "logging")]
-pub struct TracingLogConfig {
+pub struct LogConfig {
     ignores: Vec<String>,
     max_level: Option<LevelFilter>,
     #[salak(default = "${app.name:}")]
@@ -31,43 +35,10 @@ pub struct TracingLogConfig {
     buffer_size: usize,
 }
 
-/// Tracing Log customizer.
-#[allow(missing_debug_implementations)]
-pub struct TracingLogCustomizer {
-    writer: Option<Box<dyn Write + 'static + Send>>,
-}
+impl Buildable for LogConfig {
+    type Product = LogWriter;
 
-impl Default for TracingLogCustomizer {
-    fn default() -> Self {
-        TracingLogCustomizer { writer: None }
-    }
-}
-
-#[doc(hidden)]
-#[allow(missing_debug_implementations)]
-pub struct TracingLogWriter {
-    name: Option<String>,
-    writer: Arc<Mutex<BufWriter<Box<dyn Write + 'static + Send>>>>,
-}
-
-#[doc(hidden)]
-#[allow(missing_debug_implementations)]
-pub struct TracingLogGuard {
-    writer: Arc<Mutex<BufWriter<Box<dyn Write + Send>>>>,
-}
-
-impl Drop for TracingLogGuard {
-    fn drop(&mut self) {
-        if let Ok(mut f) = self.writer.lock() {
-            let _ = (*f).flush();
-        }
-    }
-}
-
-impl Buildable for TracingLogConfig {
-    type Product = (TracingLogGuard, TracingLogWriter);
-
-    type Customizer = TracingLogCustomizer;
+    type Customizer = ();
 
     fn prefix() -> &'static str {
         "logging"
@@ -76,7 +47,7 @@ impl Buildable for TracingLogConfig {
     fn build_with_key(
         self,
         _: &impl Environment,
-        customizer: Self::Customizer,
+        _: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
         let mut builder = LogTracer::builder();
         for ignore in self.ignores {
@@ -85,150 +56,165 @@ impl Buildable for TracingLogConfig {
         if let Some(level) = self.max_level {
             builder = builder.with_max_level(level);
         }
-        let w = if let Some(v) = customizer.writer {
-            v
-        } else {
-            Box::new(std::io::stdout())
-        };
         builder
             .init()
             .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
 
-        let wr = TracingLogWriter {
-            name: self.app_name,
-            writer: Arc::new(Mutex::new(BufWriter::with_capacity(self.buffer_size, w))),
-        };
-        Ok((
-            TracingLogGuard {
-                writer: wr.writer.clone(),
-            },
-            wr,
-        ))
+        Ok(LogWriter {
+            write: Arc::new(stdout()),
+            buffer_size: self.buffer_size,
+            app_name: self.app_name,
+        })
     }
 }
 
-struct EventWriter<'a>(&'a mut String);
+trait UpdateField {
+    fn load(&mut self) -> &str;
+}
+
+impl UpdateField for Level {
+    fn load(&mut self) -> &str {
+        match *self {
+            Level::TRACE => "TRACE",
+            Level::DEBUG => "DEBUG",
+            Level::INFO => "INFO",
+            Level::WARN => "WARN",
+            Level::ERROR => "ERROR",
+        }
+    }
+}
+
+struct FieldBuf<K> {
+    key: K,
+    value: String,
+}
+
+impl UpdateField for FieldBuf<DateTime<Utc>> {
+    fn load(&mut self) -> &str {
+        let key = Utc::now();
+        let seconds = key.timestamp();
+        if seconds != self.key.timestamp() {
+            self.value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
+        } else if key.timestamp_subsec_millis() != self.key.timestamp_subsec_millis() {
+            let n = self.value.len();
+            self.value.replace_range(
+                n - 4..n - 1,
+                &format!("{:0>3}", self.key.timestamp_subsec_millis()),
+            );
+        }
+        &self.value
+    }
+}
+
+impl FieldBuf<DateTime<Utc>> {
+    fn new() -> Self {
+        let key = Utc::now();
+        let value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
+        Self { key, value }
+    }
+}
+
+struct LogBuffer {
+    time: FieldBuf<DateTime<Utc>>,
+    level: Level,
+    name: Option<String>,
+    pro: Producer<u8>,
+    con: Consumer<u8>,
+    out: Arc<Stdout>,
+    reserve: usize,
+}
+
+impl LogBuffer {
+    fn new(level: &Level, out: Arc<Stdout>, buffer_size: usize, mut name: Option<String>) -> Self {
+        let rb = RingBuffer::new(buffer_size);
+        let (pro, con) = rb.split();
+        let mut reserve = 27;
+        if let Some(n) = &mut name {
+            *n = format!("[{}] ", n);
+            reserve += n.len();
+        }
+        LogBuffer {
+            time: FieldBuf::new(),
+            level: level.clone(),
+            name,
+            out,
+            pro,
+            con,
+            reserve,
+        }
+    }
+}
+
+impl Drop for LogBuffer {
+    fn drop(&mut self) {
+        let _ = self.flush_all();
+    }
+}
+
+impl LogBuffer {
+    fn write_all(&mut self, msg: &[u8]) -> std::io::Result<usize> {
+        let size = self.reserve + msg.len();
+        if self.pro.remaining() < size {
+            self.flush_all()?;
+        }
+        let mut size = msg.len() + 1;
+        let buf = self.time.load().as_bytes();
+        size += buf.len() + 1;
+        let _ = self.pro.write_all(buf);
+        self.pro.write(b" ")?;
+        let buf = self.level.load().as_bytes();
+        size += buf.len() + 1;
+        let _ = self.pro.write_all(buf);
+        let _ = self.pro.write(b" ");
+        if let Some(n) = &self.name {
+            let _ = self.pro.write_all(n.as_bytes());
+            size += n.len();
+        }
+        let _ = self.pro.write_all(msg);
+        let _ = self.pro.write(b"\n");
+        Ok(size)
+    }
+
+    fn flush_all(&mut self) -> std::io::Result<()> {
+        let mut w = self.out.lock();
+        while !self.con.is_empty() {
+            let _ = self.con.write_into(&mut w, None);
+        }
+        Ok(())
+    }
+}
+
+struct EventWriter<'a>(&'a mut LogBuffer);
 
 impl Visit for EventWriter<'_> {
     #[inline]
     fn record_str(&mut self, f: &Field, value: &str) {
         if "message" == f.name() {
-            self.0.push_str(value);
+            let _ = self.0.write_all(value.as_bytes());
         }
     }
 
     #[inline]
     fn record_debug(&mut self, f: &Field, value: &dyn Debug) {
         if "message" == f.name() {
-            use std::fmt::Write;
-            let _ = write!(self.0, "{:?}", value);
+            let _ = self.0.write_all(format!("{:?}", value).as_bytes());
         }
     }
 }
 
-struct LogBuf {
-    buf: String,
-    seconds: i64,
-    milli: u32,
-    time: (usize, usize, usize),
-    lev: Level,
-    level: (usize, usize),
-    reserve: usize,
+#[allow(missing_debug_implementations)]
+#[doc(hidden)]
+pub struct LogWriter {
+    write: Arc<Stdout>,
+    buffer_size: usize,
+    app_name: Option<String>,
 }
 
-#[inline]
-fn level_to_string(level: &Level) -> &str {
-    match *level {
-        Level::TRACE => "TRACE",
-        Level::DEBUG => "DEBUG",
-        Level::INFO => " INFO",
-        Level::WARN => " WARN",
-        Level::ERROR => "ERROR",
-    }
-}
-
-impl LogBuf {
-    fn new(name: &Option<String>, lev: &Level) -> Self {
-        let mut buf = String::with_capacity(8192);
-        let mut reserve = 0;
-        let last = Utc::now();
-        let time_str = last.to_rfc3339_opts(SecondsFormat::Millis, true);
-        let len = time_str.len();
-        reserve += len;
-        let time = (0, len - 4, len - 1);
-        buf.push_str(&time_str);
-        reserve += 7;
-        buf.push_str(&format!(" {} ", level_to_string(lev)));
-        let level = (reserve - 6, reserve - 1);
-        if let Some(name) = name {
-            reserve += name.len() + 3;
-            buf.push_str(&format!("[{}] ", name));
-        }
-        Self {
-            buf,
-            time,
-            seconds: last.timestamp(),
-            milli: last.timestamp_subsec_millis(),
-            lev: lev.clone(),
-            level,
-            reserve,
-        }
-    }
-
-    #[inline]
-    fn reset(&mut self, level: &Level) {
-        let now = Utc::now();
-        let seconds = now.timestamp();
-        if seconds != self.seconds {
-            self.seconds = seconds;
-            self.set_str(
-                self.time.0..=self.time.2,
-                &now.to_rfc3339_opts(SecondsFormat::Millis, true),
-            );
-        } else {
-            let milli = now.timestamp_subsec_millis();
-            if milli != self.milli {
-                self.set_str(
-                    self.time.1..self.time.2,
-                    &format!("{:0>3}", now.timestamp_subsec_millis()),
-                );
-                self.milli = milli;
-            }
-        }
-
-        if self.lev != *level {
-            self.set_str(self.level.0..self.level.1, level_to_string(level));
-        }
-
-        self.buf.truncate(self.reserve);
-    }
-
-    #[inline]
-    fn set_str<R: RangeBounds<usize>>(&mut self, range: R, msg: &str) {
-        self.buf.replace_range(range, msg);
-    }
-}
-
-impl TracingLogWriter {
-    #[inline]
-    fn write_log(&self, buf: &mut String, event: &Event<'_>) {
-        if let Some(path) = event.metadata().module_path() {
-            buf.push_str(path);
-            buf.push(' ');
-        }
-        event.record(&mut EventWriter(buf));
-        buf.push('\n');
-        if let Ok(mut w) = self.writer.lock() {
-            let _ = w.write_all(buf.as_bytes());
-        }
-    }
-}
-
-impl<S: Subscriber> Layer<S> for TracingLogWriter {
+impl<S: Subscriber> Layer<S> for LogWriter {
     #[inline]
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
         thread_local! {
-            static BUF: RefCell<Option<LogBuf>> = RefCell::new(None);
+            static BUF: RefCell<Option<LogBuffer>> = RefCell::new(None);
         }
         if event.metadata().name() != "log event" {
             return;
@@ -236,11 +222,15 @@ impl<S: Subscriber> Layer<S> for TracingLogWriter {
         BUF.with(|buf| {
             if let Ok(mut opt_buf) = buf.try_borrow_mut() {
                 if let Some(buf) = &mut *opt_buf {
-                    buf.reset(event.metadata().level());
-                    self.write_log(&mut buf.buf, event);
+                    event.record(&mut EventWriter(buf));
                 } else {
-                    let mut buf = LogBuf::new(&self.name, event.metadata().level());
-                    self.write_log(&mut buf.buf, event);
+                    let mut buf = LogBuffer::new(
+                        event.metadata().level(),
+                        self.write.clone(),
+                        self.buffer_size,
+                        self.app_name.clone(),
+                    );
+                    event.record(&mut EventWriter(&mut buf));
                     *opt_buf = Some(buf);
                 }
             }
@@ -253,6 +243,6 @@ mod tests {
     use super::*;
     #[test]
     fn tracing_log_tests() {
-        print_keys::<TracingLogConfig>();
+        print_keys::<LogConfig>();
     }
 }

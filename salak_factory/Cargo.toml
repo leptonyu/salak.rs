@@ -57,8 +57,13 @@ optional = true
 version = '^0.4'
 optional = true
 
+[dependencies.ringbuf]
+version = '^0.2'
+optional = true
+
 [dev-dependencies]
 num_cpus = "1"
+env_logger = "0.8"
 
 [features]
 default = []
@@ -78,4 +83,4 @@ enable_postgres = [
     'postgres',
     'enable_pool',
 ]
-enable_log = ['tracing-log', 'tracing-subscriber', 'tracing' , 'log', 'chrono']
+enable_log = ['tracing-log', 'tracing-subscriber', 'tracing' , 'log', 'chrono', 'ringbuf']
