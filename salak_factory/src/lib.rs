@@ -63,30 +63,35 @@
 use salak::*;
 
 #[cfg(feature = "enable_pool")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 mod pool;
 #[cfg(feature = "enable_pool")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 pub use crate::pool::*;
 
 #[cfg(feature = "enable_postgres")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 mod postgres;
 #[cfg(feature = "enable_postgres")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 pub use crate::postgres::{PostgresConfig, PostgresConnectionManager, PostgresCustomizer};
 
 #[cfg(feature = "enable_redis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 mod redis;
 #[cfg(feature = "enable_redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 pub use crate::redis::{RedisConfig, RedisConnectionManager};
 
 #[cfg(feature = "enable_redis_cluster")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
 mod redis_cluster;
 #[cfg(feature = "enable_redis_cluster")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
 pub use crate::redis_cluster::{RedisClusterConfig, RedisClusterConnectionManager};
 
 #[cfg(feature = "enable_log")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
 mod toy_log;
 #[cfg(feature = "enable_log")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
