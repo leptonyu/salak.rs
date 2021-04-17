@@ -1,7 +1,7 @@
 use ::tracing_log::LogTracer;
 use chrono::{SecondsFormat, Utc};
 use log::LevelFilter;
-use ringbuf::*;
+use rtrb::*;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::{
@@ -194,7 +194,7 @@ impl LogBuffer {
             path.map(|a| a.as_bytes()),
         ];
 
-        let size = if updated || self.pro.remaining() < size {
+        let size = if updated || self.pro.slots() < size {
             let mut w = self.out.lock();
             Self::flush_all(&mut w, &mut self.con)?;
             Self::write_buf(&mut w, buf, msg)
@@ -220,8 +220,11 @@ impl LogBuffer {
 
     #[inline]
     fn flush_all(w: &mut dyn Write, con: &mut Consumer<u8>) -> std::io::Result<()> {
-        while !con.is_empty() {
-            let _ = con.write_into(w, None);
+        if let Ok(chunk) = con.read_chunk(con.slots()) {
+            let (a, b) = chunk.as_slices();
+            w.write_all(a)?;
+            w.write_all(b)?;
+            chunk.commit_all();
         }
         Ok(())
     }
