@@ -1,4 +1,48 @@
-//! Factory using salak.
+//! Packages that can be initialized by `salak`.
+//!
+//! ### Provide packages
+//!
+//! 1. toy_log
+//! ```no_run
+//! use salak::*;
+//! use salak_factory::*;
+//! use tracing::subscriber::set_global_default;
+//! use tracing_subscriber::prelude::*;
+//! use tracing_subscriber::registry;
+//! let env = Salak::new()
+//!     .with_default_args(auto_read_sys_args_param!())
+//!     .build();
+//! let layer = env.build::<LogConfig>().unwrap();
+//! set_global_default(registry().with(layer));
+//! ```
+//! 2. redis
+//! ```no_run
+//! use salak::*;
+//! use salak_factory::*;
+//! let env = Salak::new()
+//!     .with_default_args(auto_read_sys_args_param!())
+//!     .build();
+//! let redis_pool = env.build::<RedisConfig>().unwrap();
+//! ```
+//! 3. redis_cluster
+//! ```no_run
+//! use salak::*;
+//! use salak_factory::*;
+//! let env = Salak::new()
+//!     .with_default_args(auto_read_sys_args_param!())
+//!     .build();
+//! let redis_cluster_pool = env.build::<RedisClusterConfig>().unwrap();
+//! ```
+//! 4. postgres
+//! ```no_run
+//! use salak::*;
+//! use salak_factory::*;
+//! let env = Salak::new()
+//!     .with_default_args(auto_read_sys_args_param!())
+//!     .build();
+//! let pg_pool = env.build::<PostgresConfig>().unwrap();
+//! ```
+
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(
     anonymous_parameters,

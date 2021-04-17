@@ -1,7 +1,9 @@
 # salak_factory
 Packages that can be initialized by `salak`.
 
-1. toy_log 
+### Provide packages
+
+1. toy_log
 2. redis
 3. redis_cluster
 4. postgres
