@@ -24,6 +24,7 @@ use super::*;
 /// |logging.max_level|false||
 /// |logging.app_name|false|${app.name:}|
 /// |logging.buffer_size|false|8912|
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "logging")]
 pub struct LogConfig {
@@ -274,6 +275,7 @@ impl Visit for EventWriter<'_> {
 
 /// Log writer.
 #[allow(missing_debug_implementations)]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
 pub struct LogWriter {
     write: Arc<Stdout>,
     buffer_size: usize,

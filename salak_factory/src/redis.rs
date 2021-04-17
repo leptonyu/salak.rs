@@ -26,6 +26,7 @@ use std::str::FromStr;
 /// |redis.pool.idle_timeout|false|${pool.idle_timeout:}|
 /// |redis.pool.connection_timeout|false|${pool.connection_timeout:5s}|
 /// |redis.pool.wait_for_init|false|${pool.wait_for_init:false}|
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 #[derive(FromEnvironment, Debug)]
 pub struct RedisConfig {
     url: Option<String>,
@@ -47,6 +48,7 @@ pub struct RedisConfig {
 }
 
 /// Redis connection manager
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisConnectionManager {
     config: ConnectionInfo,

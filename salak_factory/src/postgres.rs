@@ -33,6 +33,7 @@ use std::time::Duration;
 /// |postgresql.pool.idle_timeout|false|${pool.idle_timeout:}|
 /// |postgresql.pool.connection_timeout|false|${pool.connection_timeout:5s}|
 /// |postgresql.pool.wait_for_init|false|${pool.wait_for_init:false}|
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 #[derive(FromEnvironment, Debug)]
 pub struct PostgresConfig {
     #[salak(default = "postgresql://postgres@localhost")]
@@ -56,6 +57,7 @@ pub struct PostgresConfig {
 
 /// Postgres connection pool configuration.
 #[derive(Debug)]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 pub struct PostgresConnectionManager<T> {
     config: Config,
     tls_connector: T,
@@ -99,6 +101,7 @@ macro_rules! set_option_field {
 
 /// Postgres Customizer
 #[allow(missing_debug_implementations)]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 pub struct PostgresCustomizer {
     /// Sets the notice callback.
     pub notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,

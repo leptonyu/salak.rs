@@ -22,6 +22,7 @@ use std::str::FromStr;
 /// |redis_cluster.pool.idle_timeout|false|${pool.idle_timeout:}|
 /// |redis_cluster.pool.connection_timeout|false|${pool.connection_timeout:5s}|
 /// |redis_cluster.pool.wait_for_init|false|${pool.wait_for_init:false}|
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
 #[derive(FromEnvironment, Debug)]
 pub struct RedisClusterConfig {
     #[salak(required = true)]
@@ -35,6 +36,7 @@ pub struct RedisClusterConfig {
 }
 
 /// Redis connection manager
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisClusterConnectionManager {
     client: ClusterClient,

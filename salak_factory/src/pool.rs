@@ -6,6 +6,7 @@ use super::*;
 pub(crate) use std::time::Duration;
 
 /// Generic Pool Configuration.
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 #[derive(FromEnvironment, Debug)]
 pub struct PoolConfig {
     #[salak(default = "${pool.max_size:}")]
@@ -38,6 +39,7 @@ macro_rules! set_option_field_return {
 
 /// PoolCustomizer
 #[allow(missing_debug_implementations)]
+#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 pub struct PoolCustomizer<M: ManageConnection> {
     /// Error handler
     pub error_handler: Option<Box<dyn HandleError<M::Error>>>,
