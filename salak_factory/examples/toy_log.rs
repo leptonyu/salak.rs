@@ -12,8 +12,8 @@ struct Max {
     #[salak(default = 10_000_000)]
     count: usize,
     thread: Option<usize>,
-    #[salak(default = false)]
-    env_log: bool,
+    #[salak(default = toy)]
+    logger: String,
 }
 
 fn main() {
@@ -21,13 +21,12 @@ fn main() {
         .with_default_args(auto_read_sys_args_param!())
         .build();
     let conf = env.load_config::<Max>().unwrap();
-    if conf.env_log {
-        let _ = env_logger::builder()
-            .filter_level(LevelFilter::Info)
-            .target(env_logger::Target::Stdout)
-            .init();
-    } else {
-        let _ = set_global_default(registry().with(env.build::<LogConfig>().unwrap()));
+
+    match &conf.logger[..] {
+        "fern" => init_fern(),
+        "env" => init_env(),
+        "log4rs" => init_log4rs(),
+        _ => init_toy(&env),
     }
 
     let num = conf.thread.unwrap_or(num_cpus::get_physical()).max(1);
@@ -52,11 +51,57 @@ fn main() {
         }
     }
     eprintln!(
-        "Record {} logs in {}ms, {}ns/log, {}/s, {}/s/thread",
+        "{}: Record {} logs in {}ms, {}ns/log, {}/s, {}/s/thread",
+        conf.logger,
         total,
         time / 1000_000,
         time / (total as i64),
         ((num * total) as i64) * 1000_000_000 / time,
         (total as i64) * 1000_000_000 / time
     );
+}
+
+fn init_fern() {
+    fern::Dispatch::new()
+        // Perform allocation-free log formatting
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        // Add blanket level filter -
+        .level(log::LevelFilter::Debug)
+        // Output to stdout, files, and other Dispatch configurations
+        .chain(std::io::stdout())
+        // Apply globally
+        .apply()
+        .unwrap();
+}
+
+fn init_log4rs() {
+    use log4rs::append::console::ConsoleAppender;
+    use log4rs::config::{Appender, Config, Root};
+    let stdout = ConsoleAppender::builder().build();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
+        .unwrap();
+
+    log4rs::init_config(config).unwrap();
+}
+
+fn init_env() {
+    let _ = env_logger::builder()
+        .filter_level(LevelFilter::Info)
+        .target(env_logger::Target::Stdout)
+        .init();
+}
+
+fn init_toy(env: &Salak) {
+    let _ = set_global_default(registry().with(env.build::<LogConfig>().unwrap()));
 }
