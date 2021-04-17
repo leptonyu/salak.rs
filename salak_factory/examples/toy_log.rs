@@ -10,6 +10,9 @@ use tracing_subscriber::registry;
 struct Max {
     #[salak(default = 10_000_000)]
     count: usize,
+    thread: Option<usize>,
+    #[salak(default = false)]
+    env_log: bool,
 }
 
 fn main() {
@@ -17,12 +20,13 @@ fn main() {
         .with_default_args(auto_read_sys_args_param!())
         .build();
     let max = env.load_config::<Max>().unwrap();
-    let layer = env.build::<LogConfig>().unwrap();
+    if max.env_log {
+        let _ = env_logger::init();
+    } else {
+        let _ = set_global_default(registry().with(env.build::<LogConfig>().unwrap()));
+    }
 
-    let _ = set_global_default(registry().with(layer));
-    // let _ = env_logger::init();
-
-    let num = num_cpus::get_physical();
+    let num = max.thread.unwrap_or(num_cpus::get_physical()).max(1);
     let max = max.count / num;
     let mut join = vec![];
     for i in 0..num {

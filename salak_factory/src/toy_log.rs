@@ -69,18 +69,23 @@ impl Buildable for LogConfig {
 }
 
 trait UpdateField {
-    fn load(&mut self) -> &str;
+    fn load(&mut self) -> (&[u8], bool);
 }
 
 impl UpdateField for Level {
-    fn load(&mut self) -> &str {
-        match *self {
-            Level::TRACE => "TRACE",
-            Level::DEBUG => "DEBUG",
-            Level::INFO => "INFO",
-            Level::WARN => "WARN",
-            Level::ERROR => "ERROR",
-        }
+    #[inline]
+    fn load(&mut self) -> (&[u8], bool) {
+        (
+            match *self {
+                Level::TRACE => "TRACE",
+                Level::DEBUG => "DEBUG",
+                Level::INFO => "INFO",
+                Level::WARN => "WARN",
+                Level::ERROR => "ERROR",
+            }
+            .as_bytes(),
+            false,
+        )
     }
 }
 
@@ -90,20 +95,24 @@ struct FieldBuf<K> {
 }
 
 impl UpdateField for FieldBuf<(i64, u32)> {
-    fn load(&mut self) -> &str {
+    #[inline]
+    fn load(&mut self) -> (&[u8], bool) {
         let key = Utc::now();
         let seconds = key.timestamp();
         let mi = key.timestamp_subsec_millis();
+        let mut updated = false;
         if seconds != self.key.0 {
             self.value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
             self.key = (seconds, mi);
+            updated = true;
         } else if mi != self.key.1 {
             let n = self.value.len();
             self.value
                 .replace_range(n - 4..n - 1, &format!("{:0>3}", mi));
             self.key.1 = mi;
+            updated = true;
         }
-        &self.value
+        (&self.value.as_bytes(), updated)
     }
 }
 
@@ -119,7 +128,7 @@ impl FieldBuf<(i64, u32)> {
 struct LogBuffer {
     time: FieldBuf<(i64, u32)>,
     level: Level,
-    name: Option<String>,
+    name: Option<Vec<u8>>,
     pro: Producer<u8>,
     con: Consumer<u8>,
     out: Arc<Stdout>,
@@ -128,14 +137,18 @@ struct LogBuffer {
 }
 
 impl LogBuffer {
-    fn new(level: &Level, out: Arc<Stdout>, buffer_size: usize, mut name: Option<String>) -> Self {
+    fn new(level: &Level, out: Arc<Stdout>, buffer_size: usize, name: Option<String>) -> Self {
         let rb = RingBuffer::new(buffer_size);
         let (pro, con) = rb.split();
         let mut reserve = 27;
-        if let Some(n) = &mut name {
-            *n = format!("[{}] ", n);
-            reserve += n.len();
-        }
+        let name = if let Some(n) = name {
+            let mut x = Vec::with_capacity(n.len() + 2);
+            let _ = write!(&mut x, "[{}]", n);
+            reserve += x.len();
+            Some(x)
+        } else {
+            None
+        };
         LogBuffer {
             time: FieldBuf::new(),
             level: level.clone(),
@@ -151,52 +164,87 @@ impl LogBuffer {
 
 impl Drop for LogBuffer {
     fn drop(&mut self) {
-        let _ = self.flush_all();
+        let _ = self.flush();
     }
 }
 
 impl LogBuffer {
-    fn write_all(&mut self, msg: &dyn Debug) -> std::io::Result<usize> {
+    #[inline]
+    fn write_debug(&mut self, path: Option<&str>, msg: &dyn Debug) -> std::io::Result<usize> {
         self.msg.clear();
         use std::fmt::Write;
         let _ = writeln!(self.msg, "{:?}", msg);
-        let size = self.reserve + self.msg.len();
-        if self.pro.remaining() < size {
-            self.flush_all()?;
-        }
-        let mut size = self.msg.len() + 1;
-        let buf = self.time.load().as_bytes();
-        size += buf.len() + 1;
-        let _ = self.pro.write_all(buf);
-        self.pro.write(b" ")?;
-        let buf = self.level.load().as_bytes();
-        size += buf.len() + 1;
-        let _ = self.pro.write_all(buf);
-        let _ = self.pro.write(b" ");
-        if let Some(n) = &self.name {
-            let _ = self.pro.write_all(n.as_bytes());
-            size += n.len();
-        }
-        let _ = self.pro.write_all(self.msg.as_bytes());
+        self.write_str(path, None)
+    }
+
+    fn write_str(&mut self, path: Option<&str>, msg: Option<&str>) -> std::io::Result<usize> {
+        let msg = match msg {
+            Some(v) => v,
+            _ => &self.msg,
+        };
+
+        let size = self.reserve + msg.len();
+        let (time, updated) = self.time.load();
+        let (level, _) = self.level.load();
+
+        let buf = &[
+            Some(time),
+            Some(level),
+            self.name.as_ref().map(|a| a.as_slice()),
+            path.map(|a| a.as_bytes()),
+        ];
+
+        let size = if updated || self.pro.remaining() < size {
+            let mut w = self.out.lock();
+            Self::flush_all(&mut w, &mut self.con)?;
+            Self::write_buf(&mut w, buf, msg)
+        } else {
+            Self::write_buf(&mut self.pro, buf, msg)
+        };
         Ok(size)
     }
 
-    fn flush_all(&mut self) -> std::io::Result<()> {
-        let mut w = self.out.lock();
-        while !self.con.is_empty() {
-            let _ = self.con.write_into(&mut w, None);
+    #[inline]
+    fn write_buf(w: &mut dyn Write, buf: &[Option<&[u8]>], msg: &str) -> usize {
+        let mut size = msg.len() + 1;
+        for b in buf {
+            if let Some(i) = b {
+                size += i.len() + 1;
+                let _ = w.write_all(i);
+                let _ = w.write(b" ");
+            }
+        }
+        let _ = w.write_all(msg.as_bytes());
+        size
+    }
+
+    #[inline]
+    fn flush_all(w: &mut dyn Write, con: &mut Consumer<u8>) -> std::io::Result<()> {
+        while !con.is_empty() {
+            let _ = con.write_into(w, None);
         }
         Ok(())
     }
+
+    #[inline]
+    fn flush(&mut self) -> std::io::Result<()> {
+        Self::flush_all(&mut self.out.lock(), &mut self.con)
+    }
 }
 
-struct EventWriter<'a>(&'a mut LogBuffer);
+struct EventWriter<'a>(&'a mut LogBuffer, Option<&'a str>);
 
 impl Visit for EventWriter<'_> {
     #[inline]
+    fn record_str(&mut self, f: &Field, value: &str) {
+        if "message" == f.name() {
+            let _ = self.0.write_str(self.1, Some(value));
+        }
+    }
+    #[inline]
     fn record_debug(&mut self, f: &Field, value: &dyn Debug) {
         if "message" == f.name() {
-            let _ = self.0.write_all(value);
+            let _ = self.0.write_debug(self.1, value);
         }
     }
 }
@@ -221,7 +269,7 @@ impl<S: Subscriber> Layer<S> for LogWriter {
         BUF.with(|buf| {
             if let Ok(mut opt_buf) = buf.try_borrow_mut() {
                 if let Some(buf) = &mut *opt_buf {
-                    event.record(&mut EventWriter(buf));
+                    event.record(&mut EventWriter(buf, event.metadata().module_path()));
                 } else {
                     let mut buf = LogBuffer::new(
                         event.metadata().level(),
@@ -229,7 +277,7 @@ impl<S: Subscriber> Layer<S> for LogWriter {
                         self.buffer_size,
                         self.app_name.clone(),
                     );
-                    event.record(&mut EventWriter(&mut buf));
+                    event.record(&mut EventWriter(&mut buf, event.metadata().module_path()));
                     *opt_buf = Some(buf);
                 }
             }

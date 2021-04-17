@@ -43,10 +43,10 @@ mod redis_cluster;
 pub use crate::redis_cluster::{RedisClusterConfig, RedisClusterConnectionManager};
 
 #[cfg(feature = "enable_log")]
-mod tracing_log;
+mod toy_log;
 #[cfg(feature = "enable_log")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
-pub use crate::tracing_log::*;
+pub use crate::toy_log::*;
 
 /// Default namespace
 pub const DEFAULT_NAMESPACE: &str = "primary";
