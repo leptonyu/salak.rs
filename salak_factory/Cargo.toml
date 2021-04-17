@@ -1,6 +1,6 @@
 [package]
 name = 'salak_factory'
-version = '0.1.0'
+version = '0.1.1'
 authors = ['Daniel Yu <leptonyu@gmail.com>']
 edition = '2018'
 license = 'MIT'
@@ -17,6 +17,16 @@ keywords = [
     'environment',
 ]
 categories = ['config']
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    '--cfg',
+    'docsrs',
+]
+
+[package.metadata.playground]
+all-features = true
+
 [dependencies.salak]
 path = '..'
 version = '^0.8'
