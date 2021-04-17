@@ -23,7 +23,7 @@ use super::*;
 /// |logging.ignores|false||
 /// |logging.max_level|false||
 /// |logging.app_name|false|${app.name:}|
-/// |logging.write_capacity|false|65536|
+/// |logging.buffer_size|false|8912|
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "logging")]
 pub struct LogConfig {
