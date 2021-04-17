@@ -6,7 +6,7 @@ Packages that can be initialized by `salak`.
 3. redis_cluster
 4. postgres
 
-### example toy_log
+### build toy_log
 ```bash
 cargo install --example toy_log --features='enable_log' --path .
 ```
