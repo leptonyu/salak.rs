@@ -29,6 +29,7 @@ fn main() {
         "env" => Box::new(init_env()),
         "log4rs" => Box::new(init_log4rs()),
         "slog" => init_slog(),
+        "fast" => Box::new(init_fast()),
         _ => Box::new(init_toy(&env)),
     };
 
@@ -118,4 +119,15 @@ fn init_slog() -> Box<dyn Any> {
     let guard = slog_scope::set_global_logger(logger);
     slog_stdlog::init().unwrap();
     Box::new(guard)
+}
+
+fn init_fast() {
+    use fast_log::plugin::console::ConsoleAppender;
+    let _ = fast_log::fast_log::init_custom_log(
+        vec![Box::new(ConsoleAppender {})],
+        1000,
+        Level::Info,
+        Box::new(fast_log::filter::NoFilter {}),
+        Box::new(fast_log::appender::FastLogFormatRecord {}),
+    );
 }

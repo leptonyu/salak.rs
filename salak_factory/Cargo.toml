@@ -80,6 +80,7 @@ slog = "2"
 slog-term = "2"
 slog-scope = "4"
 slog-stdlog = "4"
+fast_log = "1"
 
 [features]
 default = []
