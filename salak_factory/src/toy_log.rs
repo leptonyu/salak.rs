@@ -1,8 +1,8 @@
 use ::tracing_log::LogTracer;
 use chrono::{SecondsFormat, Utc};
-use log::LevelFilter;
+use log::{LevelFilter, Log, Metadata, Record};
 use rtrb::*;
-use std::fmt::Debug;
+use std::fmt::{Arguments, Debug};
 use std::{
     cell::RefCell,
     io::{stdout, Stdout, Write},
@@ -28,6 +28,8 @@ use super::*;
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "logging")]
 pub struct LogConfig {
+    #[salak(default = true)]
+    use_tracing: bool,
     ignores: Vec<String>,
     max_level: Option<LevelFilter>,
     #[salak(default = "${app.name:}")]
@@ -50,22 +52,28 @@ impl Buildable for LogConfig {
         _: &impl Environment,
         _: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
-        let mut builder = LogTracer::builder();
-        for ignore in self.ignores {
-            builder = builder.ignore_crate(ignore);
-        }
-        if let Some(level) = self.max_level {
-            builder = builder.with_max_level(level);
-        }
-        builder
-            .init()
-            .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
-
-        Ok(LogWriter {
+        let log = LogWriter {
             write: Arc::new(stdout()),
             buffer_size: self.buffer_size,
             app_name: self.app_name,
-        })
+            max_level: self.max_level.unwrap_or(LevelFilter::Info),
+        };
+        if self.use_tracing {
+            let mut builder = LogTracer::builder();
+            for ignore in self.ignores {
+                builder = builder.ignore_crate(ignore);
+            }
+            if let Some(level) = self.max_level {
+                builder = builder.with_max_level(level);
+            }
+            builder
+                .init()
+                .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
+        } else {
+            let _ = log::set_boxed_logger(Box::new(log.clone()));
+            log::set_max_level(log.max_level.clone());
+        }
+        Ok(log)
     }
 }
 
@@ -182,6 +190,18 @@ impl LogBuffer {
         self.write_str(level, path, None)
     }
 
+    fn write_args(
+        &mut self,
+        level: &Level,
+        path: Option<&str>,
+        msg: &Arguments<'_>,
+    ) -> std::io::Result<usize> {
+        self.msg.clear();
+        use std::fmt::Write;
+        let _ = writeln!(self.msg, "{:?}", msg);
+        self.write_str(level, path, None)
+    }
+
     fn write_str(
         &mut self,
         mut level: &Level,
@@ -276,10 +296,12 @@ impl Visit for EventWriter<'_> {
 /// Log writer.
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
+#[derive(Clone)]
 pub struct LogWriter {
     write: Arc<Stdout>,
     buffer_size: usize,
     app_name: Option<String>,
+    max_level: LevelFilter,
 }
 
 thread_local! {
@@ -325,6 +347,36 @@ impl<S: Subscriber> Layer<S> for LogWriter {
             event.record(&mut x);
             x.3
         });
+    }
+}
+
+impl Log for LogWriter {
+    fn enabled(&self, md: &Metadata<'_>) -> bool {
+        self.max_level >= md.level()
+    }
+
+    fn log(&self, record: &Record<'_>) {
+        let _ = self.with_buf(|lb| {
+            lb.write_args(
+                &convert(record.level()),
+                record.module_path(),
+                record.args(),
+            )
+        });
+    }
+
+    fn flush(&self) {
+        let _ = self.write.lock().flush();
+    }
+}
+
+fn convert(level: log::Level) -> Level {
+    match level {
+        log::Level::Trace => Level::TRACE,
+        log::Level::Debug => Level::DEBUG,
+        log::Level::Info => Level::INFO,
+        log::Level::Warn => Level::WARN,
+        log::Level::Error => Level::ERROR,
     }
 }
 

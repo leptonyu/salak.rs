@@ -76,6 +76,10 @@ num_cpus = "1"
 env_logger = "0.8"
 fern = "0.6"
 log4rs = "1"
+slog = "2"
+slog-term = "2"
+slog-scope = "4"
+slog-stdlog = "4"
 
 [features]
 default = []

@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use chrono::Utc;
 use log::*;
 use salak::*;
@@ -22,12 +24,13 @@ fn main() {
         .build();
     let conf = env.load_config::<Max>().unwrap();
 
-    match &conf.logger[..] {
-        "fern" => init_fern(),
-        "env" => init_env(),
-        "log4rs" => init_log4rs(),
-        _ => init_toy(&env),
-    }
+    let _any: Box<dyn Any> = match &conf.logger[..] {
+        "fern" => Box::new(init_fern()),
+        "env" => Box::new(init_env()),
+        "log4rs" => Box::new(init_log4rs()),
+        "slog" => init_slog(),
+        _ => Box::new(init_toy(&env)),
+    };
 
     let num = conf.thread.unwrap_or(num_cpus::get_physical()).max(1);
     let total = conf.count;
@@ -99,9 +102,20 @@ fn init_env() {
     let _ = env_logger::builder()
         .filter_level(LevelFilter::Info)
         .target(env_logger::Target::Stdout)
+        .write_style(env_logger::WriteStyle::Never)
         .init();
 }
 
 fn init_toy(env: &Salak) {
-    let _ = set_global_default(registry().with(env.build::<LogConfig>().unwrap()));
+    let logger = env.build::<LogConfig>().unwrap();
+    let _ = set_global_default(registry().with(logger));
+}
+
+fn init_slog() -> Box<dyn Any> {
+    use slog::*;
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let logger = Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!());
+    let guard = slog_scope::set_global_logger(logger);
+    slog_stdlog::init().unwrap();
+    Box::new(guard)
 }
