@@ -24,18 +24,19 @@ use super::*;
 /// |logging.max_level|false||
 /// |logging.app_name|false|${app.name:}|
 /// |logging.buffer_size|false|8912|
+/// |logging.enable_tracing|false|false|
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "logging")]
 pub struct LogConfig {
-    #[salak(default = true)]
-    use_tracing: bool,
     ignores: Vec<String>,
     max_level: Option<LevelFilter>,
     #[salak(default = "${app.name:}")]
     app_name: Option<String>,
     #[salak(default = 8912)]
     buffer_size: usize,
+    #[salak(default = false)]
+    enable_tracing: bool,
 }
 
 impl Buildable for LogConfig {
@@ -58,7 +59,7 @@ impl Buildable for LogConfig {
             app_name: self.app_name,
             max_level: self.max_level.unwrap_or(LevelFilter::Info),
         };
-        if self.use_tracing {
+        if self.enable_tracing {
             let mut builder = LogTracer::builder();
             for ignore in self.ignores {
                 builder = builder.ignore_crate(ignore);
@@ -81,16 +82,16 @@ trait UpdateField {
     fn load(&mut self) -> (&[u8], bool);
 }
 
-impl UpdateField for &Level {
+impl UpdateField for &log::Level {
     #[inline]
     fn load(&mut self) -> (&[u8], bool) {
         (
             match **self {
-                Level::TRACE => "TRACE",
-                Level::DEBUG => "DEBUG",
-                Level::INFO => "INFO",
-                Level::WARN => "WARN",
-                Level::ERROR => "ERROR",
+                log::Level::Trace => "TRACE",
+                log::Level::Debug => "DEBUG",
+                log::Level::Info => "INFO",
+                log::Level::Warn => "WARN",
+                log::Level::Error => "ERROR",
             }
             .as_bytes(),
             false,
@@ -180,7 +181,7 @@ impl LogBuffer {
     #[inline]
     fn write_debug(
         &mut self,
-        level: &Level,
+        level: &log::Level,
         path: Option<&str>,
         msg: &dyn Debug,
     ) -> std::io::Result<usize> {
@@ -192,7 +193,7 @@ impl LogBuffer {
 
     fn write_args(
         &mut self,
-        level: &Level,
+        level: &log::Level,
         path: Option<&str>,
         msg: &Arguments<'_>,
     ) -> std::io::Result<usize> {
@@ -204,7 +205,7 @@ impl LogBuffer {
 
     fn write_str(
         &mut self,
-        mut level: &Level,
+        mut level: &log::Level,
         path: Option<&str>,
         msg: Option<&[u8]>,
     ) -> std::io::Result<usize> {
@@ -273,7 +274,7 @@ impl LogBuffer {
 
 struct EventWriter<'a>(
     &'a mut LogBuffer,
-    &'a Level,
+    &'a log::Level,
     Option<&'a str>,
     std::io::Result<usize>,
 );
@@ -338,12 +339,8 @@ impl<S: Subscriber> Layer<S> for LogWriter {
             return;
         }
         let _ = self.with_buf(|buf| {
-            let mut x = EventWriter(
-                buf,
-                event.metadata().level(),
-                event.metadata().module_path(),
-                Ok(0),
-            );
+            let level = convert(event.metadata().level());
+            let mut x = EventWriter(buf, &level, event.metadata().module_path(), Ok(0));
             event.record(&mut x);
             x.3
         });
@@ -356,13 +353,8 @@ impl Log for LogWriter {
     }
 
     fn log(&self, record: &Record<'_>) {
-        let _ = self.with_buf(|lb| {
-            lb.write_args(
-                &convert(record.level()),
-                record.module_path(),
-                record.args(),
-            )
-        });
+        let _ =
+            self.with_buf(|lb| lb.write_args(&record.level(), record.module_path(), record.args()));
     }
 
     fn flush(&self) {
@@ -370,23 +362,14 @@ impl Log for LogWriter {
     }
 }
 
-fn convert(level: log::Level) -> Level {
-    match level {
-        log::Level::Trace => Level::TRACE,
-        log::Level::Debug => Level::DEBUG,
-        log::Level::Info => Level::INFO,
-        log::Level::Warn => Level::WARN,
-        log::Level::Error => Level::ERROR,
-    }
-}
-
-impl Write for LogWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.with_buf(|lb| lb.write_str(&Level::INFO, None, Some(buf)))
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
+#[inline]
+fn convert(level: &Level) -> log::Level {
+    match *level {
+        Level::TRACE => log::Level::Trace,
+        Level::DEBUG => log::Level::Debug,
+        Level::INFO => log::Level::Info,
+        Level::WARN => log::Level::Warn,
+        Level::ERROR => log::Level::Error,
     }
 }
 

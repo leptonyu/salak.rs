@@ -30,7 +30,8 @@ fn main() {
         "log4rs" => Box::new(init_log4rs()),
         "slog" => init_slog(),
         "fast" => Box::new(init_fast()),
-        _ => Box::new(init_toy(&env)),
+        "toy" => Box::new(init_toy(&env)),
+        _ => panic!("No specified"),
     };
 
     let num = conf.thread.unwrap_or(num_cpus::get_physical()).max(1);
