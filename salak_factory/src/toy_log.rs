@@ -2,17 +2,16 @@ use ::tracing_log::LogTracer;
 use chrono::{SecondsFormat, Utc};
 use log::{LevelFilter, Log, Metadata, Record};
 use rtrb::*;
-use std::sync::atomic::Ordering;
 use std::{
     cell::RefCell,
-    io::{stdout, Stdout, Write},
-    sync::{atomic::AtomicBool, Weak},
-};
-use std::{
     fmt::{Arguments, Debug},
-    sync::Mutex,
+    io::{stdout, ErrorKind, Stdout, Write},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, Weak,
+    },
+    thread::JoinHandle,
 };
-use std::{io::ErrorKind, sync::Arc};
 use tracing::{
     field::{Field, Visit},
     Event, Level, Subscriber,
@@ -58,34 +57,39 @@ impl Buildable for LogConfig {
         _: &impl Environment,
         _: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
-        let rb = RingBuffer::new(1024);
+        let rb: RingBuffer<LogBufferFlush> = RingBuffer::new(1024);
         let (pro, mut con) = rb.split();
+        let _flush_thread: JoinHandle<()> = std::thread::Builder::new()
+            .name("logger_flush".to_owned())
+            .spawn(move || {
+                let mut lbf = vec![];
+                loop {
+                    while let Ok(v) = con.pop() {
+                        lbf.push(v);
+                    }
+                    for v in lbf.iter() {
+                        if let Ok(ab) = v.dirty.lock() {
+                            if let Ok(true) = ab.compare_exchange(
+                                true,
+                                false,
+                                Ordering::Acquire,
+                                Ordering::Relaxed,
+                            ) {
+                                v.flush();
+                            }
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            })?;
         let log = LogWriter {
             write: Arc::new(stdout()),
             queue: Mutex::new(pro),
             buffer_size: self.buffer_size,
             app_name: self.app_name,
             max_level: self.max_level.unwrap_or(LevelFilter::Info),
+            _flush_thread,
         };
-        std::thread::spawn(move || {
-            let mut lbf = vec![];
-            loop {
-                while let Ok(v) = con.pop() {
-                    lbf.push(v);
-                }
-                for v in lbf.iter() {
-                    if let Ok(true) = v.dirty.lock().unwrap().compare_exchange(
-                        true,
-                        false,
-                        Ordering::Acquire,
-                        Ordering::Relaxed,
-                    ) {
-                        v.flush();
-                    }
-                }
-                std::thread::sleep(std::time::Duration::from_secs(1));
-            }
-        });
         if self.enable_tracing {
             let mut builder = LogTracer::builder();
             for ignore in self.ignores {
@@ -183,7 +187,7 @@ struct LogBufferFlush {
 impl LogBufferFlush {
     fn flush(&self) {
         if let Some(con) = self.con.upgrade() {
-            let _ = LogBuffer::flush_all(&mut self.out.lock(), &mut con.lock().unwrap());
+            let _ = LogBuffer::flush_all(&mut self.out.lock(), &con);
         }
     }
 }
@@ -283,14 +287,19 @@ impl LogBuffer {
 
         if updated || self.pro.slots() < size {
             let mut w = self.out.lock();
-            Self::flush_all(&mut w, &mut self.con.lock().unwrap())?;
+            Self::flush_all(&mut w, &self.con)?;
             Self::write_buf(&mut w, buf, msg)?;
         } else {
             Self::write_buf(&mut self.pro, buf, msg)?;
-            let mut guard = self.dirty.lock().unwrap();
-            *guard.get_mut() = true;
+            self.set_dirty();
         };
         Ok(size)
+    }
+
+    fn set_dirty(&self) {
+        if let Ok(mut guard) = self.dirty.lock() {
+            *guard.get_mut() = true;
+        }
     }
 
     #[inline]
@@ -310,19 +319,22 @@ impl LogBuffer {
     }
 
     #[inline]
-    fn flush_all(w: &mut dyn Write, con: &mut Consumer<u8>) -> std::io::Result<()> {
-        if let Ok(chunk) = con.read_chunk(con.slots()) {
-            let (a, b) = chunk.as_slices();
-            w.write_all(a)?;
-            w.write_all(b)?;
-            chunk.commit_all();
+    fn flush_all(w: &mut dyn Write, con: &Arc<Mutex<Consumer<u8>>>) -> std::io::Result<()> {
+        if let Ok(mut con) = con.lock() {
+            let size = con.slots();
+            if let Ok(chunk) = con.read_chunk(size) {
+                let (a, b) = chunk.as_slices();
+                w.write_all(a)?;
+                w.write_all(b)?;
+                chunk.commit_all();
+            }
         }
         Ok(())
     }
 
     #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
-        Self::flush_all(&mut self.out.lock(), &mut self.con.lock().unwrap())
+        Self::flush_all(&mut self.out.lock(), &self.con)
     }
 }
 
@@ -357,6 +369,7 @@ pub struct LogWriter {
     buffer_size: usize,
     app_name: Option<String>,
     max_level: LevelFilter,
+    _flush_thread: JoinHandle<()>,
 }
 
 thread_local! {
@@ -376,8 +389,10 @@ impl LogWriter {
                 } else {
                     let mut buf =
                         LogBuffer::new(self.write.clone(), self.buffer_size, self.app_name.clone());
+                    if let Ok(mut q) = self.queue.lock() {
+                        let _ = q.push(buf.get_flush());
+                    }
                     let size = (f)(&mut buf);
-                    let _ = self.queue.lock().unwrap().push(buf.get_flush());
                     *opt_buf = Some(buf);
                     return size;
                 }
