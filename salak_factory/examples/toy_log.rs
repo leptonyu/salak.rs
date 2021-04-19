@@ -16,6 +16,8 @@ struct Max {
     thread: Option<usize>,
     #[salak(default = toy)]
     logger: String,
+    #[salak(default = 0)]
+    mode: u8,
 }
 
 fn main() {
@@ -34,36 +36,44 @@ fn main() {
         _ => panic!("No specified"),
     };
 
-    let num = conf.thread.unwrap_or(num_cpus::get_physical()).max(1);
-    let total = conf.count;
-    let max = conf.count / num;
-    let mut join = vec![];
-    for i in 0..num {
-        join.push(std::thread::spawn(move || {
-            let t = Utc::now();
-            let i = i * max;
-            for j in 0..max {
-                info!("Hello {:0>10}", i + j);
-            }
-            Utc::now().timestamp_nanos() - t.timestamp_nanos()
-        }));
-    }
+    if conf.mode == 0 {
+        let num = conf.thread.unwrap_or(num_cpus::get_physical()).max(1);
+        let total = conf.count;
+        let max = conf.count / num;
+        let mut join = vec![];
+        for i in 0..num {
+            join.push(std::thread::spawn(move || {
+                let t = Utc::now();
+                let i = i * max;
+                for j in 0..max {
+                    info!("Hello {:0>10}", i + j);
+                }
+                Utc::now().timestamp_nanos() - t.timestamp_nanos()
+            }));
+        }
 
-    let mut time = 0;
-    for h in join {
-        if let Ok(t) = h.join() {
-            time += t;
+        let mut time = 0;
+        for h in join {
+            if let Ok(t) = h.join() {
+                time += t;
+            }
+        }
+        eprintln!(
+            "{}: Record {} logs in {}ms, {}ns/log, {}/s, {}/s/thread",
+            conf.logger,
+            total,
+            time / 1000_000,
+            time / (total as i64),
+            ((num * total) as i64) * 1000_000_000 / time,
+            (total as i64) * 1000_000_000 / time
+        );
+    } else if conf.mode == 1 {
+        for i in 0..10 {
+            info!("{} Hello", i);
+            info!("{} World", i);
+            std::thread::sleep(std::time::Duration::from_secs(3));
         }
     }
-    eprintln!(
-        "{}: Record {} logs in {}ms, {}ns/log, {}/s, {}/s/thread",
-        conf.logger,
-        total,
-        time / 1000_000,
-        time / (total as i64),
-        ((num * total) as i64) * 1000_000_000 / time,
-        (total as i64) * 1000_000_000 / time
-    );
 }
 
 fn init_fern() {
