@@ -1130,6 +1130,7 @@ dependencies = [
  "env_logger",
  "fast_log",
  "fern",
+ "humantime",
  "log",
  "log4rs",
  "num_cpus",

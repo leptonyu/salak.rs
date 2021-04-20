@@ -63,8 +63,8 @@ optional = true
 version = '^0.4'
 optional = true
 
-[dependencies.chrono]
-version = '^0.4'
+[dependencies.humantime]
+version = '^2'
 optional = true
 
 [dependencies.rtrb]
@@ -81,6 +81,7 @@ slog-term = "2"
 slog-scope = "4"
 slog-stdlog = "4"
 fast_log = "1"
+chrono = "0.4"
 
 [features]
 default = []
@@ -100,4 +101,4 @@ enable_postgres = [
     'postgres',
     'enable_pool',
 ]
-enable_log = ['tracing-log', 'tracing-subscriber', 'tracing' , 'log', 'chrono', 'rtrb']
+enable_log = ['tracing-log', 'tracing-subscriber', 'tracing' , 'log', 'humantime', 'rtrb']

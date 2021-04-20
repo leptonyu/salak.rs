@@ -1,5 +1,4 @@
 use ::tracing_log::LogTracer;
-use chrono::{SecondsFormat, Utc};
 use log::{LevelFilter, Log, Metadata, Record};
 use rtrb::*;
 use std::{
@@ -11,6 +10,7 @@ use std::{
         Arc, Mutex, Weak,
     },
     thread::JoinHandle,
+    time::SystemTime,
 };
 use tracing::{
     field::{Field, Visit},
@@ -136,39 +136,49 @@ struct FieldBuf<K> {
     value: String,
 }
 
-impl UpdateField for FieldBuf<(i64, u32)> {
+impl UpdateField for FieldBuf<SystemTime> {
     #[inline]
     fn load(&mut self) -> (&[u8], bool) {
-        let key = Utc::now();
-        let seconds = key.timestamp();
-        let mi = key.timestamp_subsec_millis();
+        let key = SystemTime::now();
+        let du = key.duration_since(self.key).expect("msg");
         let mut updated = false;
-        if seconds != self.key.0 {
-            self.value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
-            self.key = (seconds, mi);
+        if du.as_secs() > 0 {
             updated = true;
-        } else if mi != self.key.1 {
+            self.key = key;
+            self.value = format_ts(&self.key);
+        } else if du.subsec_millis() > 0 {
+            updated = true;
+            self.key = key;
             let n = self.value.len();
-            self.value
-                .replace_range(n - 4..n - 1, &format!("{:0>3}", mi));
-            self.key.1 = mi;
-            updated = true;
+            self.value.replace_range(
+                n - 4..n - 1,
+                &format!(
+                    "{:0>3}",
+                    self.key
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .subsec_millis()
+                ),
+            );
         }
         (&self.value.as_bytes(), updated)
     }
 }
 
-impl FieldBuf<(i64, u32)> {
+fn format_ts(key: &SystemTime) -> String {
+    humantime::format_rfc3339_millis(key.clone()).to_string()
+}
+
+impl FieldBuf<SystemTime> {
     fn new() -> Self {
-        let key = Utc::now();
-        let value = key.to_rfc3339_opts(SecondsFormat::Millis, true);
-        let key = (key.timestamp(), key.timestamp_subsec_millis());
+        let key = SystemTime::now();
+        let value = format_ts(&key);
         Self { key, value }
     }
 }
 
 struct LogBuffer {
-    time: FieldBuf<(i64, u32)>,
+    time: FieldBuf<SystemTime>,
     name: Option<Vec<u8>>,
     pro: Producer<u8>,
     con: Arc<Mutex<Consumer<u8>>>,
@@ -296,6 +306,7 @@ impl LogBuffer {
         Ok(size)
     }
 
+    #[inline]
     fn set_dirty(&self) {
         if let Ok(mut guard) = self.dirty.lock() {
             *guard.get_mut() = true;
