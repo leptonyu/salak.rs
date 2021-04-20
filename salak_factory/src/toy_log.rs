@@ -57,7 +57,7 @@ impl Buildable for LogConfig {
         _: &impl Environment,
         _: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
-        let rb: RingBuffer<LogBufferFlush> = RingBuffer::new(1024);
+        let rb: RingBuffer<LogBufferFlush> = RingBuffer::new(128);
         let (pro, mut con) = rb.split();
         let _flush_thread: JoinHandle<()> = std::thread::Builder::new()
             .name("logger_flush".to_owned())
@@ -68,15 +68,13 @@ impl Buildable for LogConfig {
                         lbf.push(v);
                     }
                     for v in lbf.iter() {
-                        if let Ok(ab) = v.dirty.lock() {
-                            if let Ok(true) = ab.compare_exchange(
-                                true,
-                                false,
-                                Ordering::Acquire,
-                                Ordering::Relaxed,
-                            ) {
-                                v.flush();
-                            }
+                        if let Ok(true) = v.dirty.compare_exchange(
+                            true,
+                            false,
+                            Ordering::Acquire,
+                            Ordering::Relaxed,
+                        ) {
+                            v.flush();
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_secs(1));
@@ -185,13 +183,13 @@ struct LogBuffer {
     out: Arc<Stdout>,
     size: usize,
     msg: String,
-    dirty: Arc<Mutex<AtomicBool>>,
+    dirty: Arc<AtomicBool>,
 }
 
 struct LogBufferFlush {
     con: Weak<Mutex<Consumer<u8>>>,
     out: Arc<Stdout>,
-    dirty: Arc<Mutex<AtomicBool>>,
+    dirty: Arc<AtomicBool>,
 }
 
 impl LogBufferFlush {
@@ -232,7 +230,7 @@ impl LogBuffer {
             con: Arc::new(Mutex::new(con)),
             size,
             msg: String::new(),
-            dirty: Arc::new(Mutex::new(AtomicBool::new(false))),
+            dirty: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -308,9 +306,9 @@ impl LogBuffer {
 
     #[inline]
     fn set_dirty(&self) {
-        if let Ok(mut guard) = self.dirty.lock() {
-            *guard.get_mut() = true;
-        }
+        let _ = self
+            .dirty
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed);
     }
 
     #[inline]
