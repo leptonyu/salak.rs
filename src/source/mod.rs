@@ -2,7 +2,10 @@
 pub(crate) mod args;
 pub(crate) mod env;
 pub(crate) mod file;
+#[macro_use]
 pub(crate) mod internal;
+#[cfg(feature = "enable_log")]
+pub(crate) mod logger;
 pub(crate) mod map;
 #[cfg(feature = "enable_rand")]
 pub(crate) mod rand;

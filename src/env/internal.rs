@@ -1,19 +1,6 @@
 use crate::*;
 use std::collections::HashMap;
 
-impl<P: FromProperty> FromEnvironment for P {
-    fn from_env(
-        n: &str,
-        property: Option<Property>,
-        _: &impl Environment,
-    ) -> Result<Self, PropertyError> {
-        if let Some(p) = property {
-            return P::from_property(p);
-        }
-        P::from_err(PropertyError::NotFound(n.to_owned()))
-    }
-}
-
 impl<P: FromEnvironment> FromEnvironment for Option<P> {
     fn from_env(
         n: &str,

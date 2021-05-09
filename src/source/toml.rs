@@ -1,8 +1,29 @@
 //! Provide toml [`PropertySource`].
 use crate::source::*;
 use crate::*;
+use ::toml::value::Datetime;
 use ::toml::{from_str, Value};
-use std::path::PathBuf;
+use std::{convert::TryInto, path::PathBuf};
+
+impl TryInto<Datetime> for Property {
+    type Error = PropertyError;
+    fn try_into(self) -> Result<Datetime, PropertyError> {
+        match self {
+            Property::Str(v) => {
+                if v.is_empty() {
+                    Err(PropertyError::NotFound("".to_string()))
+                } else {
+                    Ok(core::str::FromStr::from_str(&v)?)
+                }
+            }
+            _ => Err(PropertyError::parse_failed(
+                "Datetime only support string value parse.",
+            )),
+        }
+    }
+}
+
+impl_from_environment!(Datetime);
 
 /// [`PropertySource`] read properties from toml file.
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]

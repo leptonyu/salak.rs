@@ -146,7 +146,7 @@ pub trait Buildable: Sized + FromEnvironment {
                     format!("{}.{}", prefix, k),
                     *o,
                     match v {
-                        Some(p) => String::from_property(p.clone()).ok(),
+                        Some(p) => std::convert::TryInto::<String>::try_into(p.clone()).ok(),
                         _ => None,
                     },
                 )

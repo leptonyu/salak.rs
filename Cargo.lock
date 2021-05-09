@@ -1097,7 +1097,7 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "salak"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "clap",
  "env_logger",
@@ -1115,7 +1115,7 @@ dependencies = [
 
 [[package]]
 name = "salak_derive"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "lazy_static",
  "quote",
@@ -1124,7 +1124,7 @@ dependencies = [
 
 [[package]]
 name = "salak_factory"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "env_logger",

@@ -191,18 +191,6 @@ pub enum Property {
     Bool(bool),
 }
 
-/// Convert to [`Property`].
-pub trait IntoProperty: Sized {
-    /// Convert to property.
-    fn into_property(self) -> Property;
-}
-
-/// Convert from [`Property`].
-pub trait FromProperty: Sized {
-    /// Convert from property.
-    fn from_property(_: Property) -> Result<Self, PropertyError>;
-}
-
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.
 pub trait PropertySource: Sync + Send {
@@ -345,16 +333,10 @@ mod tests {
     fn integration_tests() {
         let env = Salak::new()
             .with_custom_args(vec![
-                (
-                    "database.detail.option_arr[0]".to_owned(),
-                    "10".into_property(),
-                ),
-                ("database.url".to_owned(), "localhost:5432".into_property()),
-                ("database.name".to_owned(), "salak".into_property()),
-                (
-                    "database.description".to_owned(),
-                    "\\$\\{Hello\\}".into_property(),
-                ),
+                ("database.detail.option_arr[0]".to_owned(), "10".into()),
+                ("database.url".to_owned(), "localhost:5432".into()),
+                ("database.name".to_owned(), "salak".into()),
+                ("database.description".to_owned(), "\\$\\{Hello\\}".into()),
             ])
             .build();
 

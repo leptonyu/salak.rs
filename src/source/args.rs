@@ -97,8 +97,8 @@ impl SysArgs {
         let mut map = BTreeMap::new();
         #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
         if let SysArgsMode::Auto(arg) = &args {
-            map.insert("app.name".to_string(), arg.name.into_property());
-            map.insert("app.version".to_string(), arg.version.into_property());
+            map.insert("app.name".to_string(), arg.name.into());
+            map.insert("app.version".to_string(), arg.version.into());
         }
         let args = match args {
             #[cfg(feature = "enable_clap")]

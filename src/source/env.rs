@@ -51,6 +51,7 @@ impl PropertySource for SysEnvPropertySource {
 #[cfg(test)]
 mod tests {
     use crate::*;
+    use std::convert::TryInto;
     #[test]
     fn check_test() -> Result<(), PropertyError> {
         let mut env: Box<dyn PropertySource> = Box::new(SysEnvPropertySource::new());
@@ -59,7 +60,7 @@ mod tests {
             if let Some(e) = env.load()? {
                 env = e;
             }
-            let p = String::from_property(env.get_property("hello").unwrap())?;
+            let p: String = env.get_property("hello").unwrap().try_into()?;
             assert_eq!(format!("{}", i), p);
         }
         Ok(())

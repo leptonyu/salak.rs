@@ -2,32 +2,26 @@
 use crate::*;
 use core::convert::TryFrom;
 use regex::*;
-use std::time::Duration;
 use std::{collections::HashMap, marker::PhantomData};
+use std::{convert::TryInto, time::Duration};
 
-impl IntoProperty for Property {
-    fn into_property(self) -> Property {
-        self
-    }
-}
-
-impl IntoProperty for String {
-    fn into_property(self) -> Property {
+impl Into<Property> for String {
+    fn into(self) -> Property {
         Property::Str(self)
     }
 }
 
-impl IntoProperty for &str {
-    fn into_property(self) -> Property {
+impl Into<Property> for &str {
+    fn into(self) -> Property {
         Property::Str(self.to_owned())
     }
 }
 
 macro_rules! impl_into_property {
     ($x:ident) => {
-        impl IntoProperty for $x {
+        impl Into<Property> for $x {
             #[allow(trivial_numeric_casts)]
-            fn into_property(self) -> Property {
+            fn into(self) -> Property {
                 Property::Int(self as i64)
             }
         }
@@ -42,8 +36,8 @@ impl_into_property!(u8, u16, u32, i8, i16, i32, i64);
 
 macro_rules! impl_into_property_str {
     ($x:ident) => {
-        impl IntoProperty for $x {
-            fn into_property(self) -> Property {
+        impl Into<Property> for $x {
+            fn into(self) -> Property {
                 Property::Str(self.to_string())
             }
         }
@@ -58,9 +52,9 @@ impl_into_property_str!(u64, u128, i128, isize, usize);
 
 macro_rules! impl_float_into_property {
     ($x:ident) => {
-        impl IntoProperty for $x {
+        impl Into<Property> for $x {
             #[allow(trivial_numeric_casts)]
-            fn into_property(self) -> Property {
+            fn into(self) -> Property {
                 Property::Float(self as f64)
             }
         }
@@ -73,12 +67,6 @@ macro_rules! impl_float_into_property {
 
 impl_float_into_property!(f32, f64);
 
-impl FromProperty for Property {
-    fn from_property(a: Property) -> Result<Self, PropertyError> {
-        Ok(a)
-    }
-}
-
 fn check_f64(f: f64) -> Result<f64, PropertyError> {
     if f.is_finite() {
         Ok(f)
@@ -87,9 +75,44 @@ fn check_f64(f: f64) -> Result<f64, PropertyError> {
     }
 }
 
-impl FromProperty for String {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
-        match p {
+impl FromEnvironment for Property {
+    fn from_env(
+        n: &str,
+        property: Option<Property>,
+        _: &impl Environment,
+    ) -> Result<Self, PropertyError> {
+        if let Some(p) = property {
+            return Ok(p);
+        }
+        Self::from_err(PropertyError::NotFound(n.to_owned()))
+    }
+}
+
+macro_rules! impl_from_environment {
+    ($x:ident) => {
+        impl FromEnvironment for $x {
+            fn from_env(
+                n: &str,
+                property: Option<Property>,
+                _: &impl Environment,
+            ) -> Result<Self, PropertyError> {
+                if let Some(p) = property {
+                    return p.try_into();
+                }
+                Self::from_err(PropertyError::NotFound(n.to_owned()))
+            }
+        }
+    };
+    ($x:ident, $($y:ident),+) => {
+        impl_from_environment!($x);
+        impl_from_environment!($($y),+);
+    };
+}
+
+impl TryInto<String> for Property {
+    type Error = PropertyError;
+    fn try_into(self) -> Result<String, PropertyError> {
+        match self {
             Property::Str(str) => {
                 if str.is_empty() {
                     Err(PropertyError::NotFound("".to_string()))
@@ -104,9 +127,12 @@ impl FromProperty for String {
     }
 }
 
-impl FromProperty for char {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
-        match p {
+impl_from_environment!(char, String);
+
+impl TryInto<char> for Property {
+    type Error = PropertyError;
+    fn try_into(self) -> Result<char, PropertyError> {
+        match self {
             Property::Str(str) => {
                 let mut chars = str.chars();
                 if let Some(c) = chars.next() {
@@ -131,9 +157,10 @@ impl FromProperty for char {
 
 macro_rules! impl_from_property {
     ($x:ident) => {
-        impl FromProperty for $x {
-            fn from_property(p: Property) -> Result<Self, PropertyError> {
-                match p {
+        impl TryInto<$x> for Property {
+            type Error = PropertyError;
+            fn try_into(self) -> Result<$x, PropertyError> {
+                match self {
                     Property::Str(str) => if str.is_empty() {
                         Err(PropertyError::NotFound("".to_string()))
                     } else {
@@ -147,6 +174,7 @@ macro_rules! impl_from_property {
                 }
             }
         }
+        impl_from_environment!($x);
     };
     ($x:ident, $($y:ident),+) => {
         impl_from_property!($x);
@@ -158,10 +186,11 @@ impl_from_property!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isi
 
 macro_rules! impl_float_from_property {
     ($x:ident) => {
-        impl FromProperty for $x {
+        impl TryInto<$x> for Property {
+            type Error = PropertyError;
             #[allow(trivial_numeric_casts)]
-            fn from_property(p: Property) -> Result<Self, PropertyError> {
-                match p {
+            fn try_into(self) -> Result<$x, PropertyError> {
+                match self {
                     Property::Str(str) => if str.is_empty() {
                         Err(PropertyError::NotFound("".to_string()))
                     } else {
@@ -175,6 +204,7 @@ macro_rules! impl_float_from_property {
                 }
             }
         }
+        impl_from_environment!($x);
     };
     ($x:ident, $($y:ident),+) => {
         impl_float_from_property!($x);
@@ -184,13 +214,14 @@ macro_rules! impl_float_from_property {
 
 impl_float_from_property!(f64, f32);
 
-impl FromProperty for bool {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
+impl TryInto<bool> for Property {
+    type Error = PropertyError;
+    fn try_into(self) -> Result<bool, PropertyError> {
         lazy_static::lazy_static! {
         static ref STR_YES: HashSet<String> = vec!["yes","y","1","true","t"].into_iter().map(|a|a.to_string()).collect();
         static ref STR_NO: HashSet<String> = vec!["no","n","0","false","f"].into_iter().map(|a|a.to_string()).collect();
         }
-        match p {
+        match self {
             Property::Str(str) => {
                 let str = str.to_lowercase();
                 if STR_YES.contains(&str) {
@@ -209,29 +240,12 @@ impl FromProperty for bool {
         }
     }
 }
+impl_from_environment!(bool);
 
-#[cfg(feature = "enable_toml")]
-impl FromProperty for ::toml::value::Datetime {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
-        use std::str::FromStr;
-        match p {
-            Property::Str(v) => {
-                if v.is_empty() {
-                    Err(PropertyError::NotFound("".to_string()))
-                } else {
-                    Ok(Self::from_str(&v)?)
-                }
-            }
-            _ => Err(PropertyError::parse_failed(
-                "Datetime only support string value parse.",
-            )),
-        }
-    }
-}
-
-impl FromProperty for Duration {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
-        match p {
+impl TryInto<Duration> for Property {
+    type Error = PropertyError;
+    fn try_into(self) -> Result<Duration, PropertyError> {
+        match self {
             Property::Str(du) => parse_duration_from_str(&du),
             Property::Int(seconds) => Ok(Duration::new(seconds as u64, 0)),
             Property::Float(sec) => Ok(Duration::new(0, 0).mul_f64(sec)),
@@ -241,6 +255,7 @@ impl FromProperty for Duration {
         }
     }
 }
+impl_from_environment!(Duration);
 
 const NS: u32 = 1_000_000_000;
 
@@ -280,101 +295,42 @@ fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
     }
 }
 
-impl<T> FromProperty for PhantomData<T> {
-    fn from_property(_: Property) -> Result<Self, PropertyError> {
+impl<T> TryInto<PhantomData<T>> for Property {
+    type Error = PropertyError;
+    fn try_into(self) -> Result<PhantomData<T>, PropertyError> {
         Ok(PhantomData)
-    }
-}
-
-#[cfg(feature = "enable_log")]
-impl FromProperty for LevelFilter {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
-        match p {
-            Property::Str(du) => match &du.to_lowercase()[..] {
-                "off" => Ok(LevelFilter::Off),
-                "trace" => Ok(LevelFilter::Trace),
-                "debug" => Ok(LevelFilter::Debug),
-                "info" => Ok(LevelFilter::Info),
-                "warn" => Ok(LevelFilter::Warn),
-                "error" => Ok(LevelFilter::Error),
-                _ => Err(PropertyError::parse_failed("Invalid LevelFilter")),
-            },
-            _ => Err(PropertyError::parse_failed(
-                "LevelFilter only support string",
-            )),
-        }
-    }
-}
-
-#[cfg(feature = "enable_log")]
-impl FromProperty for Level {
-    fn from_property(p: Property) -> Result<Self, PropertyError> {
-        match p {
-            Property::Str(du) => match &du.to_lowercase()[..] {
-                "trace" => Ok(Level::Trace),
-                "debug" => Ok(Level::Debug),
-                "info" => Ok(Level::Info),
-                "warn" => Ok(Level::Warn),
-                "error" => Ok(Level::Error),
-                _ => Err(PropertyError::parse_failed("Invalid LevelFilter")),
-            },
-            _ => Err(PropertyError::parse_failed(
-                "LevelFilter only support string",
-            )),
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
     use source::internal::parse_duration_from_str;
 
     use crate::*;
     #[test]
     fn bool_tests() {
-        assert_eq!(
-            Ok(true),
-            bool::from_property(Property::Str("yes".to_owned()))
-        );
-        assert_eq!(Ok(true), bool::from_property(Property::Str("y".to_owned())));
-        assert_eq!(Ok(true), bool::from_property(Property::Str("1".to_owned())));
-        assert_eq!(
-            Ok(true),
-            bool::from_property(Property::Str("true".to_owned()))
-        );
-        assert_eq!(Ok(true), bool::from_property(Property::Str("t".to_owned())));
-        assert_eq!(Ok(true), bool::from_property(Property::Int(1)));
-        assert_eq!(Ok(true), bool::from_property(Property::Float(1.0)));
-        assert_eq!(Ok(true), bool::from_property(Property::Bool(true)));
+        assert_eq!(Ok(true), Property::Str("yes".to_owned()).try_into());
+        assert_eq!(Ok(true), Property::Str("y".to_owned()).try_into());
+        assert_eq!(Ok(true), Property::Str("1".to_owned()).try_into());
+        assert_eq!(Ok(true), Property::Str("true".to_owned()).try_into());
+        assert_eq!(Ok(true), Property::Str("t".to_owned()).try_into());
+        assert_eq!(Ok(true), Property::Int(1).try_into());
+        assert_eq!(Ok(true), Property::Float(1.0).try_into());
+        assert_eq!(Ok(true), Property::Bool(true).try_into());
 
-        assert_eq!(
-            Ok(false),
-            bool::from_property(Property::Str("no".to_owned()))
-        );
-        assert_eq!(
-            Ok(false),
-            bool::from_property(Property::Str("n".to_owned()))
-        );
-        assert_eq!(
-            Ok(false),
-            bool::from_property(Property::Str("0".to_owned()))
-        );
-        assert_eq!(
-            Ok(false),
-            bool::from_property(Property::Str("false".to_owned()))
-        );
-        assert_eq!(
-            Ok(false),
-            bool::from_property(Property::Str("f".to_owned()))
-        );
-        assert_eq!(Ok(false), bool::from_property(Property::Int(0)));
-        assert_eq!(Ok(false), bool::from_property(Property::Float(0.0)));
-        assert_eq!(Ok(false), bool::from_property(Property::Bool(false)));
+        assert_eq!(Ok(false), Property::Str("no".to_owned()).try_into());
+        assert_eq!(Ok(false), Property::Str("n".to_owned()).try_into());
+        assert_eq!(Ok(false), Property::Str("0".to_owned()).try_into());
+        assert_eq!(Ok(false), Property::Str("false".to_owned()).try_into());
+        assert_eq!(Ok(false), Property::Str("f".to_owned()).try_into());
+        assert_eq!(Ok(false), Property::Int(0).try_into());
+        assert_eq!(Ok(false), Property::Float(0.0).try_into());
+        assert_eq!(Ok(false), Property::Bool(false).try_into());
 
-        assert_eq!(
-            true,
-            bool::from_property(Property::Str("x".to_owned())).is_err()
-        );
+        let x: Result<bool, PropertyError> = Property::Str("x".to_owned()).try_into();
+        assert_eq!(true, x.is_err());
     }
 
     #[test]
@@ -387,90 +343,91 @@ mod tests {
 
     #[quickcheck]
     fn num_tests(i: i64) {
-        assert_eq!(Ok(i), i64::from_property(Property::Str(format!("{}", i))));
-        assert_eq!(Ok(i), i64::from_property(Property::Int(i)));
+        assert_eq!(Ok(i), Property::Str(format!("{}", i)).try_into());
+        assert_eq!(Ok(i), Property::Int(i).try_into());
+        let v: Result<i64, PropertyError> = Property::Bool(true).try_into();
         assert_eq!(
             Err(PropertyError::parse_failed(
                 "Bool value cannot convert to i64"
             )),
-            i64::from_property(Property::Bool(true))
+            v
         );
     }
 
     #[quickcheck]
     fn u8_tests(i: u8) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn u16_tests(i: u16) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn u32_tests(i: u32) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn u64_tests(i: u64) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn u128_tests(i: u128) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn i8_tests(i: i8) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn i16_tests(i: i16) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn i32_tests(i: i32) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn i64_tests(i: i64) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn i128_tests(i: i128) -> bool {
-        FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn f32_tests(i: f32) -> bool {
-        !i.is_finite() || FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        !i.is_finite() || Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn f64_tests(i: f64) -> bool {
-        !i.is_finite() || FromProperty::from_property(IntoProperty::into_property(i)) == Ok(i)
+        !i.is_finite() || Property::try_into(i.into()) == Ok(i)
     }
 
     #[quickcheck]
     fn i64_convert_tests(i: i64) -> bool {
-        let u8: Result<u8, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let u16: Result<u16, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let u32: Result<u32, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let u64: Result<u64, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let u128: Result<u128, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let i8: Result<i8, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let i16: Result<i16, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let i32: Result<i32, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let i64: Result<i64, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let i128: Result<i128, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let f32: Result<f32, PropertyError> = FromProperty::from_property(Property::Int(i));
-        let f64: Result<f64, PropertyError> = FromProperty::from_property(Property::Int(i));
+        let u8: Result<u8, PropertyError> = Property::Int(i).try_into();
+        let u16: Result<u16, PropertyError> = Property::Int(i).try_into();
+        let u32: Result<u32, PropertyError> = Property::Int(i).try_into();
+        let u64: Result<u64, PropertyError> = Property::Int(i).try_into();
+        let u128: Result<u128, PropertyError> = Property::Int(i).try_into();
+        let i8: Result<i8, PropertyError> = Property::Int(i).try_into();
+        let i16: Result<i16, PropertyError> = Property::Int(i).try_into();
+        let i32: Result<i32, PropertyError> = Property::Int(i).try_into();
+        let i64: Result<i64, PropertyError> = Property::Int(i).try_into();
+        let i128: Result<i128, PropertyError> = Property::Int(i).try_into();
+        let f32: Result<f32, PropertyError> = Property::Int(i).try_into();
+        let f64: Result<f64, PropertyError> = Property::Int(i).try_into();
         vec![
             i >= 0 && i <= (u8::MAX as i64) && u8.is_ok() || u8.is_err(),
             i >= 0 && i <= (u16::MAX as i64) && u16.is_ok() || u16.is_err(),
@@ -491,18 +448,18 @@ mod tests {
 
     #[quickcheck]
     fn f64_convert_tests(i: f64) -> bool {
-        let u8: Result<u8, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let u16: Result<u16, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let u32: Result<u32, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let u64: Result<u64, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let u128: Result<u128, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let i8: Result<i8, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let i16: Result<i16, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let i32: Result<i32, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let i64: Result<i64, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let i128: Result<i128, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let f32: Result<f32, PropertyError> = FromProperty::from_property(Property::Float(i));
-        let f64: Result<f64, PropertyError> = FromProperty::from_property(Property::Float(i));
+        let u8: Result<u8, PropertyError> = Property::Float(i).try_into();
+        let u16: Result<u16, PropertyError> = Property::Float(i).try_into();
+        let u32: Result<u32, PropertyError> = Property::Float(i).try_into();
+        let u64: Result<u64, PropertyError> = Property::Float(i).try_into();
+        let u128: Result<u128, PropertyError> = Property::Float(i).try_into();
+        let i8: Result<i8, PropertyError> = Property::Float(i).try_into();
+        let i16: Result<i16, PropertyError> = Property::Float(i).try_into();
+        let i32: Result<i32, PropertyError> = Property::Float(i).try_into();
+        let i64: Result<i64, PropertyError> = Property::Float(i).try_into();
+        let i128: Result<i128, PropertyError> = Property::Float(i).try_into();
+        let f32: Result<f32, PropertyError> = Property::Float(i).try_into();
+        let f64: Result<f64, PropertyError> = Property::Float(i).try_into();
 
         vec![
             i.is_finite() && u8.is_ok() || u8.is_err(),

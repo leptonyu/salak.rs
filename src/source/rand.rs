@@ -8,13 +8,13 @@ impl PropertySource for Random {
     }
     fn get_property(&self, name: &str) -> Option<Property> {
         match name {
-            "random.u8" => Some(rand::random::<u8>().into_property()),
-            "random.u16" => Some(rand::random::<u16>().into_property()),
-            "random.u32" => Some(rand::random::<u32>().into_property()),
-            "random.i8" => Some(rand::random::<i8>().into_property()),
-            "random.i16" => Some(rand::random::<i16>().into_property()),
-            "random.i32" => Some(rand::random::<i32>().into_property()),
-            "random.i64" => Some(rand::random::<i64>().into_property()),
+            "random.u8" => Some(rand::random::<u8>().into()),
+            "random.u16" => Some(rand::random::<u16>().into()),
+            "random.u32" => Some(rand::random::<u32>().into()),
+            "random.i8" => Some(rand::random::<i8>().into()),
+            "random.i16" => Some(rand::random::<i16>().into()),
+            "random.i32" => Some(rand::random::<i32>().into()),
+            "random.i64" => Some(rand::random::<i64>().into()),
             _ => None,
         }
     }
@@ -38,6 +38,7 @@ impl PropertySource for Random {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::TryInto;
 
     #[test]
     fn random_test() {
@@ -45,8 +46,8 @@ mod tests {
         let mut ok = false;
         for v in r.get_keys("random") {
             let key = &format!("random.{}", v);
-            let x = i64::from_property(r.get_property(key).unwrap()).unwrap();
-            let y = i64::from_property(r.get_property(key).unwrap()).unwrap();
+            let x: i64 = r.get_property(key).unwrap().try_into().unwrap();
+            let y = r.get_property(key).unwrap().try_into().unwrap();
             if x != y {
                 ok = true;
             }

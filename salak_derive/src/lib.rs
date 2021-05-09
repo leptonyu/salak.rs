@@ -312,7 +312,7 @@ fn derive_enum(
     }
     quote! {
         if let Some(p) = #def {
-            return match &String::from_property(p)?[..] {
+            return match &std::convert::TryInto::<String>::try_into(p)?[..] {
                 #(#vs)*
                 v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),
             };

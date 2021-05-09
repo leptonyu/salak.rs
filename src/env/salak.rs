@@ -62,8 +62,8 @@ impl SalakBuilder {
     /// Add default property to [`Environment`]
     #[cfg(feature = "enable_derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
-    pub fn set_property<P: IntoProperty>(mut self, key: &str, value: P) -> Self {
-        self.default.insert(key.to_string(), value.into_property());
+    pub fn set_property<P: Into<Property>>(mut self, key: &str, value: P) -> Self {
+        self.default.insert(key.to_string(), value.into());
         self
     }
 
