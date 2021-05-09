@@ -18,51 +18,39 @@ impl Into<Property> for &str {
 }
 
 macro_rules! impl_into_property {
-    ($x:ident) => {
+    ($($x:ident),+) => {$(
         impl Into<Property> for $x {
             #[allow(trivial_numeric_casts)]
             fn into(self) -> Property {
                 Property::Int(self as i64)
             }
         }
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_into_property!($x);
-        impl_into_property!($($y),+);
-    };
+    )+};
 }
 
 impl_into_property!(u8, u16, u32, i8, i16, i32, i64);
 
 macro_rules! impl_into_property_str {
-    ($x:ident) => {
+    ($($x:ident),+) => {$(
         impl Into<Property> for $x {
             fn into(self) -> Property {
                 Property::Str(self.to_string())
             }
         }
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_into_property_str!($x);
-        impl_into_property_str!($($y),+);
-    };
+    )+};
 }
 
 impl_into_property_str!(u64, u128, i128, isize, usize);
 
 macro_rules! impl_float_into_property {
-    ($x:ident) => {
+    ($($x:ident),+) => {$(
         impl Into<Property> for $x {
             #[allow(trivial_numeric_casts)]
             fn into(self) -> Property {
                 Property::Float(self as f64)
             }
         }
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_float_into_property!($x);
-        impl_float_into_property!($($y),+);
-    };
+    )+};
 }
 
 impl_float_into_property!(f32, f64);
@@ -89,7 +77,7 @@ impl FromEnvironment for Property {
 }
 
 macro_rules! impl_from_environment {
-    ($x:ident) => {
+    ($($x:ident),+) => {$(
         impl FromEnvironment for $x {
             fn from_env(
                 n: &str,
@@ -102,11 +90,7 @@ macro_rules! impl_from_environment {
                 Self::from_err(PropertyError::NotFound(n.to_owned()))
             }
         }
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_from_environment!($x);
-        impl_from_environment!($($y),+);
-    };
+    )+}
 }
 
 impl TryInto<String> for Property {
@@ -156,7 +140,7 @@ impl TryInto<char> for Property {
 }
 
 macro_rules! impl_from_property {
-    ($x:ident) => {
+    ($($x:ident),+) => {$(
         impl TryInto<$x> for Property {
             type Error = PropertyError;
             fn try_into(self) -> Result<$x, PropertyError> {
@@ -175,17 +159,13 @@ macro_rules! impl_from_property {
             }
         }
         impl_from_environment!($x);
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_from_property!($x);
-        impl_from_property!($($y),+);
-    };
+    )+}
 }
 
 impl_from_property!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
 macro_rules! impl_float_from_property {
-    ($x:ident) => {
+    ($($x:ident),+) => {$(
         impl TryInto<$x> for Property {
             type Error = PropertyError;
             #[allow(trivial_numeric_casts)]
@@ -205,11 +185,7 @@ macro_rules! impl_float_from_property {
             }
         }
         impl_from_environment!($x);
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_float_from_property!($x);
-        impl_float_from_property!($($y),+);
-    };
+    )+}
 }
 
 impl_float_from_property!(f64, f32);

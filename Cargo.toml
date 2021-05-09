@@ -46,10 +46,15 @@ toml = {optional = true, version = '^0.5'}
 yaml-rust = {optional = true, version = '^0.4.5'}
 
 [dev-dependencies]
+criterion = '0.3'
 env_logger = '0.8'
 quickcheck = '1'
 quickcheck_macros = '1'
 rand = '0.8'
+
+[[bench]]
+harness = false
+name = "property"
 
 [features]
 default = [

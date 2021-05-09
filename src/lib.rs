@@ -259,11 +259,11 @@ pub trait Environment: Sync + Send {
 /// Convert from [`Environment`].
 pub trait FromEnvironment: Sized {
     /// Generate object from [`Environment`].
-    /// * `prefix` - Property prefix.
-    /// * `property` - Property value with key is `prefix`.
+    /// * `key` - Property prefix.
+    /// * `property` - Property value with key is `key`.
     /// * `env` - Instance of [`Environment`]
     fn from_env(
-        prefix: &str,
+        key: &str,
         property: Option<Property>,
         env: &impl Environment,
     ) -> Result<Self, PropertyError>;

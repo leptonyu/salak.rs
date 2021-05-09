@@ -103,7 +103,7 @@ impl Default for SourceRegistry {
     fn default() -> Self {
         let mut sr = SourceRegistry::new();
         #[cfg(not(test))]
-        #[cfg(feature = "enable_clap")]
+        #[cfg(any(feature = "enable_clap", feature = "enable_pico"))]
         {
             sr = sr.with_args(SysArgsMode::Auto(auto_read_sys_args_param!()));
         }

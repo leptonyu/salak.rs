@@ -42,24 +42,20 @@ impl Display for PropertyError {
 impl std::error::Error for PropertyError {}
 
 macro_rules! impl_parse_failed {
-    ($x:ident) => {
+    ($($x:ident)+) => {$(
         impl From<$x> for PropertyError {
             fn from(e: $x) -> Self {
                 Self::ParseFail(e.to_string())
             }
         }
-    };
-    ($x:ident, $($y:ident),+) => {
-        impl_parse_failed!($x);
-        impl_parse_failed!($($y),+);
-    };
+    )+}
 }
 
 impl_parse_failed!(
-    ParseBoolError,
-    ParseIntError,
-    ParseFloatError,
-    TryFromIntError,
+    ParseBoolError
+    ParseIntError
+    ParseFloatError
+    TryFromIntError
     Infallible
 );
 
