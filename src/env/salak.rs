@@ -33,13 +33,6 @@ impl SalakBuilder {
         self
     }
 
-    /// Use custom command line arguments parser.
-    /// Users should provide a parser to produce [`Vec<(String, Property)>`].
-    pub fn with_custom_args(mut self, args: Vec<(String, Property)>) -> Self {
-        self.args = Some(SysArgsMode::Custom(args));
-        self
-    }
-
     /// Add default source
     pub fn add_default_source(mut self, source: Box<dyn PropertySource>) -> Self {
         self.default_sources.push(source);
@@ -159,13 +152,21 @@ impl Environment for Salak {
     fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
         self.0.require(name)
     }
-    fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
-        self.0.resolve_placeholder(value)
-    }
+    // fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
+    //     self.0.resolve_placeholder(value)
+    // }
     fn find_keys(&self, prefix: &str) -> Vec<String> {
         self.0.find_keys(prefix)
     }
     fn reload(&mut self) -> Result<(), PropertyError> {
         self.0.reload()
+    }
+
+    fn get_resolved_key(
+        &self,
+        key: &str,
+        default: Option<Property>,
+    ) -> Result<Option<Property>, PropertyError> {
+        self.0.get_resolved_key(key, default)
     }
 }

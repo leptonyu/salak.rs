@@ -88,12 +88,12 @@
 //!   ssl_config: Option<SslConfig>,  
 //! }
 //!
-//! std::env::set_var("database.url", "localhost:5432");
-//! std::env::set_var("database.description", "\\$\\{Hello\\}");
 //! let env = Salak::new()
 //!    .with_default_args(auto_read_sys_args_param!()) // This line need enable feature `enable_pico`.
 //!     .add_default::<DatabaseConfig>()
 //!     .add_default_source(inline_toml!("app.toml"))
+//!     .set_property("database.url", "localhost:5432")
+//!     .set_property("database.description", "\\$\\{Hello\\}")
 //!    .build();
 //!
 //! match env.load_config::<DatabaseConfig>() {
@@ -239,8 +239,15 @@ pub trait Environment: Sync + Send {
         self.get(key).unwrap_or(default)
     }
 
-    /// Resolve placeholder value.
-    fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
+    /// Get Resolved Keys.
+    fn get_resolved_key(
+        &self,
+        key: &str,
+        default: Option<Property>,
+    ) -> Result<Option<Property>, PropertyError>;
+
+    // /// Resolve placeholder value.
+    // fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
 
     /// Load properties which has `#[salak(prefix="prefix")]`
     #[cfg(feature = "enable_derive")]
@@ -298,6 +305,7 @@ pub trait FromEnvironment: Sized {
 mod tests {
     use crate::*;
     use std::collections::HashMap;
+
     #[derive(FromEnvironment, Debug)]
     struct DatabaseConfigObj {
         hello: String,
@@ -332,12 +340,10 @@ mod tests {
     #[test]
     fn integration_tests() {
         let env = Salak::new()
-            .with_custom_args(vec![
-                ("database.detail.option_arr[0]".to_owned(), "10".into()),
-                ("database.url".to_owned(), "localhost:5432".into()),
-                ("database.name".to_owned(), "salak".into()),
-                ("database.description".to_owned(), "\\$\\{Hello\\}".into()),
-            ])
+            .set_property("database.detail.option_arr[0]", 10)
+            .set_property("database.url", "localhost:5432")
+            .set_property("database.name", "salak")
+            .set_property("database.description", "\\$\\{Hello\\}")
             .build();
 
         let ret = env.load_config::<DatabaseConfig>();

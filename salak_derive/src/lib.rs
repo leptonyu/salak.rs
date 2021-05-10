@@ -99,7 +99,7 @@ fn parse_field_attribute(
         Some(def) => (
             quote! {
                 match #get_val {
-                    None => env.resolve_placeholder(#def.to_string())?,
+                    None => Some(Property::Str(#def.to_string())),
                     v    => v,
                 }
             },
@@ -133,7 +133,7 @@ fn derive_field(
     let ty = field.ty;
     let temp_name = quote::format_ident!("__{}", name);
     let get_value = quote! {
-      env.require::<Option<Property>>(&#temp_name)?
+      env.get_resolved_key(&#temp_name, None)?
     };
     let mut rename = name.clone();
     let (get_value, def, def_all) =

@@ -9,7 +9,8 @@ impl<P: FromEnvironment> FromEnvironment for Option<P> {
     ) -> Result<Self, PropertyError> {
         match P::from_env(n, property, env) {
             Ok(a) => Ok(Some(a)),
-            Err(err) => Self::from_err(err),
+            Err(PropertyError::NotFound(_)) => Ok(None),
+            Err(err) => Err(err),
         }
     }
     fn from_err(err: PropertyError) -> Result<Self, PropertyError> {

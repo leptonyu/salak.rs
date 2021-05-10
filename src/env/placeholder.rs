@@ -131,25 +131,47 @@ impl<E: Environment> Environment for PlaceholderResolver<E> {
         self.env.contains(name)
     }
 
-    fn require<T>(&self, name: &str) -> Result<T, PropertyError>
-    where
-        T: FromEnvironment,
-    {
-        if self.enabled {
-            self.require_with_parse::<T>(name, &mut HashSet::new())
-        } else {
-            self.env.require(name)
+    fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
+        match T::from_env(name, self.get_resolved_key(name, None)?, self) {
+            Err(PropertyError::NotFound(v)) => Err(PropertyError::NotFound(if v.is_empty() {
+                name.to_string()
+            } else {
+                v
+            })),
+            val => val,
         }
     }
 
-    fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
-        self.parse_value(&value, &mut HashSet::new())
-    }
+    // fn require<T>(&self, name: &str) -> Result<T, PropertyError>
+    // where
+    //     T: FromEnvironment,
+    // {
+    //     if self.enabled {
+    //         self.require_with_parse::<T>(name, &mut HashSet::new())
+    //     } else {
+    //         self.env.require(name)
+    //     }
+    // }
+
+    // fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError> {
+    //     self.parse_value(&value, &mut HashSet::new())
+    // }
     fn find_keys(&self, prefix: &str) -> Vec<String> {
         self.env.find_keys(prefix)
     }
     fn reload(&mut self) -> Result<(), PropertyError> {
         self.env.reload()
+    }
+
+    fn get_resolved_key(
+        &self,
+        key: &str,
+        default: Option<Property>,
+    ) -> Result<Option<Property>, PropertyError> {
+        match self.env.get_resolved_key(key, default)? {
+            Some(Property::Str(value)) => self.parse_value(&value, &mut HashSet::new()),
+            ok => Ok(ok),
+        }
     }
 }
 

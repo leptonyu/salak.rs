@@ -125,22 +125,7 @@ impl Environment for SourceRegistry {
         self.sources.iter().any(|a| a.contains_property(name))
     }
     fn require<T: FromEnvironment>(&self, name: &str) -> Result<T, PropertyError> {
-        let mut x = None;
-        if !name.is_empty() {
-            for ps in self.sources.iter() {
-                if let Some(v) = ps.get_property(name) {
-                    x = Some(v);
-                    break;
-                }
-            }
-            #[cfg(feature = "enable_derive")]
-            if x.is_none() {
-                if let Some(ps) = &self.default {
-                    x = ps.get_property(name);
-                }
-            }
-        }
-        match T::from_env(name, x, self) {
+        match T::from_env(name, self.get_resolved_key(name, None)?, self) {
             Err(PropertyError::NotFound(v)) => Err(PropertyError::NotFound(if v.is_empty() {
                 name.to_string()
             } else {
@@ -150,12 +135,12 @@ impl Environment for SourceRegistry {
         }
     }
 
-    fn resolve_placeholder(&self, v: String) -> Result<Option<Property>, PropertyError> {
-        Err(PropertyError::ParseFail(format!(
-            "Placeholder not implement: {}",
-            v
-        )))
-    }
+    // fn resolve_placeholder(&self, v: String) -> Result<Option<Property>, PropertyError> {
+    //     Err(PropertyError::ParseFail(format!(
+    //         "Placeholder not implement: {}",
+    //         v
+    //     )))
+    // }
     fn find_keys(&self, prefix: &str) -> Vec<String> {
         let s: HashSet<String> = self
             .sources
@@ -171,5 +156,28 @@ impl Environment for SourceRegistry {
             }
         }
         Ok(())
+    }
+
+    fn get_resolved_key(
+        &self,
+        name: &str,
+        default: Option<Property>,
+    ) -> Result<Option<Property>, PropertyError> {
+        let mut x = default;
+        if !name.is_empty() {
+            for ps in self.sources.iter() {
+                if let Some(v) = ps.get_property(name) {
+                    x = Some(v);
+                    break;
+                }
+            }
+            #[cfg(feature = "enable_derive")]
+            if x.is_none() {
+                if let Some(ps) = &self.default {
+                    x = ps.get_property(name);
+                }
+            }
+        }
+        Ok(x)
     }
 }
