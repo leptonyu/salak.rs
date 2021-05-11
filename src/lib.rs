@@ -153,6 +153,8 @@ pub use salak_derive::FromEnvironment;
 mod err;
 mod utils;
 
+mod property;
+
 pub use crate::err::PropertyError;
 pub use crate::utils::SalakStringUtil;
 
