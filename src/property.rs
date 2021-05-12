@@ -15,31 +15,29 @@ pub enum PropertyError {
     ResolveFail,
     ResolveNotFound(String),
     RecursiveFail(String),
+    NotFound(String),
 }
 
-impl<E: std::error::Error> From<E> for PropertyError{
-  fn from(err: E) -> Self{
-    PropertyError::ParseFail
-  }
+impl<E: std::error::Error> From<E> for PropertyError {
+    fn from(err: E) -> Self {
+        PropertyError::ParseFail
+    }
 }
 
 pub trait IsProperty: Sized {
-
     fn is_empty(p: &Property<'_>) -> bool {
-       match p {
-         Property::S(s) => s.is_empty(),
-         Property::L(s) => s.is_empty(),
-         _ => false,
-       }
+        match p {
+            Property::S(s) => s.is_empty(),
+            Property::L(s) => s.is_empty(),
+            _ => false,
+        }
     }
     fn from_property(_: Property<'_>) -> Result<Self, PropertyError>;
 }
 
 impl IsProperty for String {
-
-    
     fn is_empty(p: &Property<'_>) -> bool {
-        false 
+        false
     }
     fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
         Ok(match p {
@@ -51,14 +49,33 @@ impl IsProperty for String {
         })
     }
 }
+impl IsProperty for bool {
+    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+        fn str_to_bool(v: &str) -> Result<bool, PropertyError> {
+            match v {
+                "yes" | "true" => Ok(true),
+                "no" | "false" => Ok(false),
+                _ => Err(PropertyError::ParseFail),
+            }
+        }
+        match p {
+            Property::B(v) => Ok(v),
+            Property::S(v) => str_to_bool(v),
+            Property::L(v) => str_to_bool(&v),
+            _ => Err(PropertyError::ParseFail),
+        }
+    }
+}
 
-macro_rules! impl_property_int {
+macro_rules! impl_property_num {
     ($($x:ident),+) => {$(
             impl IsProperty for $x {
                 fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
 Ok(match p {
 Property::S(s) => s.parse::<$x>()?,
 Property::L(s) => s.parse::<$x>()?,
+Property::I(s) => s as $x,
+Property::F(s) => s as $x,
 _ => Err(PropertyError::ParseFail)?,
 })
                 }
@@ -68,8 +85,7 @@ _ => Err(PropertyError::ParseFail)?,
             )+}
 }
 
-
-impl_property_int!(i8);
+impl_property_num!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, isize, usize);
 
 pub trait PropertyProvider {
     fn name(&self) -> &'static str;
@@ -136,10 +152,10 @@ impl Registry {
     }
 
     fn normalize_key(mut key: &str) -> &str {
-       while !key.is_empty() && &key[0..1]=="." {
-         key = &key[1..];
-       }
-       key
+        while !key.is_empty() && &key[0..1] == "." {
+            key = &key[1..];
+        }
+        key
     }
     fn merge(val: Option<String>, new: &str) -> String {
         match val {
@@ -261,6 +277,63 @@ pub fn system_environment() -> MapProvider {
     }
 }
 
+pub trait Environment {
+    fn require_def<T: FromEnvironment>(
+        &self,
+        key: &str,
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError>;
+    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
+        self.require_def(key, None)
+    }
+}
+
+pub trait FromEnvironment: Sized {
+    fn from_env(
+        key: &str,
+        val: Option<Property<'_>>,
+        env: &impl Environment,
+    ) -> Result<Self, PropertyError>;
+}
+
+impl<T: FromEnvironment> FromEnvironment for Option<T> {
+    fn from_env(
+        key: &str,
+        val: Option<Property<'_>>,
+        env: &impl Environment,
+    ) -> Result<Self, PropertyError> {
+        match T::from_env(key, val, env) {
+            Ok(v) => Ok(Some(v)),
+            Err(PropertyError::NotFound(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+}
+
+impl<T: IsProperty> FromEnvironment for T {
+    fn from_env(
+        key: &str,
+        val: Option<Property<'_>>,
+        env: &impl Environment,
+    ) -> Result<Self, PropertyError> {
+        match val {
+            Some(v) => Self::from_property(v),
+            _ => Err(PropertyError::NotFound(key.to_string())),
+        }
+    }
+}
+
+impl Environment for Registry {
+    fn require_def<T: FromEnvironment>(
+        &self,
+        key: &str,
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError> {
+        let val = self.get(key, def)?;
+        T::from_env(key, val, self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +357,10 @@ mod tests {
 
         fn validate(env: &Registry, key: &str) {
             println!("{}: {:?}", key, env.get(key, None));
+            println!("{}: {:?}", key, env.require::<String>(key));
+            println!("{}: {:?}", key, env.require::<bool>(key));
+            println!("{}: {:?}", key, env.require::<u8>(key));
+            println!("{}: {:?}", key, env.require::<Option<u8>>(key));
         }
 
         validate(&env, "a");
