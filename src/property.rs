@@ -11,37 +11,65 @@ pub enum Property<'a> {
 
 #[derive(Debug)]
 pub enum PropertyError {
+    ParseFail,
     ResolveFail,
+    ResolveNotFound(String),
     RecursiveFail(String),
 }
 
-pub trait IsProperty: Sized {
-    fn to_property(&self) -> Property<'_>;
+impl<E: std::error::Error> From<E> for PropertyError{
+  fn from(err: E) -> Self{
+    PropertyError::ParseFail
+  }
+}
 
+pub trait IsProperty: Sized {
+
+    fn is_empty(p: &Property<'_>) -> bool {
+       match p {
+         Property::S(s) => s.is_empty(),
+         Property::L(s) => s.is_empty(),
+         _ => false,
+       }
+    }
     fn from_property(_: Property<'_>) -> Result<Self, PropertyError>;
 }
 
-impl ToString for Property<'_> {
-    fn to_string(&self) -> String {
-        match self {
+impl IsProperty for String {
+
+    
+    fn is_empty(p: &Property<'_>) -> bool {
+        false 
+    }
+    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+        Ok(match p {
             Property::S(v) => v.to_string(),
-            Property::L(v) => v.to_string(),
+            Property::L(v) => v,
             Property::I(v) => v.to_string(),
             Property::F(v) => v.to_string(),
             Property::B(v) => v.to_string(),
-        }
+        })
     }
 }
 
-impl IsProperty for String {
-    fn to_property(&self) -> Property<'_> {
-        Property::S(self)
-    }
+macro_rules! impl_property_int {
+    ($($x:ident),+) => {$(
+            impl IsProperty for $x {
+                fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+Ok(match p {
+Property::S(s) => s.parse::<$x>()?,
+Property::L(s) => s.parse::<$x>()?,
+_ => Err(PropertyError::ParseFail)?,
+})
+                }
 
-    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
-        Ok(p.to_string())
-    }
+            }
+
+            )+}
 }
+
+
+impl_property_int!(i8);
 
 pub trait PropertyProvider {
     fn name(&self) -> &'static str;
@@ -92,21 +120,27 @@ impl Registry {
         key: &str,
         def: Option<Property<'a>>,
     ) -> Result<Option<Property<'a>>, PropertyError> {
-        match self.get_property(key).or(def) {
-            Some(Property::S(v)) => {
-                let mut history = HashSet::new();
-                history.insert(key.to_string());
-                Ok(Some(self.resolve(v, &mut history)?))
-            }
+        let key = Self::normalize_key(key);
+        let tmp;
+        let v = match self.get_property(key).or(def) {
+            Some(Property::S(v)) => v,
             Some(Property::L(v)) => {
-                let mut history = HashSet::new();
-                history.insert(key.to_string());
-                Ok(Some(self.resolve(&v[..], &mut history)?))
+                tmp = v;
+                &tmp[..]
             }
-            v => Ok(v),
-        }
+            v => return Ok(v),
+        };
+        let mut history = HashSet::new();
+        history.insert(key.to_string());
+        Ok(Some(self.resolve(v, &mut history)?))
     }
 
+    fn normalize_key(mut key: &str) -> &str {
+       while !key.is_empty() && &key[0..1]=="." {
+         key = &key[1..];
+       }
+       key
+    }
     fn merge(val: Option<String>, new: &str) -> String {
         match val {
             Some(mut v) => {
@@ -158,13 +192,14 @@ impl Registry {
                     if !history.insert(key.to_string()) {
                         return Err(PropertyError::RecursiveFail(key.to_owned()));
                     }
-                    let v = if let Some(p) = self.get_property(key) {
+                    let v = if let Some(p) = self.get(key, None)? {
                         String::from_property(p)?
                     } else if let Some(d) = def {
                         d.to_owned()
                     } else {
-                        return Err(PropertyError::ResolveFail);
+                        return Err(PropertyError::ResolveNotFound(key.to_string()));
                     };
+                    history.remove(key);
                     let v = Self::merge(stack.pop(), &v);
                     stack.push(v);
                     val = &val[pos + 1..];
@@ -242,7 +277,9 @@ mod tests {
                 .insert("g", "a")
                 .insert("h", "${${g}}")
                 .insert("i", "\\$\\{a\\}")
-                .insert("j", "${${g}:a}"),
+                .insert("j", "${${g}:a}")
+                .insert("k", "${a} ${a}")
+                .insert("l", "${c}"),
         );
 
         fn validate(env: &Registry, key: &str) {
@@ -259,6 +296,8 @@ mod tests {
         validate(&env, "h");
         validate(&env, "i");
         validate(&env, "j");
+        validate(&env, "k");
+        validate(&env, "l");
         validate(&env, "z");
     }
 }
