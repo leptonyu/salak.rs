@@ -1,4 +1,4 @@
-use crate::source::FileConfig;
+use crate::src::FileConfig;
 use crate::*;
 
 /// An implementation of [`Environment`] for registering [`PropertySource`].
@@ -22,7 +22,7 @@ impl SourceRegistry {
         };
 
         #[cfg(feature = "enable_rand")]
-        sr.register_source(Box::new(crate::source::rand::Random));
+        sr.register_source(Box::new(crate::src::rand::Random));
         sr
     }
 

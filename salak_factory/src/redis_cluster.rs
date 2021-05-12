@@ -122,7 +122,7 @@ mod tests {
     use super::*;
     #[test]
     fn redis_tests() {
-        let env = Salak::new()
+        let env = PropertyRegistry::new()
             .set_property("redis_cluster.url[0]", "redis://127.0.0.1/")
             .build();
         let pool = env.build::<RedisClusterConfig>();

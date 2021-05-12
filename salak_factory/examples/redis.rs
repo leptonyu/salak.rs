@@ -3,7 +3,7 @@ use salak::*;
 use salak_factory::*;
 
 fn main() {
-    let env = Salak::new()
+    let env = PropertyRegistry::new()
         .with_default_args(auto_read_sys_args_param!())
         .build();
     let _ = env.build::<LogConfig>().unwrap();

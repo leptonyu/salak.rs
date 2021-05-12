@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, error::Error};
 
 #[derive(Debug)]
 pub enum Property<'a> {
@@ -11,16 +11,16 @@ pub enum Property<'a> {
 
 #[derive(Debug)]
 pub enum PropertyError {
-    ParseFail,
+    ParseFail(Option<Box<dyn Error>>),
     ResolveFail,
     ResolveNotFound(String),
     RecursiveFail(String),
     NotFound(String),
 }
 
-impl<E: std::error::Error> From<E> for PropertyError {
+impl<E: Error + 'static> From<E> for PropertyError {
     fn from(err: E) -> Self {
-        PropertyError::ParseFail
+        PropertyError::ParseFail(Some(Box::new(err)))
     }
 }
 
@@ -55,14 +55,14 @@ impl IsProperty for bool {
             match v {
                 "yes" | "true" => Ok(true),
                 "no" | "false" => Ok(false),
-                _ => Err(PropertyError::ParseFail),
+                _ => Err(PropertyError::ParseFail(None)),
             }
         }
         match p {
             Property::B(v) => Ok(v),
             Property::S(v) => str_to_bool(v),
             Property::L(v) => str_to_bool(&v),
-            _ => Err(PropertyError::ParseFail),
+            _ => Err(PropertyError::ParseFail(None)),
         }
     }
 }
@@ -71,13 +71,13 @@ macro_rules! impl_property_num {
     ($($x:ident),+) => {$(
             impl IsProperty for $x {
                 fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
-Ok(match p {
-Property::S(s) => s.parse::<$x>()?,
-Property::L(s) => s.parse::<$x>()?,
-Property::I(s) => s as $x,
-Property::F(s) => s as $x,
-_ => Err(PropertyError::ParseFail)?,
-})
+                    Ok(match p {
+                    Property::S(s) => s.parse::<$x>()?,
+                    Property::L(s) => s.parse::<$x>()?,
+                    Property::I(s) => s as $x,
+                    Property::F(s) => s as $x,
+                    _ => Err(PropertyError::ParseFail(None))?,
+                    })
                 }
 
             }
@@ -318,7 +318,9 @@ impl<T: IsProperty> FromEnvironment for T {
     ) -> Result<Self, PropertyError> {
         match val {
             Some(v) => Self::from_property(v),
-            _ => Err(PropertyError::NotFound(key.to_string())),
+            _ => Err(PropertyError::NotFound(
+                Registry::normalize_key(key).to_string(),
+            )),
         }
     }
 }
@@ -329,14 +331,14 @@ impl Environment for Registry {
         key: &str,
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError> {
-        let val = self.get(key, def)?;
-        T::from_env(key, val, self)
+        T::from_env(key, self.get(key, def)?, self)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn property_test() {
         let env = Registry::new().register(
@@ -376,5 +378,43 @@ mod tests {
         validate(&env, "k");
         validate(&env, "l");
         validate(&env, "z");
+    }
+
+    #[derive(Debug)]
+    struct Config {
+        i8: i8,
+    }
+
+    impl FromEnvironment for Config {
+        fn from_env(
+            key: &str,
+            val: Option<Property<'_>>,
+            env: &impl Environment,
+        ) -> Result<Self, PropertyError> {
+            Ok(Config {
+                i8: env.require(&format!("{}.i8", key))?,
+            })
+        }
+    }
+    #[test]
+    fn config_test() {
+        let env = Registry::new().register(
+            system_environment()
+                .insert("a", "0")
+                .insert("b", "${b}")
+                .insert("c", "${a}")
+                .insert("d", "${z}")
+                .insert("e", "${z:}")
+                .insert("f", "${z:${a}}")
+                .insert("g", "a")
+                .insert("h", "${${g}}")
+                .insert("i", "\\$\\{a\\}")
+                .insert("j", "${${g}:a}")
+                .insert("k", "${a} ${a}")
+                .insert("l", "${c}"),
+        );
+
+        println!("{:?}", env.require::<Config>(""));
+        println!("{:?}", env.require::<Option<Config>>(""));
     }
 }

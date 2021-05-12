@@ -195,7 +195,7 @@ pub trait Factory: Environment {
     ) -> Result<T::Product, PropertyError>;
 }
 
-impl Factory for Salak {
+impl Factory for PropertyRegistry {
     fn build_by_namespace_and_customizer<T: Buildable>(
         &self,
         namespace: &str,

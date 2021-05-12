@@ -177,7 +177,7 @@ mod tests {
     use super::*;
     #[test]
     fn postgres_tests() {
-        let env = Salak::new().build();
+        let env = PropertyRegistry::new().build();
         let pool = env.build::<PostgresConfig>();
         assert_eq!(true, pool.is_ok());
         print_keys::<PostgresConfig>();

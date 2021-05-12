@@ -59,7 +59,7 @@ name = "property"
 [features]
 default = [
   'enable_derive',
-  'enable_toml',
+  'toml',
   'enable_log',
   'enable_pico',
 ]
@@ -68,12 +68,10 @@ enable_derive = ['salak_derive']
 enable_log = ['log']
 enable_pico = ['pico-args']
 enable_rand = ['rand']
-enable_toml = ['toml']
-enable_yaml = ['yaml-rust']
+yaml = ['yaml-rust']
 
 [workspace]
 members = [
   '.',
   'salak_derive',
-  'salak_factory',
 ]

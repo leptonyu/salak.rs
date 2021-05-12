@@ -21,7 +21,7 @@ struct Max {
 }
 
 fn main() {
-    let env = Salak::new()
+    let env = PropertyRegistry::new()
         .with_default_args(auto_read_sys_args_param!())
         .build();
     let conf = env.load_config::<Max>().unwrap();
@@ -118,7 +118,7 @@ fn init_env() {
         .init();
 }
 
-fn init_toy(env: &Salak) {
+fn init_toy(env: &PropertyRegistry) {
     let logger = env.build::<LogConfig>().unwrap();
     let _ = set_global_default(registry().with(logger));
 }

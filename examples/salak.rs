@@ -37,7 +37,7 @@ pub enum Hello {
 
 fn main() {
     env_logger::init();
-    let env = Salak::new()
+    let env = PropertyRegistry::new()
         .with_default_args(auto_read_sys_args_param!())
         .set_property("database.url", "localhost:5432")
         .set_property("database.description", "\\$\\{Hello\\}")

@@ -130,13 +130,13 @@
 #[cfg(feature = "enable_log")]
 use log::*;
 
-use std::collections::HashSet;
-use std::hash::BuildHasher;
-use std::hash::Hash;
+// use std::collections::HashSet;
+// use std::hash::BuildHasher;
+// use std::hash::Hash;
 
-#[cfg(test)]
-#[macro_use(quickcheck)]
-extern crate quickcheck_macros;
+// #[cfg(test)]
+// #[macro_use(quickcheck)]
+// extern crate quickcheck_macros;
 
 #[cfg(feature = "enable_derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
@@ -153,116 +153,96 @@ pub use salak_derive::FromEnvironment;
 mod err;
 mod utils;
 
-pub mod property;
+pub use crate::raw::*;
+mod raw;
+
+pub use crate::env::*;
+mod env;
 
 pub use crate::err::PropertyError;
 pub use crate::utils::SalakStringUtil;
 
-mod env;
+// mod env;
 // pub(crate) use crate::env::factory::FactoryRegistry;
-pub use crate::env::{
-    // factory::{FacRef, Factory, FactoryContext, FactoryScope, FromFactory},
-    placeholder::PlaceholderResolver,
-    registry::SourceRegistry,
-    salak::{Salak, SalakBuilder},
-};
+// pub use crate::env::{
+//     // factory::{FacRef, Factory, FactoryContext, FactoryScope, FromFactory},
+//     placeholder::PlaceholderResolver,
+//     registry::SourceRegistry,
+//     salak::{Salak, SalakBuilder},
+// };
 
 mod source;
+#[cfg(feature = "toml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "toml")))]
+mod source_toml;
+#[cfg(feature = "toml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "toml")))]
+pub use source_toml::Toml;
+#[cfg(feature = "yaml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
+mod source_rand;
+#[cfg(feature = "rand")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+mod source_yaml;
 
-#[cfg(feature = "enable_toml")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
-pub use crate::source::toml::Toml;
-#[cfg(feature = "enable_yaml")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
-pub use crate::source::yaml::Yaml;
-pub use crate::source::{args::*, env::SysEnvPropertySource, map::MapPropertySource};
+// #[cfg(feature = "enable_toml")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "enable_toml")))]
+// pub use crate::source::toml::Toml;
+// #[cfg(feature = "enable_yaml")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "enable_yaml")))]
+// pub use crate::source::yaml::Yaml;
+// pub use crate::source::{args::*, env::SysEnvPropertySource, map::MapPropertySource};
 
 #[allow(unused)]
 pub(crate) const NOT_POSSIBLE: &str = "Not possible";
 
 /// Raw property.
 #[derive(Clone, Debug)]
-pub enum Property {
-    /// String value.
-    Str(String),
-    /// Integer value.
-    Int(i64),
-    /// Float value.
-    Float(f64),
-    /// Bool value.
-    Bool(bool),
+pub enum Property<'a> {
+    /// Str slice
+    S(&'a str),
+    /// Owned String
+    O(String),
+    /// Number
+    I(i64),
+    /// Float
+    F(f64),
+    /// Bool
+    B(bool),
 }
 
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.
-pub trait PropertySource: Sync + Send {
+pub trait PropertySource {
     /// [`PropertySource`] name.
-    fn name(&self) -> String;
+    fn name(&self) -> &str;
+
     /// Get property by name.
-    fn get_property(&self, key: &str) -> Option<Property>;
+    fn get_property(&self, key: &str) -> Option<Property<'_>>;
+
     /// Check whether property exists.
-    fn contains_property(&self, key: &str) -> bool {
+    fn contains_key(&self, key: &str) -> bool {
         self.get_property(key).is_some()
     }
     /// Check whether the [`PropertySource`] is empty.
     /// Empty source will not be ignored when register to registry.
     fn is_empty(&self) -> bool;
-
-    /// Find all next level keys with prefix.
-    fn get_keys(&self, prefix: &str) -> Vec<String>;
-
-    /// Reload [`PropertySource`], if this [`PropertySource`] not support reload, then just return `Ok(None)`.
-    fn load(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError>;
 }
 
 /// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
-pub trait Environment: Sync + Send {
-    /// Check whether property exists.
-    fn contains(&self, key: &str) -> bool {
-        self.require::<Property>(key).is_ok()
-    }
+pub trait Environment {
     /// Get property with specific type.
-    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError>;
+    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
+        self.require_def(key, None)
+    }
 
     /// Get property with specific type, if property not exists, then return default value.
-    fn require_or<T: FromEnvironment>(&self, key: &str, default: T) -> Result<T, PropertyError> {
-        match self.require::<Option<T>>(key) {
-            Ok(Some(a)) => Ok(a),
-            Ok(None) => Ok(default),
-            Err(e) => Err(e),
-        }
-    }
-    /// Get property with specific type, if error happens then return [`None`].
-    fn get<T: FromEnvironment>(&self, key: &str) -> Option<T> {
-        self.require(key).ok()
-    }
-    /// Get property with specific type, if error happens then return default value.
-    fn get_or<T: FromEnvironment>(&self, key: &str, default: T) -> T {
-        self.get(key).unwrap_or(default)
-    }
 
-    /// Get Resolved Keys.
-    fn get_resolved_key(
+    fn require_def<T: FromEnvironment>(
         &self,
         key: &str,
-        default: Option<Property>,
-    ) -> Result<Option<Property>, PropertyError>;
-
-    // /// Resolve placeholder value.
-    // fn resolve_placeholder(&self, value: String) -> Result<Option<Property>, PropertyError>;
-
-    /// Load properties which has `#[salak(prefix="prefix")]`
-    #[cfg(feature = "enable_derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "enable_derive")))]
-    fn load_config<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
-        self.require(T::prefix())
-    }
-
-    /// Find all next level keys with prefix.
-    fn find_keys(&self, prefix: &str) -> Vec<String>;
-
-    /// Reload [`Environment`].
-    fn reload(&mut self) -> Result<(), PropertyError>;
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError>;
 }
 
 /// Convert from [`Environment`].
@@ -273,121 +253,14 @@ pub trait FromEnvironment: Sized {
     /// * `env` - Instance of [`Environment`]
     fn from_env(
         key: &str,
-        property: Option<Property>,
+        val: Option<Property<'_>>,
         env: &impl Environment,
     ) -> Result<Self, PropertyError>;
-
-    /// Empty check for some containers, such as [`Vec<T>`] or [`Option<T>`].
-    fn check_is_empty(&self) -> bool {
-        false
-    }
-
-    #[doc(hidden)]
-    /// Handle special case such as property not found.
-    fn from_err(err: PropertyError) -> Result<Self, PropertyError> {
-        Err(err)
-    }
-
-    #[doc(hidden)]
-    #[cfg(feature = "enable_derive")]
-    fn load_default() -> Vec<(String, Property)> {
-        vec![]
-    }
-
-    #[doc(hidden)]
-    #[cfg(feature = "enable_derive")]
-    fn load_keys() -> Vec<(String, bool, Option<Property>)> {
-        vec![]
-    }
 }
 
-#[cfg(feature = "enable_toml")]
-#[cfg(feature = "enable_derive")]
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use std::collections::HashMap;
-
-    #[derive(FromEnvironment, Debug)]
-    struct DatabaseConfigObj {
-        hello: String,
-        world: Option<String>,
+fn normalize_key(mut key: &str) -> &str {
+    while !key.is_empty() && &key[0..1] == "." {
+        key = &key[1..];
     }
-    #[derive(FromEnvironment, Debug)]
-    struct DatabaseConfigDetail {
-        #[salak(default = "str")]
-        option_str: String,
-        #[salak(default = 1)]
-        option_i64: i64,
-        option_arr: Vec<i64>,
-        option_multi_arr: Vec<Vec<i64>>,
-        option_obj: Vec<DatabaseConfigObj>,
-    }
-
-    #[derive(FromEnvironment, Debug)]
-    #[salak(prefix = "database")]
-    struct DatabaseConfig {
-        url: String,
-        name: String,
-        #[salak(default = "${database.name}")]
-        username: String,
-        password: Option<String>,
-        description: String,
-        detail: DatabaseConfigDetail,
-    }
-
-    #[derive(FromEnvironment, Debug)]
-    struct NoField {}
-
-    #[test]
-    fn integration_tests() {
-        let env = Salak::new()
-            .set_property("database.detail.option_arr[0]", 10)
-            .set_property("database.url", "localhost:5432")
-            .set_property("database.name", "salak")
-            .set_property("database.description", "\\$\\{Hello\\}")
-            .build();
-
-        let ret = env.load_config::<DatabaseConfig>();
-        assert_eq!(true, ret.is_ok());
-        let ret = ret.unwrap();
-        assert_eq!("localhost:5432", ret.url);
-        assert_eq!("salak", ret.name);
-        assert_eq!("salak", ret.username);
-        assert_eq!(None, ret.password);
-        assert_eq!("${Hello}", ret.description);
-        let ret = ret.detail;
-        assert_eq!("str", ret.option_str);
-        assert_eq!(1, ret.option_i64);
-        assert_eq!(1, ret.option_arr.len());
-        assert_eq!(10, ret.option_arr[0]);
-        assert_eq!(0, ret.option_multi_arr.len());
-        assert_eq!(0, ret.option_obj.len());
-
-        let ret = env.require::<HashMap<String, String>>("database");
-        assert_eq!(true, ret.is_ok());
-        let ret = ret.unwrap();
-        assert_eq!(3, ret.len());
-    }
-
-    #[derive(FromEnvironment, Debug)]
-    struct Options {
-        #[salak(default = "cidr")]
-        mode: String,
-        #[salak(default = "\t")]
-        sep: String,
-        #[salak(default = "false")]
-        count: bool,
-    }
-
-    #[test]
-    fn placeholder_tests() {
-        let env = Salak::new().build();
-        let ret = env.require::<Options>("");
-        assert_eq!(true, ret.is_ok());
-        let ret = ret.unwrap();
-        assert_eq!("cidr", ret.mode);
-        assert_eq!("\t", ret.sep);
-        assert_eq!(false, ret.count);
-    }
+    key
 }
