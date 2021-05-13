@@ -142,3 +142,19 @@ impl<T: IsProperty> FromEnvironment for T {
         }
     }
 }
+
+impl<T: FromEnvironment> FromEnvironment for Vec<T> {
+    fn from_env(
+        key: &str,
+        _: Option<Property<'_>>,
+        env: &impl Environment,
+    ) -> Result<Self, PropertyError> {
+        let mut vs = vec![];
+        let mut i = 0;
+        while let Some(v) = env.require::<Option<T>>(&format!("{}[{}]", key, i))? {
+            vs.push(v);
+            i += 1;
+        }
+        Ok(vs)
+    }
+}

@@ -26,30 +26,42 @@ lazy_static::lazy_static! {
     static ref P: &'static [char] = &['.', '[', ']'];
 }
 
+fn sub_value<'a>(toml: &'a Toml, prefix: &str) -> Option<&'a Value> {
+    let mut v = &toml.value;
+    for n in prefix.split(&P[..]) {
+        if n.is_empty() {
+            continue;
+        }
+        match v {
+            Value::Table(t) => v = t.get(n)?,
+            Value::Array(vs) => v = vs.get(n.parse::<usize>().ok()?)?,
+            _ => return None,
+        }
+    }
+    Some(v)
+}
+
 impl PropertySource for Toml {
     fn name(&self) -> &str {
         &self.name
     }
 
     fn get_property(&self, key: &str) -> Option<Property<'_>> {
-        let mut v = &self.value;
-        for n in key.split(&P[..]) {
-            if n.is_empty() {
-                continue;
-            }
-            match v {
-                Value::Table(t) => v = t.get(n)?,
-                Value::Array(vs) => v = vs.get(n.parse::<usize>().ok()?)?,
-                _ => return None,
-            }
-        }
-        match v {
+        match sub_value(self, key)? {
             Value::String(vs) => Some(Property::S(vs)),
             Value::Integer(vs) => Some(Property::I(*vs)),
             Value::Float(vs) => Some(Property::F(*vs)),
             Value::Boolean(vs) => Some(Property::B(*vs)),
             Value::Datetime(vs) => Some(Property::O(vs.to_string())),
             _ => None,
+        }
+    }
+
+    fn sub_keys(&self, prefix: &str) -> Vec<&str> {
+        match sub_value(self, key)? {
+            Value::Table(t) => t.keys(),
+            Value::Array(vs) => vs.len(), 
+            _ => vec![],
         }
     }
 

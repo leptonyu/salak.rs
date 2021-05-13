@@ -118,7 +118,8 @@ mod tests {
             .set("j", "${${g}:a}")
             .set("k", "${a} ${a}")
             .set("l", "${c}")
-            .build().unwrap();
+            .build()
+            .unwrap();
 
         fn validate(env: &Salak, key: &str) {
             println!("{}: {:?}", key, env.require::<String>(key));
@@ -173,7 +174,8 @@ mod tests {
             .set("j", "${${g}:a}")
             .set("k", "${a} ${a}")
             .set("l", "${c}")
-            .build().unwrap();
+            .build()
+            .unwrap();
         println!("{:?}", env.require::<Config>(""));
         println!("{:?}", env.require::<Option<Config>>(""));
     }

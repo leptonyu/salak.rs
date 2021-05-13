@@ -51,6 +51,18 @@ impl PropertySource for MapProvider {
         self.map.contains_key(key)
     }
 
+    fn sub_keys(&self, prefix: &str) -> Vec<&str> {
+        let mut keys = vec![];
+        for key in self.map.keys() {
+            if let Some(k) = key.strip_prefix(prefix) {
+                let k = normalize_key(k);
+                let pos = k.find('.').unwrap_or(k.len());
+                keys.push(&k[0..pos]);
+            }
+        }
+        keys
+    }
+
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

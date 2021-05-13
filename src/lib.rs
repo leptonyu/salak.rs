@@ -88,6 +88,10 @@ pub trait PropertySource {
     fn contains_key(&self, key: &str) -> bool {
         self.get_property(key).is_some()
     }
+
+    /// Return next sub keys with prefix, sub keys are seperated by dot(.) in a key.
+    fn sub_keys(&self, prefix: &str) -> Vec<&str>;
+
     /// Check whether the [`PropertySource`] is empty.
     /// Empty source will not be ignored when register to registry.
     fn is_empty(&self) -> bool;
