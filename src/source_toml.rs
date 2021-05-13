@@ -6,6 +6,7 @@ use crate::{
 };
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct Toml {
     name: String,
     value: Value,

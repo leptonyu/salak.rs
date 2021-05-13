@@ -5,21 +5,27 @@ use crate::{
     source::{system_environment, FileConfig, MapProvider, PropertyRegistry},
     Environment, FromEnvironment, IsProperty, Property, PropertyError, PropertySource,
 };
+
+/// A builder which can configure for how to build a salak env.
+#[derive(Debug)]
 pub struct SalakBuilder {
     args: HashMap<String, String>,
 }
 
 impl SalakBuilder {
+    /// Set argument properties.
     pub fn set_args(mut self, args: HashMap<String, String>) -> Self {
         self.args.extend(args);
         self
     }
 
+    /// Set property by coding.
     pub fn set<K: Into<String>, V: Into<String>>(mut self, k: K, v: V) -> Self {
         self.args.insert(k.into(), v.into());
         self
     }
 
+    /// Build salak env.
     pub fn build(self) -> Result<Salak, PropertyError> {
         let mut env = PropertyRegistry::new();
 
@@ -29,7 +35,7 @@ impl SalakBuilder {
         }
 
         env = env
-            .register(MapProvider::new("Arguments").extend(self.args))
+            .register(MapProvider::new("Arguments").set_all(self.args))
             .register(system_environment());
 
         #[cfg(any(feature = "toml", feature = "yaml"))]
@@ -50,19 +56,41 @@ impl SalakBuilder {
     }
 }
 
+/// Salak is a wrapper for salak env, all functions this crate provides will be implemented on it.
+/// > Provides a group of sources that have predefined orders.
+/// > Provides custom source registration.
+///
+/// Predefined sources:
+/// 0. Source for generating random values with following keys..
+///   > random.i8
+///   > random.i16
+///   > random.i32
+///   > random.i64
+///   > random.u8
+///   > random.u16
+///   > random.u32
+/// 1. Source from arguments and direct coding.
+/// 2. Source from environment.
+/// 3. Source from toml if feature enabled.
+/// 4. Source from yaml if feature enabled.
+#[allow(missing_debug_implementations)]
 pub struct Salak(PropertyRegistry);
 
 impl Salak {
+    /// Create a builder for configure salak env.
     pub fn builder() -> SalakBuilder {
         SalakBuilder {
             args: HashMap::new(),
         }
     }
 
+    /// Create a new salak env.
     pub fn new() -> Result<Self, PropertyError> {
         Self::builder().build()
     }
 
+    /// Register source to registry, source that register earlier that higher priority for
+    /// configuration.
     pub fn register<P: PropertySource + 'static>(&mut self, provider: P) {
         self.0.register_by_ref(provider)
     }

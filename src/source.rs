@@ -9,12 +9,15 @@ use crate::{
     PropertySource,
 };
 
+/// An in-memory source, which is a string to string hashmap.
+#[derive(Debug)]
 pub struct MapProvider {
     name: String,
     map: HashMap<String, String>,
 }
 
 impl MapProvider {
+    /// Create an in-memory source with a name.
     pub fn new(name: &'static str) -> Self {
         Self {
             name: name.to_owned(),
@@ -22,12 +25,14 @@ impl MapProvider {
         }
     }
 
-    pub fn insert<K: Into<String>, V: Into<String>>(mut self, key: K, val: V) -> Self {
+    /// Set property to the source.
+    pub fn set<K: Into<String>, V: Into<String>>(mut self, key: K, val: V) -> Self {
         self.map.insert(key.into(), val.into());
         self
     }
 
-    pub fn extend(mut self, map: HashMap<String, String>) -> Self {
+    /// Set a batch of properties to the source.
+    pub fn set_all(mut self, map: HashMap<String, String>) -> Self {
         self.map.extend(map);
         self
     }
@@ -51,6 +56,7 @@ impl PropertySource for MapProvider {
     }
 }
 
+/// Create source from system environment.
 pub fn system_environment() -> MapProvider {
     MapProvider {
         name: "SystemEnvironment".to_owned(),
@@ -82,7 +88,14 @@ impl PropertySource for PropertyRegistry {
     }
 }
 
+impl Default for PropertyRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PropertyRegistry {
+    /// Create an empty source.
     pub fn new() -> Self {
         Self { providers: vec![] }
     }
@@ -93,12 +106,14 @@ impl PropertyRegistry {
         }
     }
 
+    /// Register source to registry, sources that register earlier will have higher priority of
+    /// configuration.
     pub fn register<P: PropertySource + 'static>(mut self, provider: P) -> Self {
         self.register_by_ref(provider);
         self
     }
 
-    pub fn get<'a>(
+    pub(crate) fn get<'a>(
         &'a self,
         key: &str,
         def: Option<Property<'a>>,
@@ -162,7 +177,7 @@ impl PropertyRegistry {
                 "}" => {
                     let last = stack.pop();
                     let v = Self::merge(last, &val[..pos]);
-                    let (key, def) = match v.find(":") {
+                    let (key, def) = match v.find(':') {
                         Some(pos) => (&v[..pos], Some(&v[pos + 1..])),
                         _ => (&v[..], None),
                     };
@@ -201,7 +216,7 @@ pub(crate) struct FileConfig {
     profile: String,
 }
 
-const PREFIX: &'static str = "application";
+const PREFIX: &str = "application";
 
 impl FromEnvironment for FileConfig {
     fn from_env(

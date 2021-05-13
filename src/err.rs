@@ -18,6 +18,13 @@ pub enum PropertyError {
     NotFound(String),
 }
 
+impl PropertyError {
+    /// Create parse fail error.
+    pub fn parse_fail(_msg: &str) -> Self {
+        PropertyError::ParseFail(None)
+    }
+}
+
 impl<E: Error + 'static> From<E> for PropertyError {
     fn from(err: E) -> Self {
         PropertyError::ParseFail(Some(Box::new(err)))
