@@ -58,16 +58,13 @@ name = "property"
 
 [features]
 default = [
-  'enable_derive',
+  'derive',
   'toml',
-  'enable_log',
   'enable_pico',
 ]
 enable_clap = ['clap']
-enable_derive = ['salak_derive']
-enable_log = ['log']
+derive = ['salak_derive']
 enable_pico = ['pico-args']
-enable_rand = ['rand']
 yaml = ['yaml-rust']
 
 [workspace]

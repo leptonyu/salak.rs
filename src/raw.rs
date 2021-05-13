@@ -78,8 +78,6 @@ macro_rules! impl_property_num {
 
 impl_property_num!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, isize, usize);
 
-
-
 macro_rules! impl_property_float {
     ($($x:ident),+) => {$(
             #[allow(trivial_numeric_casts)]
@@ -100,3 +98,83 @@ macro_rules! impl_property_float {
 }
 
 impl_property_float!(f32, f64);
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn property_test() {
+        let env = Salak::builder()
+            .set("a", "0")
+            .set("b", "${b}")
+            .set("c", "${a}")
+            .set("d", "${z}")
+            .set("e", "${z:}")
+            .set("f", "${z:${a}}")
+            .set("g", "a")
+            .set("h", "${${g}}")
+            .set("i", "\\$\\{a\\}")
+            .set("j", "${${g}:a}")
+            .set("k", "${a} ${a}")
+            .set("l", "${c}")
+            .build().unwrap();
+
+        fn validate(env: &Salak, key: &str) {
+            println!("{}: {:?}", key, env.require::<String>(key));
+            println!("{}: {:?}", key, env.require::<bool>(key));
+            println!("{}: {:?}", key, env.require::<u8>(key));
+            println!("{}: {:?}", key, env.require::<Option<u8>>(key));
+        }
+
+        validate(&env, "a");
+        validate(&env, "b");
+        validate(&env, "c");
+        validate(&env, "d");
+        validate(&env, "e");
+        validate(&env, "f");
+        validate(&env, "g");
+        validate(&env, "h");
+        validate(&env, "i");
+        validate(&env, "j");
+        validate(&env, "k");
+        validate(&env, "l");
+        validate(&env, "z");
+    }
+
+    #[derive(Debug)]
+    struct Config {
+        i8: i8,
+    }
+
+    impl FromEnvironment for Config {
+        fn from_env(
+            key: &str,
+            _: Option<Property<'_>>,
+            env: &impl Environment,
+        ) -> Result<Self, PropertyError> {
+            Ok(Config {
+                i8: env.require(&format!("{}.i8", key))?,
+            })
+        }
+    }
+    #[test]
+    fn config_test() {
+        let env = Salak::builder()
+            .set("a", "0")
+            .set("b", "${b}")
+            .set("c", "${a}")
+            .set("d", "${z}")
+            .set("e", "${z:}")
+            .set("f", "${z:${a}}")
+            .set("g", "a")
+            .set("h", "${${g}}")
+            .set("i", "\\$\\{a\\}")
+            .set("j", "${${g}:a}")
+            .set("k", "${a} ${a}")
+            .set("l", "${c}")
+            .build().unwrap();
+        println!("{:?}", env.require::<Config>(""));
+        println!("{:?}", env.require::<Option<Config>>(""));
+    }
+}
