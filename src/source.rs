@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     normalize_key, Environment, FromEnvironment, IsProperty, Property, PropertyError,
-    PropertySource,
+    PropertySource, SubKeys,
 };
 
 /// An in-memory source, which is a string to string hashmap.
@@ -51,16 +51,14 @@ impl PropertySource for MapProvider {
         self.map.contains_key(key)
     }
 
-    fn sub_keys(&self, prefix: &str) -> Vec<&str> {
-        let mut keys = vec![];
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
         for key in self.map.keys() {
             if let Some(k) = key.strip_prefix(prefix) {
                 let k = normalize_key(k);
-                let pos = k.find('.').unwrap_or(k.len());
-                keys.push(&k[0..pos]);
+                let pos = k.find('.').unwrap_or_else(|| k.len());
+                sub_keys.insert(&k[0..pos]);
             }
         }
-        keys
     }
 
     fn is_empty(&self) -> bool {
@@ -97,6 +95,12 @@ impl PropertySource for PropertyRegistry {
 
     fn is_empty(&self) -> bool {
         self.providers.is_empty() || self.providers.iter().all(|f| f.is_empty())
+    }
+
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+        self.providers
+            .iter()
+            .for_each(|f| f.sub_keys(prefix, sub_keys));
     }
 }
 

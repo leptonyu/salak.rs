@@ -1,4 +1,4 @@
-use crate::{Property, PropertySource};
+use crate::{Property, PropertySource, SubKeys};
 
 pub(crate) struct Random;
 
@@ -21,5 +21,17 @@ impl PropertySource for Random {
 
     fn is_empty(&self) -> bool {
         false
+    }
+
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+        if prefix == "random" {
+            sub_keys.insert("u8");
+            sub_keys.insert("u16");
+            sub_keys.insert("u32");
+            sub_keys.insert("i8");
+            sub_keys.insert("i16");
+            sub_keys.insert("i32");
+            sub_keys.insert("i64");
+        }
     }
 }

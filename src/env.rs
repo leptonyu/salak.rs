@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
+use std::collections::HashSet;
+
 use crate::{
     normalize_key,
     source::{system_environment, FileConfig, MapProvider, PropertyRegistry},
-    Environment, FromEnvironment, IsProperty, Property, PropertyError, PropertySource,
+    Environment, FromEnvironment, IsProperty, Property, PropertyError, PropertySource, SubKeys,
 };
 
 /// A builder which can configure for how to build a salak env.
@@ -104,6 +106,10 @@ impl Environment for Salak {
     ) -> Result<T, PropertyError> {
         self.0.require_def(key, def)
     }
+
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+        PropertySource::sub_keys(&self.0, prefix, sub_keys)
+    }
 }
 
 impl Environment for PropertyRegistry {
@@ -113,6 +119,10 @@ impl Environment for PropertyRegistry {
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError> {
         T::from_env(key, self.get(key, def)?, self)
+    }
+
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+        PropertySource::sub_keys(self, prefix, sub_keys)
     }
 }
 
@@ -149,12 +159,73 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         _: Option<Property<'_>>,
         env: &impl Environment,
     ) -> Result<Self, PropertyError> {
+        let mut sub_keys = SubKeys::new();
+        env.sub_keys(key, &mut sub_keys);
         let mut vs = vec![];
-        let mut i = 0;
-        while let Some(v) = env.require::<Option<T>>(&format!("{}[{}]", key, i))? {
-            vs.push(v);
-            i += 1;
+        if let Some(max) = sub_keys.upper {
+            let mut i = 0;
+            while let Some(v) = env.require::<Option<T>>(&format!("{}[{}]", key, i))? {
+                vs.push(v);
+                i += 1;
+                if i > max {
+                    break;
+                }
+            }
         }
         Ok(vs)
+    }
+}
+
+impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
+    fn from_env(
+        key: &str,
+        _: Option<Property<'_>>,
+        env: &impl Environment,
+    ) -> Result<Self, PropertyError> {
+        let mut sub_keys = SubKeys::new();
+        env.sub_keys(key, &mut sub_keys);
+        let mut v = HashMap::new();
+        for k in sub_keys.str_keys() {
+            if let Some(val) = env.require::<Option<T>>(&format!("{}.{}", key, k))? {
+                v.insert(k.to_owned(), val);
+            }
+        }
+        Ok(v)
+    }
+}
+
+impl<T> FromEnvironment for HashSet<T>
+where
+    T: Eq + FromEnvironment + std::hash::Hash,
+{
+    fn from_env(
+        key: &str,
+        val: Option<Property<'_>>,
+        env: &impl Environment,
+    ) -> Result<Self, PropertyError> {
+        Ok(<Vec<T>>::from_env(key, val, env)?.into_iter().collect())
+    }
+}
+
+impl<'a> SubKeys<'a> {
+    pub(crate) fn str_keys(&self) -> Vec<&'a str> {
+        self.keys
+            .iter()
+            .filter(|a| {
+                if let Some(c) = a.chars().next() {
+                    c < '0' && c > '9'
+                } else {
+                    false
+                }
+            })
+            .copied()
+            .collect()
+    }
+
+    pub(crate) fn new() -> Self {
+        Self {
+            keys: HashSet::new(),
+            upper: None,
+        }
     }
 }

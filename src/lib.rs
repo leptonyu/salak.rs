@@ -21,6 +21,8 @@
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 mod derive;
+use std::collections::HashSet;
+
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use crate::derive::{AutoDeriveFromEnvironment, DefaultSourceFromEnvironment};
@@ -75,6 +77,33 @@ pub enum Property<'a> {
     B(bool),
 }
 
+/// Sub keys iterator.
+#[derive(Debug)]
+pub struct SubKeys<'a> {
+    keys: HashSet<&'a str>,
+    upper: Option<usize>,
+}
+
+impl<'a> SubKeys<'a> {
+    /// Insert a sub key to sets.
+    pub fn insert(&mut self, key: &'a str) {
+        if key.is_empty() {
+            return;
+        }
+        self.keys.insert(key);
+    }
+
+    /// Set max array index.
+    pub fn max_index(&mut self, max: usize) {
+        if let Some(i) = self.upper {
+            if i >= max {
+                return;
+            }
+        }
+        self.upper = Some(max);
+    }
+}
+
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.
 pub trait PropertySource {
@@ -90,7 +119,7 @@ pub trait PropertySource {
     }
 
     /// Return next sub keys with prefix, sub keys are seperated by dot(.) in a key.
-    fn sub_keys(&self, prefix: &str) -> Vec<&str>;
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>);
 
     /// Check whether the [`PropertySource`] is empty.
     /// Empty source will not be ignored when register to registry.
@@ -111,6 +140,9 @@ pub trait Environment {
         key: &str,
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError>;
+
+    #[doc(hidden)]
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>);
 }
 
 /// Convert from [`Environment`].

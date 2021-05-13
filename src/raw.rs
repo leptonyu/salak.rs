@@ -118,6 +118,7 @@ mod tests {
             .set("j", "${${g}:a}")
             .set("k", "${a} ${a}")
             .set("l", "${c}")
+            .set("m", "${no_found:${no_found_2:hello}}")
             .build()
             .unwrap();
 
@@ -140,6 +141,7 @@ mod tests {
         validate(&env, "j");
         validate(&env, "k");
         validate(&env, "l");
+        validate(&env, "m");
         validate(&env, "z");
     }
 

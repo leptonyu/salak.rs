@@ -2,7 +2,7 @@ use toml::Value;
 
 use crate::{
     source::{FileConfig, PropertyRegistry},
-    Property, PropertyError, PropertySource,
+    Property, PropertyError, PropertySource, SubKeys,
 };
 
 #[doc(hidden)]
@@ -57,11 +57,11 @@ impl PropertySource for Toml {
         }
     }
 
-    fn sub_keys(&self, prefix: &str) -> Vec<&str> {
-        match sub_value(self, key)? {
-            Value::Table(t) => t.keys(),
-            Value::Array(vs) => vs.len(), 
-            _ => vec![],
+    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+        match sub_value(self, prefix) {
+            Some(Value::Table(t)) => t.keys().for_each(|f| sub_keys.insert(f)),
+            Some(Value::Array(vs)) => sub_keys.max_index(vs.len()),
+            _ => {}
         }
     }
 

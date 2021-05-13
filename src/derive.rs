@@ -15,3 +15,25 @@ impl<P: DefaultSourceFromEnvironment> DefaultSourceFromEnvironment for Option<P>
         P::prefix()
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::*;
+
+    #[derive(FromEnvironment, Debug)]
+    struct Config {
+        #[salak(default = "world")]
+        hello: String,
+        world: Option<String>,
+        #[salak(name = "hello")]
+        hey: Option<String>,
+    }
+
+    #[test]
+    fn config_test() {
+        let env = Salak::new().unwrap();
+
+        println!("{:?}", env.require::<Config>("hello"))
+    }
+}
