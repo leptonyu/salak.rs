@@ -77,3 +77,26 @@ macro_rules! impl_property_num {
 }
 
 impl_property_num!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, isize, usize);
+
+
+
+macro_rules! impl_property_float {
+    ($($x:ident),+) => {$(
+            #[allow(trivial_numeric_casts)]
+            impl IsProperty for $x {
+                fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+                    Ok(match p {
+                    Property::S(s) => s.parse::<$x>()?,
+                    Property::O(s) => s.parse::<$x>()?,
+                    Property::I(s) => s as $x,
+                    Property::F(s) => check_f64(s)? as $x,
+                    _ => return Err(PropertyError::parse_fail("can not convert bool to num")),
+                    })
+                }
+
+            }
+
+            )+}
+}
+
+impl_property_float!(f32, f64);
