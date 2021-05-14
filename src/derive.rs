@@ -22,24 +22,29 @@ mod tests {
     use crate::*;
 
     #[derive(FromEnvironment, Debug)]
+    #[salak(prefix = "salak")]
     struct Config {
         #[salak(default = "world")]
         hello: String,
         world: Option<String>,
         #[salak(name = "hello")]
         hey: Option<String>,
+        #[salak(default = 123)]
+        num: u8,
     }
 
     #[test]
     fn config_test() {
         let env = Salak::new().unwrap();
 
-        println!("{:?}", env.require::<Config>("hello"))
+        println!("{:?}", env.require::<Config>("hello"));
+        println!("{:?}", env.get::<Config>());
     }
 
     #[derive(FromEnvironment, Debug)]
     enum Value {
         Hello,
+        World,
     }
 
     #[test]

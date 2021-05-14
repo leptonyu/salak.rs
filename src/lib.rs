@@ -77,6 +77,19 @@ pub enum Property<'a> {
     B(bool),
 }
 
+pub struct Key<'a> {
+    key: Vec<&'a str>,
+}
+
+impl<'a> Key<'a> {
+    fn new() -> Self {
+        Self { key: vec![] }
+    }
+
+    pub fn push(&mut self, k: &'a str) {
+        self.key.push(k)
+    }
+}
 /// Sub keys iterator.
 #[derive(Debug)]
 pub struct SubKeys<'a> {
@@ -143,6 +156,10 @@ pub trait Environment {
 
     #[doc(hidden)]
     fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>);
+
+    fn get<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
+        self.require::<T>(T::prefix())
+    }
 }
 
 /// Convert from [`Environment`].

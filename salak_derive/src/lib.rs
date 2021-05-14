@@ -128,10 +128,7 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
     }
 }
 
-fn derive_enum(
-    type_name: &Ident,
-    data: DataEnum,
-) -> quote::__private::TokenStream {
+fn derive_enum(type_name: &Ident, data: DataEnum) -> quote::__private::TokenStream {
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;
