@@ -36,4 +36,16 @@ mod tests {
 
         println!("{:?}", env.require::<Config>("hello"))
     }
+
+    #[derive(FromEnvironment, Debug)]
+    enum Value {
+        Hello,
+    }
+
+    #[test]
+    fn enum_test() {
+        let env = Salak::new().unwrap();
+
+        println!("{:?}", env.require::<Value>("hello"))
+    }
 }

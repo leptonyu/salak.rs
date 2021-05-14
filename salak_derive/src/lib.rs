@@ -111,21 +111,27 @@ fn derive_fields(fields: Fields) -> Vec<quote::__private::TokenStream> {
     }
 }
 
-fn derive_struct(data: DataStruct) -> quote::__private::TokenStream {
+fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStream {
     let field = derive_fields(data.fields);
     quote! {
-        Ok(Self {
-            #(#field),*
-        })
+        impl FromEnvironment for #name {
+            fn from_env(
+                name: &str,
+                property: Option<Property>,
+                env: &impl Environment,
+            ) -> Result<Self, PropertyError> {
+                Ok(Self {
+                   #(#field),*
+                })
+            }
+        }
     }
 }
 
 fn derive_enum(
-    type_name: Ident,
-    attrs: Vec<Attribute>,
+    type_name: &Ident,
     data: DataEnum,
 ) -> quote::__private::TokenStream {
-    let def = parse_field_attribute(attrs, &mut type_name.clone());
     let mut vs = vec![];
     for variant in data.variants {
         let name = variant.ident;
@@ -140,14 +146,23 @@ fn derive_enum(
         vs.push(body);
     }
     quote! {
-        if let Some(p) = #def {
-            return match &std::convert::TryInto::<String>::try_into(p)?[..] {
+    impl IsProperty for #type_name {
+        fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+            #[inline]
+            fn str_to_enum(val: &str) -> Result<#type_name, PropertyError>{
+              match val {
                 #(#vs)*
-                v => Err(PropertyError::ParseFail(format!("Enum value invalid {}", v))),
-            };
+                _ => Err(PropertyError::parse_fail("invalid enum value")),
+              }
+            }
+            match p {
+                Property::S(v) => str_to_enum(v),
+                Property::O(v) => str_to_enum(&v),
+                _ => Err(PropertyError::parse_fail("only string can convert to enum")),
+            }
         }
-        Err(PropertyError::NotFound(name.to_owned()))
     }
+       }
 }
 
 #[proc_macro_derive(FromEnvironment, attributes(salak))]
@@ -167,23 +182,15 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
             } else {
                 quote! {}
             },
-            derive_struct(d),
+            derive_struct(&name, d),
         ),
-        Data::Enum(d) => (quote! {}, derive_enum(name.clone(), input.attrs, d)),
+        Data::Enum(d) => (quote! {}, derive_enum(&name, d)),
         _ => panic!("union is not supported"),
     };
 
     TokenStream::from(quote! {
-        impl FromEnvironment for #name {
-            fn from_env(
-                name: &str,
-                property: Option<Property>,
-                env: &impl Environment,
-            ) -> Result<Self, PropertyError> {
-                #body
-            }
-        }
         impl AutoDeriveFromEnvironment for #name {}
         #head
+        #body
     })
 }
