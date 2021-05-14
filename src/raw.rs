@@ -1,4 +1,20 @@
-use crate::{Property, PropertyError};
+use crate::PropertyError;
+use std::collections::HashSet;
+
+/// Raw property, it is a temprory representation of property, which can be either [`&str`] or [`String`], or other values.
+#[derive(Clone, Debug)]
+pub enum Property<'a> {
+    /// [`&str`] holder.
+    S(&'a str),
+    /// [`String`] holder.
+    O(String),
+    /// Number holder.
+    I(i64),
+    /// Float holder.
+    F(f64),
+    /// Bool holder.
+    B(bool),
+}
 
 /// This trait defines how to parse value from property, and defines specific behaviors such as
 /// how empty string being parsed.
@@ -151,13 +167,13 @@ mod tests {
     }
 
     impl FromEnvironment for Config {
-        fn from_env(
-            key: &str,
+        fn from_env<'a>(
+            key: &mut Key<'a>,
             _: Option<Property<'_>>,
-            env: &impl Environment,
+            env: &'a impl Environment,
         ) -> Result<Self, PropertyError> {
             Ok(Config {
-                i8: env.require(&format!("{}.i8", key))?,
+                i8: env.require_def(key, SubKey::S("i8"), None)?,
             })
         }
     }
@@ -180,5 +196,139 @@ mod tests {
             .unwrap();
         println!("{:?}", env.require::<Config>(""));
         println!("{:?}", env.require::<Option<Config>>(""));
+    }
+
+    #[test]
+    fn key_test() {
+        fn assert_key(prefix: &str, target: &str) {
+            assert_eq!(Key::from_str(prefix).as_str(), target);
+        }
+
+        assert_key("salak.prop", "salak.prop");
+        assert_key(".salak.prop", "salak.prop");
+        assert_key("[]salak.prop", "salak.prop");
+        assert_key("[0]salak.prop", "[0].salak.prop");
+        assert_key("salak[0].prop", "salak[0].prop");
+        assert_key("salak.0.prop", "salak[0].prop");
+        assert_key("", "");
+        assert_key("hello", "hello");
+        assert_key(".", "");
+        assert_key("[0]", "[0]");
+        assert_key("0", "[0]");
+    }
+}
+
+/// Sub key is partial [`Key`] having values with either `[_a-zA-Z0-9]+` or [`usize`].
+#[derive(Debug)]
+pub enum SubKey<'a> {
+    /// Str sub key.
+    S(&'a str),
+    /// Index sub key.
+    I(usize),
+}
+
+/// Key has a string buffer, used for avoid allocate memory when parsing properties.
+#[derive(Debug)]
+pub struct Key<'a> {
+    buf: String,
+    key: Vec<SubKey<'a>>,
+}
+
+lazy_static::lazy_static! {
+    static ref P: &'static [char] = &['.', '[', ']'];
+}
+
+impl<'a> Key<'a> {
+    pub(crate) fn new() -> Self {
+        Self {
+            buf: String::new(),
+            key: vec![],
+        }
+    }
+
+    pub(crate) fn from_str(key: &'a str) -> Self {
+        let mut k = Self::new();
+        for n in key.split(&P[..]) {
+            if let Some(c) = n.chars().next() {
+                if c.is_ascii_digit() {
+                    if let Ok(v) = n.parse() {
+                        k.push(SubKey::I(v));
+                        continue;
+                    }
+                }
+                k.push(SubKey::S(n));
+            }
+        }
+        k
+    }
+
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, SubKey<'_>> {
+        self.key.iter()
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        if self.buf.chars().next() == Some('.') {
+            return &self.buf.as_str()[1..];
+        }
+        self.buf.as_str()
+    }
+
+    pub(crate) fn push(&mut self, k: SubKey<'a>) {
+        match &k {
+            SubKey::S(v) => {
+                self.buf.push('.');
+                self.buf.push_str(*v);
+            }
+            SubKey::I(v) => {
+                self.buf.push_str(&format!("[{}]", *v));
+            }
+        }
+        self.key.push(k)
+    }
+
+    pub(crate) fn pop(&mut self) {
+        if let Some(v) = self.key.pop() {
+            match v {
+                SubKey::S(n) => self.buf.truncate(self.buf.len() - n.len() - 1),
+                SubKey::I(n) => self.buf.truncate(self.buf.len() - n.to_string().len() - 2),
+            }
+        }
+    }
+}
+
+/// Sub key collection, which stands for lists of sub keys with same prefix.
+#[derive(Debug)]
+pub struct SubKeys<'a> {
+    pub(crate) keys: HashSet<&'a str>,
+    pub(crate) upper: Option<usize>,
+}
+
+impl<'a> Into<SubKey<'a>> for &'a str {
+    fn into(self) -> SubKey<'a> {
+        SubKey::S(self)
+    }
+}
+impl<'a> Into<SubKey<'a>> for usize {
+    fn into(self) -> SubKey<'a> {
+        SubKey::I(self)
+    }
+}
+
+impl<'a> SubKeys<'a> {
+    /// Insert a sub key.
+    pub fn insert<K: Into<SubKey<'a>>>(&mut self, key: K) {
+        match key.into() {
+            SubKey::S(s) => {
+                self.keys.insert(s);
+            }
+            SubKey::I(i) => {
+                if let Some(max) = self.upper {
+                    if i <= max {
+                        return;
+                    }
+                }
+                self.upper = Some(i);
+            }
+        }
     }
 }

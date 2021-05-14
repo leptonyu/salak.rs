@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::{
-    normalize_key,
-    source::{system_environment, FileConfig, MapProvider, PropertyRegistry},
-    Environment, FromEnvironment, IsProperty, Property, PropertyError, PropertySource, SubKeys,
+    source::{system_environment, FileConfig, HashMapSource, PropertyRegistry},
+    Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
+    SubKeys,
 };
 
 /// A builder which can configure for how to build a salak env.
@@ -27,6 +27,11 @@ impl SalakBuilder {
         self
     }
 
+    /// Build salak env, and panic if any error happens.
+    pub fn unwrap_build(self) -> Salak {
+        self.build().unwrap()
+    }
+
     /// Build salak env.
     pub fn build(self) -> Result<Salak, PropertyError> {
         let mut env = PropertyRegistry::new();
@@ -37,7 +42,7 @@ impl SalakBuilder {
         }
 
         env = env
-            .register(MapProvider::new("Arguments").set_all(self.args))
+            .register(HashMapSource::new("Arguments").set_all(self.args))
             .register(system_environment());
 
         #[cfg(any(feature = "toml", feature = "yaml"))]
@@ -59,22 +64,22 @@ impl SalakBuilder {
 }
 
 /// Salak is a wrapper for salak env, all functions this crate provides will be implemented on it.
-/// > Provides a group of sources that have predefined orders.
-/// > Provides custom source registration.
+/// * Provides a group of sources that have predefined orders.
+/// * Provides custom source registration.
 ///
 /// Predefined sources:
-/// 0. Source for generating random values with following keys..
-///   > random.i8
-///   > random.i16
-///   > random.i32
-///   > random.i64
-///   > random.u8
-///   > random.u16
-///   > random.u32
-/// 1. Source from arguments and direct coding.
-/// 2. Source from environment.
-/// 3. Source from toml if feature enabled.
-/// 4. Source from yaml if feature enabled.
+/// 1. Source for generating random values with following keys..
+///    * random.i8
+///    * random.i16
+///    * random.i32
+///    * random.i64
+///    * random.u8
+///    * random.u16
+///    * random.u32
+/// 2. Source from arguments and direct coding.
+/// 3. Source from environment.
+/// 4. Source from toml if feature enabled.
+/// 5. Source from yaml if feature enabled.
 #[allow(missing_debug_implementations)]
 pub struct Salak(PropertyRegistry);
 
@@ -99,38 +104,43 @@ impl Salak {
 }
 
 impl Environment for Salak {
-    fn require_def<T: FromEnvironment>(
-        &self,
-        key: &str,
-        def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError> {
-        self.0.require_def(key, def)
+    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        PropertySource::sub_keys(&self.0, prefix, sub_keys)
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
-        PropertySource::sub_keys(&self.0, prefix, sub_keys)
+    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError> {
+        self.0.require_def(key, sub_key, def)
     }
 }
 
 impl Environment for PropertyRegistry {
-    fn require_def<T: FromEnvironment>(
-        &self,
-        key: &str,
+    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError> {
-        T::from_env(key, self.get(key, def)?, self)
+        key.push(sub_key.into());
+        let val = self.get(key, def).map(|val| T::from_env(key, val, self));
+        key.pop();
+        val?
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         PropertySource::sub_keys(self, prefix, sub_keys)
     }
 }
 
 impl<T: FromEnvironment> FromEnvironment for Option<T> {
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &impl Environment,
+        env: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         match T::from_env(key, val, env) {
             Ok(v) => Ok(Some(v)),
@@ -141,30 +151,30 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
 }
 
 impl<T: IsProperty> FromEnvironment for T {
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        _: &impl Environment,
+        _: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         match val {
             Some(v) => Self::from_property(v),
-            _ => Err(PropertyError::NotFound(normalize_key(key).to_string())),
+            _ => Err(PropertyError::NotFound(key.as_str().to_string())),
         }
     }
 }
 
 impl<T: FromEnvironment> FromEnvironment for Vec<T> {
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &impl Environment,
+        env: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
         env.sub_keys(key, &mut sub_keys);
         let mut vs = vec![];
         if let Some(max) = sub_keys.upper {
             let mut i = 0;
-            while let Some(v) = env.require::<Option<T>>(&format!("{}[{}]", key, i))? {
+            while let Some(v) = env.require_def::<Option<T>, usize>(key, i, None)? {
                 vs.push(v);
                 i += 1;
                 if i > max {
@@ -177,16 +187,16 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
 }
 
 impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &impl Environment,
+        env: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
         env.sub_keys(key, &mut sub_keys);
         let mut v = HashMap::new();
         for k in sub_keys.str_keys() {
-            if let Some(val) = env.require::<Option<T>>(&format!("{}.{}", key, k))? {
+            if let Some(val) = env.require_def::<Option<T>, &str>(key, k, None)? {
                 v.insert(k.to_owned(), val);
             }
         }
@@ -198,10 +208,10 @@ impl<T> FromEnvironment for HashSet<T>
 where
     T: Eq + FromEnvironment + std::hash::Hash,
 {
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &impl Environment,
+        env: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         Ok(<Vec<T>>::from_env(key, val, env)?.into_iter().collect())
     }

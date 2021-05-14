@@ -3,7 +3,7 @@ use std::error::Error;
 #[allow(unused_imports)]
 use crate::*;
 
-/// Property Error
+/// Property error for the whole crate.
 #[derive(Debug)]
 pub enum PropertyError {
     /// [`Property`] parse failed.

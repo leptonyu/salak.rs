@@ -95,7 +95,7 @@ fn derive_field(field: Field) -> quote::__private::TokenStream {
     let mut rename = name.clone();
     let def = parse_field_attribute(field.attrs, &mut rename);
     quote! {
-        #name: env.require_def::<#ty>(&format!("{}{}", name ,stringify!(#rename)),#def)?
+        #name: env.require_def::<#ty, &str>(key, stringify!(#rename), #def)?
     }
 }
 
@@ -115,10 +115,10 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
     let field = derive_fields(data.fields);
     quote! {
         impl FromEnvironment for #name {
-            fn from_env(
-                name: &str,
-                property: Option<Property>,
-                env: &impl Environment,
+            fn from_env<'a>(
+                key: &mut Key<'a>,
+                val: Option<Property<'_>>,
+                env: &'a impl Environment,
             ) -> Result<Self, PropertyError> {
                 Ok(Self {
                    #(#field),*

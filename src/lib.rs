@@ -21,7 +21,6 @@
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 mod derive;
-use std::collections::HashSet;
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -32,7 +31,6 @@ pub use crate::derive::{AutoDeriveFromEnvironment, DefaultSourceFromEnvironment}
 pub use salak_derive::FromEnvironment;
 
 mod err;
-mod utils;
 
 pub use crate::raw::*;
 mod raw;
@@ -41,9 +39,7 @@ pub use crate::env::*;
 mod env;
 
 pub use crate::err::PropertyError;
-pub use crate::source::system_environment;
-pub use crate::source::PropertyRegistry;
-pub use crate::utils::SalakStringUtil;
+pub use crate::source::{system_environment, HashMapSource, PropertyRegistry};
 
 mod source;
 #[cfg(feature = "toml")]
@@ -59,64 +55,6 @@ mod source_rand;
 #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
 mod source_yaml;
 
-#[allow(unused)]
-pub(crate) const NOT_POSSIBLE: &str = "Not possible";
-
-/// Raw property.
-#[derive(Clone, Debug)]
-pub enum Property<'a> {
-    /// Str slice
-    S(&'a str),
-    /// Owned String
-    O(String),
-    /// Number
-    I(i64),
-    /// Float
-    F(f64),
-    /// Bool
-    B(bool),
-}
-
-pub struct Key<'a> {
-    key: Vec<&'a str>,
-}
-
-impl<'a> Key<'a> {
-    fn new() -> Self {
-        Self { key: vec![] }
-    }
-
-    pub fn push(&mut self, k: &'a str) {
-        self.key.push(k)
-    }
-}
-/// Sub keys iterator.
-#[derive(Debug)]
-pub struct SubKeys<'a> {
-    keys: HashSet<&'a str>,
-    upper: Option<usize>,
-}
-
-impl<'a> SubKeys<'a> {
-    /// Insert a sub key to sets.
-    pub fn insert(&mut self, key: &'a str) {
-        if key.is_empty() {
-            return;
-        }
-        self.keys.insert(key);
-    }
-
-    /// Set max array index.
-    pub fn max_index(&mut self, max: usize) {
-        if let Some(i) = self.upper {
-            if i >= max {
-                return;
-            }
-        }
-        self.upper = Some(max);
-    }
-}
-
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.
 pub trait PropertySource {
@@ -124,15 +62,10 @@ pub trait PropertySource {
     fn name(&self) -> &str;
 
     /// Get property by name.
-    fn get_property(&self, key: &str) -> Option<Property<'_>>;
-
-    /// Check whether property exists.
-    fn contains_key(&self, key: &str) -> bool {
-        self.get_property(key).is_some()
-    }
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>>;
 
     /// Return next sub keys with prefix, sub keys are seperated by dot(.) in a key.
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>);
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
     /// Check whether the [`PropertySource`] is empty.
     /// Empty source will not be ignored when register to registry.
@@ -141,22 +74,26 @@ pub trait PropertySource {
 
 /// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
 pub trait Environment {
-    /// Get property with specific type.
+    /// Get config with specific type.
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
-        self.require_def(key, None)
+        self.require_def(&mut Key::new(), SubKey::S(key), None)
     }
 
-    /// Get property with specific type, if property not exists, then return default value.
-
-    fn require_def<T: FromEnvironment>(
-        &self,
-        key: &str,
+    /// Get config with specific type, if config not exists, then return default value.
+    /// * `key` - Property key.
+    /// * `sub_key` - Property sub key.
+    /// * `def` - Default property.
+    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError>;
 
     #[doc(hidden)]
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>);
+    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
+    /// Get config with predefined prefix.
     fn get<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }
@@ -165,19 +102,12 @@ pub trait Environment {
 /// Convert from [`Environment`].
 pub trait FromEnvironment: Sized {
     /// Generate object from [`Environment`].
-    /// * `key` - Property prefix.
+    /// * `key` - Property key.
     /// * `property` - Property value with key is `key`.
     /// * `env` - Instance of [`Environment`]
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &impl Environment,
+        env: &'a impl Environment,
     ) -> Result<Self, PropertyError>;
-}
-
-fn normalize_key(mut key: &str) -> &str {
-    while !key.is_empty() && &key[0..1] == "." {
-        key = &key[1..];
-    }
-    key
 }

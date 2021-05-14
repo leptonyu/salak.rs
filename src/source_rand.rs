@@ -1,4 +1,4 @@
-use crate::{Property, PropertySource, SubKeys};
+use crate::{Key, Property, PropertySource, SubKeys};
 
 pub(crate) struct Random;
 
@@ -6,8 +6,8 @@ impl PropertySource for Random {
     fn name(&self) -> &str {
         "Random"
     }
-    fn get_property(&self, name: &str) -> Option<Property<'_>> {
-        match name {
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
+        match key.as_str() {
             "random.u8" => Some(Property::I(rand::random::<u8>() as i64)),
             "random.u16" => Some(Property::I(rand::random::<u16>() as i64)),
             "random.u32" => Some(Property::I(rand::random::<u32>() as i64)),
@@ -23,8 +23,8 @@ impl PropertySource for Random {
         false
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
-        if prefix == "random" {
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        if key.as_str() == "random" {
             sub_keys.insert("u8");
             sub_keys.insert("u16");
             sub_keys.insert("u32");

@@ -2,7 +2,7 @@ use yaml_rust::Yaml;
 
 use crate::{
     source::{FileConfig, PropertyRegistry},
-    Property, PropertyError, PropertySource, SubKeys,
+    Key, Property, PropertyError, PropertySource, SubKey, SubKeys,
 };
 
 struct YamlValue {
@@ -18,19 +18,18 @@ impl YamlValue {
         })
     }
 }
-lazy_static::lazy_static! {
-    static ref P: &'static [char] = &['.', '[', ']'];
-}
 
-fn sub_value<'a>(mut val: &'a Yaml, prefix: &str) -> Option<&'a Yaml> {
-    for n in prefix.split(&P[..]) {
-        if n.is_empty() {
-            continue;
-        }
-        match val {
-            Yaml::Hash(t) => val = t.get(&Yaml::String(n.to_owned()))?,
-            Yaml::Array(vs) => val = vs.get(n.parse::<usize>().ok()?)?,
-            _ => return None,
+fn sub_value<'a>(mut val: &'a Yaml, key: &Key<'_>) -> Option<&'a Yaml> {
+    for n in key.iter() {
+        match n {
+            SubKey::S(n) => match val {
+                Yaml::Hash(t) => val = t.get(&Yaml::String(n.to_string()))?,
+                _ => return None,
+            },
+            SubKey::I(n) => match val {
+                Yaml::Array(vs) => val = vs.get(*n)?,
+                _ => return None,
+            },
         }
     }
     Some(val)
@@ -41,7 +40,7 @@ impl PropertySource for YamlValue {
         &self.name
     }
 
-    fn get_property(&self, key: &str) -> Option<Property<'_>> {
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
         for v in &self.value {
             if let Some(v) = sub_value(v, key) {
                 return match v {
@@ -56,16 +55,16 @@ impl PropertySource for YamlValue {
         None
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         for v in &self.value {
-            if let Some(v) = sub_value(v, prefix) {
+            if let Some(v) = sub_value(v, key) {
                 match v {
                     Yaml::Hash(t) => t.keys().for_each(|f| {
                         if let Some(v) = f.as_str() {
                             sub_keys.insert(v);
                         }
                     }),
-                    Yaml::Array(vs) => sub_keys.max_index(vs.len()),
+                    Yaml::Array(vs) => sub_keys.insert(vs.len()),
                     _ => continue,
                 }
             }

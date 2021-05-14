@@ -5,18 +5,18 @@ use std::{
 };
 
 use crate::{
-    normalize_key, Environment, FromEnvironment, IsProperty, Property, PropertyError,
-    PropertySource, SubKeys,
+    Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
+    SubKeys,
 };
 
 /// An in-memory source, which is a string to string hashmap.
 #[derive(Debug)]
-pub struct MapProvider {
+pub struct HashMapSource {
     name: String,
     map: HashMap<String, String>,
 }
 
-impl MapProvider {
+impl HashMapSource {
     /// Create an in-memory source with a name.
     pub fn new(name: &'static str) -> Self {
         Self {
@@ -38,23 +38,18 @@ impl MapProvider {
     }
 }
 
-impl PropertySource for MapProvider {
+impl PropertySource for HashMapSource {
     fn name(&self) -> &str {
         &self.name
     }
 
-    fn get_property(&self, key: &str) -> Option<Property<'_>> {
-        self.map.get(key).map(|s| Property::S(s))
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
+        self.map.get(key.as_str()).map(|s| Property::S(s))
     }
 
-    fn contains_key(&self, key: &str) -> bool {
-        self.map.contains_key(key)
-    }
-
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         for key in self.map.keys() {
-            if let Some(k) = key.strip_prefix(prefix) {
-                let k = normalize_key(k);
+            if let Some(k) = key.strip_prefix(prefix.as_str()) {
                 let pos = k.find('.').unwrap_or_else(|| k.len());
                 sub_keys.insert(&k[0..pos]);
             }
@@ -67,8 +62,8 @@ impl PropertySource for MapProvider {
 }
 
 /// Create source from system environment.
-pub fn system_environment() -> MapProvider {
-    MapProvider {
+pub fn system_environment() -> HashMapSource {
+    HashMapSource {
         name: "SystemEnvironment".to_owned(),
         map: std::env::vars().collect(),
     }
@@ -85,22 +80,18 @@ impl PropertySource for PropertyRegistry {
         "registry"
     }
 
-    fn get_property(&self, key: &str) -> Option<Property<'_>> {
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
         self.providers.iter().find_map(|p| p.get_property(key))
-    }
-
-    fn contains_key(&self, key: &str) -> bool {
-        self.providers.iter().any(|f| f.contains_key(key))
     }
 
     fn is_empty(&self) -> bool {
         self.providers.is_empty() || self.providers.iter().all(|f| f.is_empty())
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         self.providers
             .iter()
-            .for_each(|f| f.sub_keys(prefix, sub_keys));
+            .for_each(|f| f.sub_keys(key, sub_keys));
     }
 }
 
@@ -131,10 +122,9 @@ impl PropertyRegistry {
 
     pub(crate) fn get<'a>(
         &'a self,
-        key: &str,
+        key: &mut Key<'_>,
         def: Option<Property<'a>>,
     ) -> Result<Option<Property<'a>>, PropertyError> {
-        let key = normalize_key(key);
         let tmp;
         let v = match self.get_property(key).or(def) {
             Some(Property::S(v)) => v,
@@ -145,7 +135,7 @@ impl PropertyRegistry {
             v => return Ok(v),
         };
         let mut history = HashSet::new();
-        history.insert(key.to_string());
+        history.insert(key.as_str().to_string());
         Ok(Some(self.resolve(v, &mut history)?))
     }
 
@@ -200,7 +190,7 @@ impl PropertyRegistry {
                     if !history.insert(key.to_string()) {
                         return Err(PropertyError::RecursiveFail(key.to_owned()));
                     }
-                    let v = if let Some(p) = self.get(key, None)? {
+                    let v = if let Some(p) = self.get(&mut Key::from_str(key), None)? {
                         String::from_property(p)?
                     } else if let Some(d) = def {
                         d.to_owned()
@@ -235,15 +225,15 @@ pub(crate) struct FileConfig {
 const PREFIX: &str = "application";
 
 impl FromEnvironment for FileConfig {
-    fn from_env(
-        key: &str,
+    fn from_env<'a>(
+        key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &impl Environment,
+        env: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
-            dir: env.require(&format!("{}.dir", key))?,
-            name: env.require_def(&format!("{}.name", key), Some(Property::S("app")))?,
-            profile: env.require_def(&format!("{}.profile", key), Some(Property::S("default")))?,
+            dir: env.require_def(key, SubKey::S("dir"), None)?,
+            name: env.require_def(key, SubKey::S("name"), Some(Property::S("app")))?,
+            profile: env.require_def(key, SubKey::S("profile"), Some(Property::S("default")))?,
         })
     }
 }

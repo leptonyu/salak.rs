@@ -2,7 +2,7 @@ use toml::Value;
 
 use crate::{
     source::{FileConfig, PropertyRegistry},
-    Property, PropertyError, PropertySource, SubKeys,
+    Key, Property, PropertyError, PropertySource, SubKey, SubKeys,
 };
 
 #[doc(hidden)]
@@ -22,23 +22,21 @@ impl Toml {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref P: &'static [char] = &['.', '[', ']'];
-}
-
-fn sub_value<'a>(toml: &'a Toml, prefix: &str) -> Option<&'a Value> {
-    let mut v = &toml.value;
-    for n in prefix.split(&P[..]) {
-        if n.is_empty() {
-            continue;
-        }
-        match v {
-            Value::Table(t) => v = t.get(n)?,
-            Value::Array(vs) => v = vs.get(n.parse::<usize>().ok()?)?,
-            _ => return None,
+fn sub_value<'a>(toml: &'a Toml, key: &Key<'_>) -> Option<&'a Value> {
+    let mut val = &toml.value;
+    for n in key.iter() {
+        match n {
+            SubKey::S(n) => match val {
+                Value::Table(t) => val = t.get(*n)?,
+                _ => return None,
+            },
+            SubKey::I(n) => match val {
+                Value::Array(vs) => val = vs.get(*n)?,
+                _ => return None,
+            },
         }
     }
-    Some(v)
+    Some(val)
 }
 
 impl PropertySource for Toml {
@@ -46,7 +44,7 @@ impl PropertySource for Toml {
         &self.name
     }
 
-    fn get_property(&self, key: &str) -> Option<Property<'_>> {
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
         match sub_value(self, key)? {
             Value::String(vs) => Some(Property::S(vs)),
             Value::Integer(vs) => Some(Property::I(*vs)),
@@ -57,10 +55,10 @@ impl PropertySource for Toml {
         }
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &str, sub_keys: &mut SubKeys<'a>) {
-        match sub_value(self, prefix) {
-            Some(Value::Table(t)) => t.keys().for_each(|f| sub_keys.insert(f)),
-            Some(Value::Array(vs)) => sub_keys.max_index(vs.len()),
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        match sub_value(self, key) {
+            Some(Value::Table(t)) => t.keys().for_each(|f| sub_keys.insert(f.as_str())),
+            Some(Value::Array(vs)) => sub_keys.insert(vs.len()),
             _ => {}
         }
     }
