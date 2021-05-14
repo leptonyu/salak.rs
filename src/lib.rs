@@ -93,6 +93,8 @@ pub trait Environment {
     #[doc(hidden)]
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Get config with predefined prefix.
     fn get<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
