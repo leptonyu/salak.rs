@@ -3,6 +3,7 @@ use salak_factory::{redis_default::RedisConfig, Factory};
 
 fn main() -> Result<(), PropertyError> {
     let env = Salak::new()?;
-    let _ = env.build::<RedisConfig>()?;
+    let _p = env.build::<RedisConfig>()?;
+    // _p.get()?;
     Ok(())
 }

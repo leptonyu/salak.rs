@@ -78,10 +78,6 @@ impl Buildable for RedisClusterConfig {
     type Product = Pool<RedisClusterConnectionManager>;
     type Customizer = PoolCustomizer<RedisClusterConnectionManager>;
 
-    fn prefix() -> &'static str {
-        "redis_cluster"
-    }
-
     fn build_with_key(
         self,
         _: &impl Environment,

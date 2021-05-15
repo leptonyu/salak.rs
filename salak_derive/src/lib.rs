@@ -1,3 +1,5 @@
+//! `salak_derive` provides a derive macro [`FromEnvironment`] for [salak](https://crates.io/crates/salak).
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::*;
@@ -155,6 +157,7 @@ fn derive_enum(type_name: &Ident, data: &DataEnum) -> quote::__private::TokenStr
     }
 }
 
+/// Derive [FromEnvironment](https://docs.rs/salak/latest/salak/trait.Environment.html).
 #[proc_macro_derive(FromEnvironment, attributes(salak))]
 pub fn from_env_derive(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);

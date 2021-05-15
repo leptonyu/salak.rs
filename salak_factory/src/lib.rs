@@ -1,45 +1,28 @@
 //! Packages that can be initialized by `salak`.
 //!
 //! ### Provide packages
-//!
-//! 1. toy_log
+//! 1. redis
 //! ```no_run
 //! use salak::*;
 //! use salak_factory::*;
-//! use tracing::subscriber::set_global_default;
-//! use tracing_subscriber::prelude::*;
-//! use tracing_subscriber::registry;
-//! let env = Salak::new()
-//!     .with_default_args(auto_read_sys_args_param!())
-//!     .build();
-//! let layer = env.build::<LogConfig>().unwrap();
-//! set_global_default(registry().with(layer));
-//! ```
-//! 2. redis
-//! ```no_run
-//! use salak::*;
-//! use salak_factory::*;
-//! let env = Salak::new()
-//!     .with_default_args(auto_read_sys_args_param!())
-//!     .build();
+//! use salak_factory::redis_default::*;
+//! let env = Salak::new().unwrap();
 //! let redis_pool = env.build::<RedisConfig>().unwrap();
 //! ```
-//! 3. redis_cluster
+//! 2. redis_cluster
 //! ```no_run
 //! use salak::*;
 //! use salak_factory::*;
-//! let env = Salak::new()
-//!     .with_default_args(auto_read_sys_args_param!())
-//!     .build();
+//! use salak_factory::redis_cluster::*;
+//! let env = Salak::new().unwrap();
 //! let redis_cluster_pool = env.build::<RedisClusterConfig>().unwrap();
 //! ```
-//! 4. postgres
+//! 3. postgres
 //! ```no_run
 //! use salak::*;
 //! use salak_factory::*;
-//! let env = Salak::new()
-//!     .with_default_args(auto_read_sys_args_param!())
-//!     .build();
+//! use salak_factory::postgresql::*;
+//! let env = Salak::new().unwrap();
 //! let pg_pool = env.build::<PostgresConfig>().unwrap();
 //! ```
 
@@ -89,15 +72,12 @@ pub mod redis_cluster;
 pub const DEFAULT_NAMESPACE: &str = "primary";
 
 /// Buildable component from [`Environment`].
-pub trait Buildable: Sized + FromEnvironment {
+pub trait Buildable: Sized + DefaultSourceFromEnvironment {
     /// Target product.
     type Product;
 
     /// Customize when building.
     type Customizer: Default;
-
-    /// Configuration prefix.
-    fn prefix() -> &'static str;
 
     /// Build product.
     fn build(
@@ -194,5 +174,6 @@ impl Factory for Salak {
 }
 
 /// Wrap enum for implement enum.
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct WrapEnum<T>(pub(crate) T);

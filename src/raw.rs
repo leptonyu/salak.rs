@@ -117,14 +117,15 @@ impl_property_float!(f32, f64);
 
 fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
     let mut i = 0;
+    let mut multi = 1;
     let mut last = None;
     for c in du.chars().rev() {
         match c {
-            'm' | 's' if last.is_none() => {
+            'h' | 'm' | 's' if last.is_none() => {
                 if c == 'm' {
                     last = Some('M');
                 } else {
-                    last = Some('s');
+                    last = Some(c);
                 }
             }
             'm' | 'u' | 'n' if last == Some('s') => {
@@ -134,12 +135,14 @@ fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
                 if last.is_none() {
                     last = Some('s');
                 }
-                i = i * 10 + c as u64 - '0' as u64;
+                i += multi * (c as u64 - '0' as u64);
+                multi = multi * 10;
             }
             _ => return Err(PropertyError::parse_fail("Invalid duration")),
         }
     }
     Ok(match last.unwrap_or('s') {
+        'h' => Duration::new(i * 3600, 0),
         'M' => Duration::new(i * 60, 0),
         's' => Duration::from_secs(i),
         'm' => Duration::from_millis(i),
@@ -157,6 +160,135 @@ impl IsProperty for Duration {
             Property::I(seconds) => Ok(Duration::from_secs(seconds as u64)),
             Property::F(sec) => Ok(Duration::new(0, 0).mul_f64(sec)),
             Property::B(_) => Err(PropertyError::parse_fail("bool cannot convert to duration")),
+        }
+    }
+}
+
+/// Sub key is partial [`Key`] having values with either `[_a-zA-Z0-9]+` or [`usize`].
+#[derive(Debug)]
+pub enum SubKey<'a> {
+    /// Str sub key.
+    S(&'a str),
+    /// Index sub key.
+    I(usize),
+}
+
+/// Key has a string buffer, used for avoid allocate memory when parsing properties.
+#[derive(Debug)]
+pub struct Key<'a> {
+    buf: String,
+    key: Vec<SubKey<'a>>,
+}
+
+lazy_static::lazy_static! {
+    static ref P: &'static [char] = &['.', '[', ']'];
+}
+
+impl<'a> Key<'a> {
+    pub(crate) fn new() -> Self {
+        Self {
+            buf: String::new(),
+            key: vec![],
+        }
+    }
+
+    pub(crate) fn from_str(key: &'a str) -> Self {
+        let mut k = Self::new();
+        for n in key.split(&P[..]) {
+            if let Some(c) = n.chars().next() {
+                if c.is_ascii_digit() {
+                    if let Ok(v) = n.parse() {
+                        k.push(SubKey::I(v));
+                        continue;
+                    }
+                }
+                k.push(SubKey::S(n));
+            }
+        }
+        k
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, SubKey<'_>> {
+        self.key.iter()
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        if self.buf.starts_with('.') {
+            return &self.buf.as_str()[1..];
+        }
+        self.buf.as_str()
+    }
+
+    pub(crate) fn push(&mut self, k: SubKey<'a>) {
+        match &k {
+            SubKey::S(v) => {
+                self.buf.push('.');
+                self.buf.push_str(*v);
+            }
+            SubKey::I(v) => {
+                self.buf.push_str(&format!("[{}]", *v));
+            }
+        }
+        self.key.push(k)
+    }
+
+    pub(crate) fn pop(&mut self) {
+        if let Some(v) = self.key.pop() {
+            match v {
+                SubKey::S(n) => self.buf.truncate(self.buf.len() - n.len() - 1),
+                SubKey::I(n) => self.buf.truncate(self.buf.len() - n.to_string().len() - 2),
+            }
+        }
+    }
+}
+
+/// Sub key collection, which stands for lists of sub keys with same prefix.
+#[derive(Debug)]
+pub struct SubKeys<'a> {
+    pub(crate) keys: HashSet<&'a str>,
+    pub(crate) upper: Option<usize>,
+}
+
+impl<'a> From<&'a str> for SubKey<'a> {
+    fn from(mut u: &'a str) -> Self {
+        if u.starts_with('[') {
+            u = &u[1..];
+            let mut x = 0;
+            for i in u.chars() {
+                if i >= '0' && i <= '9' {
+                    x = x * 10 + (i as usize) - ('0' as usize);
+                } else {
+                    break;
+                }
+            }
+            return SubKey::I(x);
+        }
+        SubKey::S(u)
+    }
+}
+
+impl From<usize> for SubKey<'_> {
+    fn from(u: usize) -> Self {
+        SubKey::I(u)
+    }
+}
+
+impl<'a> SubKeys<'a> {
+    /// Insert a sub key.
+    pub fn insert<K: Into<SubKey<'a>>>(&mut self, key: K) {
+        match key.into() {
+            SubKey::S(s) => {
+                self.keys.insert(s);
+            }
+            SubKey::I(i) => {
+                if let Some(max) = self.upper {
+                    if i <= max {
+                        return;
+                    }
+                }
+                self.upper = Some(i);
+            }
         }
     }
 }
@@ -318,6 +450,136 @@ mod tests {
         );
     }
 
+    #[test]
+    fn bool_tests() {
+        assert_eq!(true, bool::from_property(Property::S("yes")).unwrap());
+        assert_eq!(true, bool::from_property(Property::S("true")).unwrap());
+        assert_eq!(false, bool::from_property(Property::S("no")).unwrap());
+        assert_eq!(false, bool::from_property(Property::S("false")).unwrap());
+
+        assert_eq!(true, bool::from_property(Property::S("x")).is_err());
+        assert_eq!(true, bool::from_property(Property::S("n")).is_err());
+        assert_eq!(true, bool::from_property(Property::S("f")).is_err());
+        assert_eq!(true, bool::from_property(Property::S("y")).is_err());
+        assert_eq!(true, bool::from_property(Property::S("t")).is_err());
+        assert_eq!(true, bool::from_property(Property::I(0)).is_err());
+        assert_eq!(true, bool::from_property(Property::I(1)).is_err());
+        assert_eq!(true, bool::from_property(Property::F(0.0)).is_err());
+        assert_eq!(true, bool::from_property(Property::F(1.0)).is_err());
+    }
+
+    #[quickcheck]
+    fn num_tests(i: i64) {
+        assert_eq!(
+            i,
+            i64::from_property(Property::O(format!("{}", i))).unwrap()
+        );
+        assert_eq!(i, i64::from_property(Property::I(i)).unwrap());
+        assert_eq!(true, i64::from_property(Property::B(true)).is_err());
+    }
+
+    #[quickcheck]
+    fn i64_convert_tests(i: i64) -> bool {
+        let u8: Result<u8, PropertyError> = IsProperty::from_property(Property::I(i));
+        let u16: Result<u16, PropertyError> = IsProperty::from_property(Property::I(i));
+        let u32: Result<u32, PropertyError> = IsProperty::from_property(Property::I(i));
+        let u64: Result<u64, PropertyError> = IsProperty::from_property(Property::I(i));
+        let u128: Result<u128, PropertyError> = IsProperty::from_property(Property::I(i));
+        let i8: Result<i8, PropertyError> = IsProperty::from_property(Property::I(i));
+        let i16: Result<i16, PropertyError> = IsProperty::from_property(Property::I(i));
+        let i32: Result<i32, PropertyError> = IsProperty::from_property(Property::I(i));
+        let i64: Result<i64, PropertyError> = IsProperty::from_property(Property::I(i));
+        let i128: Result<i128, PropertyError> = IsProperty::from_property(Property::I(i));
+        let f32: Result<f32, PropertyError> = IsProperty::from_property(Property::I(i));
+        let f64: Result<f64, PropertyError> = IsProperty::from_property(Property::I(i));
+        vec![
+            i >= 0 && i <= (u8::MAX as i64) && u8.is_ok() || u8.is_err(),
+            i >= 0 && i <= (u16::MAX as i64) && u16.is_ok() || u16.is_err(),
+            i >= 0 && i <= (u32::MAX as i64) && u32.is_ok() || u32.is_err(),
+            i >= 0 && u64.is_ok() || u64.is_err(),
+            i >= 0 && u128.is_ok() || u128.is_err(),
+            i >= (i8::MIN as i64) && i <= (i8::MAX as i64) && i8.is_ok() || i8.is_err(),
+            i >= (i16::MIN as i64) && i <= (i16::MAX as i64) && i16.is_ok() || i16.is_err(),
+            i >= (i32::MIN as i64) && i <= (i32::MAX as i64) && i32.is_ok() || i32.is_err(),
+            i64.is_ok(),
+            i128.is_ok(),
+            f32.is_ok() && f32.unwrap_or(0.0).is_finite(),
+            f64.is_ok() && f64.unwrap_or(0.0).is_finite(),
+        ]
+        .iter()
+        .all(|a| *a)
+    }
+
+    #[quickcheck]
+    fn f64_convert_tests(i: f64) -> bool {
+        let u8: Result<u8, PropertyError> = IsProperty::from_property(Property::F(i));
+        let u16: Result<u16, PropertyError> = IsProperty::from_property(Property::F(i));
+        let u32: Result<u32, PropertyError> = IsProperty::from_property(Property::F(i));
+        let u64: Result<u64, PropertyError> = IsProperty::from_property(Property::F(i));
+        let u128: Result<u128, PropertyError> = IsProperty::from_property(Property::F(i));
+        let i8: Result<i8, PropertyError> = IsProperty::from_property(Property::F(i));
+        let i16: Result<i16, PropertyError> = IsProperty::from_property(Property::F(i));
+        let i32: Result<i32, PropertyError> = IsProperty::from_property(Property::F(i));
+        let i64: Result<i64, PropertyError> = IsProperty::from_property(Property::F(i));
+        let i128: Result<i128, PropertyError> = IsProperty::from_property(Property::F(i));
+        let f32: Result<f32, PropertyError> = IsProperty::from_property(Property::F(i));
+        let f64: Result<f64, PropertyError> = IsProperty::from_property(Property::F(i));
+
+        vec![
+            i.is_finite() && u8.is_ok() || u8.is_err(),
+            i.is_finite() && u16.is_ok() || u16.is_err(),
+            i.is_finite() && u32.is_ok() || u32.is_err(),
+            i.is_finite() && u64.is_ok() || u64.is_err(),
+            i.is_finite() && u128.is_ok() || u128.is_err(),
+            i.is_finite() && i8.is_ok() || i8.is_err(),
+            i.is_finite() && i16.is_ok() || i16.is_err(),
+            i.is_finite() && i32.is_ok() || i32.is_err(),
+            i.is_finite() && i64.is_ok() || i64.is_err(),
+            i.is_finite() && i128.is_ok() || i128.is_err(),
+            i.is_finite() && f32.is_ok() || f32.is_err(),
+            i.is_finite() && f64.is_ok() || f64.is_err(),
+        ]
+        .iter()
+        .all(|a| *a)
+    }
+
+    #[test]
+    fn duration_test() {
+        use super::*;
+        assert_eq!(
+            Duration::new(123, 0),
+            parse_duration_from_str("123").unwrap()
+        );
+        assert_eq!(
+            Duration::new(123, 0),
+            parse_duration_from_str("123s").unwrap()
+        );
+        assert_eq!(
+            Duration::new(10 * 60, 0),
+            parse_duration_from_str("10m").unwrap()
+        );
+        assert_eq!(
+            Duration::new(123 * 3600, 0),
+            parse_duration_from_str("123h").unwrap()
+        );
+        assert_eq!(
+            Duration::new(0, 123 * 1000_000),
+            parse_duration_from_str("123ms").unwrap()
+        );
+        assert_eq!(
+            Duration::new(0, 123 * 1000),
+            parse_duration_from_str("123us").unwrap()
+        );
+        assert_eq!(
+            Duration::new(0, 123),
+            parse_duration_from_str("123ns").unwrap()
+        );
+        assert_eq!(
+            Duration::new(1, 0),
+            parse_duration_from_str("1000ms").unwrap()
+        );
+    }
+
     #[derive(Debug)]
     struct Config {
         i8: i8,
@@ -395,122 +657,5 @@ mod tests {
         assert_keys("redis", vec!["port", "host", "ssl", "pool"]);
         assert_keys("hello.hey", vec!["world"]);
         assert_keys("hello[0].hey", vec!["world"]);
-    }
-}
-
-/// Sub key is partial [`Key`] having values with either `[_a-zA-Z0-9]+` or [`usize`].
-#[derive(Debug)]
-pub enum SubKey<'a> {
-    /// Str sub key.
-    S(&'a str),
-    /// Index sub key.
-    I(usize),
-}
-
-/// Key has a string buffer, used for avoid allocate memory when parsing properties.
-#[derive(Debug)]
-pub struct Key<'a> {
-    buf: String,
-    key: Vec<SubKey<'a>>,
-}
-
-lazy_static::lazy_static! {
-    static ref P: &'static [char] = &['.', '[', ']'];
-}
-
-impl<'a> Key<'a> {
-    pub(crate) fn new() -> Self {
-        Self {
-            buf: String::new(),
-            key: vec![],
-        }
-    }
-
-    pub(crate) fn from_str(key: &'a str) -> Self {
-        let mut k = Self::new();
-        for n in key.split(&P[..]) {
-            if let Some(c) = n.chars().next() {
-                if c.is_ascii_digit() {
-                    if let Ok(v) = n.parse() {
-                        k.push(SubKey::I(v));
-                        continue;
-                    }
-                }
-                k.push(SubKey::S(n));
-            }
-        }
-        k
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn iter(&self) -> std::slice::Iter<'_, SubKey<'_>> {
-        self.key.iter()
-    }
-
-    pub(crate) fn as_str(&self) -> &str {
-        if self.buf.starts_with('.') {
-            return &self.buf.as_str()[1..];
-        }
-        self.buf.as_str()
-    }
-
-    pub(crate) fn push(&mut self, k: SubKey<'a>) {
-        match &k {
-            SubKey::S(v) => {
-                self.buf.push('.');
-                self.buf.push_str(*v);
-            }
-            SubKey::I(v) => {
-                self.buf.push_str(&format!("[{}]", *v));
-            }
-        }
-        self.key.push(k)
-    }
-
-    pub(crate) fn pop(&mut self) {
-        if let Some(v) = self.key.pop() {
-            match v {
-                SubKey::S(n) => self.buf.truncate(self.buf.len() - n.len() - 1),
-                SubKey::I(n) => self.buf.truncate(self.buf.len() - n.to_string().len() - 2),
-            }
-        }
-    }
-}
-
-/// Sub key collection, which stands for lists of sub keys with same prefix.
-#[derive(Debug)]
-pub struct SubKeys<'a> {
-    pub(crate) keys: HashSet<&'a str>,
-    pub(crate) upper: Option<usize>,
-}
-
-impl<'a> From<&'a str> for SubKey<'a> {
-    fn from(u: &'a str) -> Self {
-        SubKey::S(u)
-    }
-}
-
-impl From<usize> for SubKey<'_> {
-    fn from(u: usize) -> Self {
-        SubKey::I(u)
-    }
-}
-
-impl<'a> SubKeys<'a> {
-    /// Insert a sub key.
-    pub fn insert<K: Into<SubKey<'a>>>(&mut self, key: K) {
-        match key.into() {
-            SubKey::S(s) => {
-                self.keys.insert(s);
-            }
-            SubKey::I(i) => {
-                if let Some(max) = self.upper {
-                    if i <= max {
-                        return;
-                    }
-                }
-                self.upper = Some(i);
-            }
-        }
     }
 }

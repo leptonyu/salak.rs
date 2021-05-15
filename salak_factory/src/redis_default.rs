@@ -92,10 +92,6 @@ impl Buildable for RedisConfig {
     type Product = Pool<RedisConnectionManager>;
     type Customizer = PoolCustomizer<RedisConnectionManager>;
 
-    fn prefix() -> &'static str {
-        "redis"
-    }
-
     fn build_with_key(
         self,
         _: &impl Environment,

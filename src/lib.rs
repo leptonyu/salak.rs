@@ -1,4 +1,86 @@
-//! Salak is a zero-bioplate configuration loader with predefined  multiple layered sources.
+//! Salak is a multi layered configuration loader and zero-boilerplate configuration parser, with many predefined sources.
+//!
+//! 1. [About](#about)
+//! 2. [Quick Start](#quick-start)
+//! 3. [Features](#features)
+//!    * [Predefined Sources](#predefined-sources)
+//!    * [Key Convention](#key-convention)
+//!    * [Value Placeholder Parsing](#value-placeholder-parsing)
+//!
+//! ## About
+//! `salak` is a multi layered configuration loader with many predefined sources. Also it
+//! is a zero-boilerplate configuration parser which provides an auto-derive procedure macro
+//! to derive [`FromEnvironment`] so that we can parse configuration structs without any additional codes.
+//!
+//! ## Quick Start
+//! A simple example of `salak`:
+//!
+//! ```
+//! use salak::*;
+//!
+//! #[derive(Debug, FromEnvironment)]
+//! #[salak(prefix = "config")]
+//! struct Config {
+//!     #[salak(default = false)]
+//!     verbose: bool,
+//!     optional: Option<String>,
+//!     #[salak(name = "val")]
+//!     value: i64,
+//! }
+//! let env = Salak::builder()
+//!     .set("config.val", "2021")
+//!     .unwrap_build();
+//! let config = env.get::<Config>().unwrap();
+//! assert_eq!(2021, config.value);
+//! assert_eq!(None, config.optional);
+//! assert_eq!(false, config.verbose);
+//! ```
+//!
+//! ## Features
+//!
+//! #### Predefined Sources
+//! Predefined sources has the following order, [`PropertyRegistry`] will find by sequence of these orders,
+//! if the property with specified key is found at the current source, than return immediately. Otherwise,
+//! it will search the next source.
+//!
+//! 1. Random source provides a group of keys can return random values.
+//!    * `random.u8`
+//!    * `random.u16`
+//!    * `random.u32`
+//!    * `random.i8`
+//!    * `random.i16`
+//!    * `random.i32`
+//!    * `random.i64`
+//! 2. Custom arguments source. [`SalakBuilder::set()`] can set a single kv,
+//! and [`SalakBuilder::set_args()`] can set a group of kvs.
+//! 3. System environment source. Implemented by [`system_environment`].
+//! 4. Profile specified file source, eg. `app-dev.toml`
+//! 5. Not profile file source, eg. `app.toml`
+//! 6. Custom sources, which can register by [`Salak::register()`].
+//!
+//! #### Key Convention
+//! Key is used for search configuration from [`Environment`], normally it is represented by string.
+//! Key is a group of SubKey separated by dot(`.`), and SubKey is a name or a name followed by index.
+//! 1. SubKey Format (`[a-z][_a-z0-9]+(\[[0-9]+\])`)
+//!    * `a`
+//!    * `a0`
+//!    * `a_b`
+//!    * `a[0]`
+//!    * `a[0][0]`
+//! 2. Key Format (`SubKey(\.SubKey)*`)
+//!    * `a`
+//!    * `a.b`
+//!    * `a.val[0]`
+//!    * `a_b[0]`
+//!
+//! #### Value Placeholder Parsing
+//! 1. Placeholder Format
+//!    * `${key}` => Get value of `key`.
+//!    * `${key:default}` => Get value of `key`, if not exists return `default`.
+//! 2. Escape Format
+//!    * `\$\{key\}` => Return `${key}`.
+//!    * `$`, `\`, `{`, `}` must use escape format.
+//!
 //!
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -57,6 +139,10 @@ mod source_rand;
 #[cfg(feature = "yaml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
 mod source_yaml;
+
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;
 
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.

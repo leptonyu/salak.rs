@@ -137,10 +137,6 @@ impl Buildable for PostgresConfig {
 
     type Customizer = PostgresCustomizer;
 
-    fn prefix() -> &'static str {
-        "postgresql"
-    }
-
     fn build_with_key(
         self,
         _: &impl Environment,

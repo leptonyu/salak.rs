@@ -31,14 +31,22 @@ mod tests {
         hey: Option<String>,
         #[salak(default = 123)]
         num: u8,
+        arr: Vec<u8>,
     }
 
     #[test]
     fn config_test() {
-        let env = Salak::new().unwrap();
+        let env = Salak::builder().set("salak.arr[0]", "1").unwrap_build();
 
-        println!("{:?}", env.require::<Config>("hello"));
-        println!("{:?}", env.get::<Config>());
+        let config = env.get::<Config>().unwrap();
+
+        assert_eq!("world", config.hello);
+        assert_eq!(None, config.world);
+        assert_eq!(None, config.hey);
+        assert_eq!(123, config.num);
+        assert_eq!(vec![1], config.arr);
+
+        println!("{:?}", config);
     }
 
     #[derive(FromEnvironment, Debug)]
