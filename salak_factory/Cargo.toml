@@ -28,29 +28,11 @@ rustdoc-args = [
 all-features = true
 
 [dependencies]
-humantime = {optional = true, version = '^2'}
-log = {optional = true, version = '^0.4'}
 postgres = {optional = true, version = '0.19'}
 r2d2 = {optional = true, version = '^0.8'}
 redis = {optional = true, version = '0.20'}
-rtrb = {optional = true, version = '^0.1'}
 salak = {path = '..', version = '^0.9'}
 scheduled-thread-pool = {optional = true, version = '^0.2'}
-tracing = {optional = true, version = '^0.1'}
-tracing-log = {optional = true, version = '^0.1'}
-tracing-subscriber = {optional = true, version = '^0.2'}
-
-[dev-dependencies]
-chrono = "0.4"
-env_logger = "0.8"
-fast_log = "1"
-fern = "0.6"
-log4rs = "1"
-num_cpus = "1"
-slog = "2"
-slog-scope = "4"
-slog-stdlog = "4"
-slog-term = "2"
 
 [features]
 default = []
