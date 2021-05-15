@@ -1,5 +1,5 @@
 use crate::PropertyError;
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 /// Raw property, it is a temprory representation of property, which can be either [`&str`] or [`String`], or other values.
 #[derive(Clone, Debug)]
@@ -114,6 +114,52 @@ macro_rules! impl_property_float {
 }
 
 impl_property_float!(f32, f64);
+
+fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
+    let mut i = 0;
+    let mut last = None;
+    for c in du.chars().rev() {
+        match c {
+            'm' | 's' if last.is_none() => {
+                if c == 'm' {
+                    last = Some('M');
+                } else {
+                    last = Some('s');
+                }
+            }
+            'm' | 'u' | 'n' if last == Some('s') => {
+                last = Some(c);
+            }
+            c if c >= '0' && c <= '9' => {
+                if last.is_none() {
+                    last = Some('s');
+                }
+                i = i * 10 + c as u64 - '0' as u64;
+            }
+            _ => return Err(PropertyError::parse_fail("Invalid duration")),
+        }
+    }
+    Ok(match last.unwrap_or('s') {
+        'M' => Duration::new(i * 60, 0),
+        's' => Duration::from_secs(i),
+        'm' => Duration::from_millis(i),
+        'u' => Duration::from_micros(i),
+        'n' => Duration::from_nanos(i),
+        _ => return Err(PropertyError::parse_fail("Invalid duration")),
+    })
+}
+
+impl IsProperty for Duration {
+    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+        match p {
+            Property::O(du) => parse_duration_from_str(&du),
+            Property::S(du) => parse_duration_from_str(du),
+            Property::I(seconds) => Ok(Duration::from_secs(seconds as u64)),
+            Property::F(sec) => Ok(Duration::new(0, 0).mul_f64(sec)),
+            Property::B(_) => Err(PropertyError::parse_fail("bool cannot convert to duration")),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

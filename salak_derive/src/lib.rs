@@ -100,15 +100,17 @@ fn derive_field(field: Field) -> quote::__private::TokenStream {
 }
 
 fn derive_fields(fields: Fields) -> Vec<quote::__private::TokenStream> {
-    if let Fields::Named(fields) = fields {
-        let mut v = vec![];
-        for field in fields.named {
-            v.push(derive_field(field));
+    match fields {
+        Fields::Named(fields) => {
+            let mut v = vec![];
+            for field in fields.named {
+                v.push(derive_field(field));
+            }
+            return v;
         }
-        v
-    } else {
-        panic!("Only support named body");
+        _ => {}
     }
+    panic!("Only support named body");
 }
 
 fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStream {
@@ -128,14 +130,15 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
     }
 }
 
-fn derive_enum(type_name: &Ident, data: DataEnum) -> quote::__private::TokenStream {
+fn derive_enum(type_name: &Ident, data: &DataEnum) -> quote::__private::TokenStream {
     let mut vs = vec![];
-    for variant in data.variants {
-        let name = variant.ident;
+    for variant in &data.variants {
+        let lname = quote::format_ident!("{}", format!("{}", variant.ident).to_lowercase());
+        let name = &variant.ident;
         let body = match variant.fields {
             Fields::Unit => {
                 quote! {
-                    stringify!(#name) => Ok(#type_name::#name),
+                    stringify!(#lname) => Ok(#type_name::#name),
                 }
             }
             _ => panic!("Enum only support no field pattern."),
@@ -147,7 +150,7 @@ fn derive_enum(type_name: &Ident, data: DataEnum) -> quote::__private::TokenStre
         fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
             #[inline]
             fn str_to_enum(val: &str) -> Result<#type_name, PropertyError>{
-              match val {
+              match &val.to_lowercase()[..] {
                 #(#vs)*
                 _ => Err(PropertyError::parse_fail("invalid enum value")),
               }
@@ -181,7 +184,7 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
             },
             derive_struct(&name, d),
         ),
-        Data::Enum(d) => (quote! {}, derive_enum(&name, d)),
+        Data::Enum(d) => (quote! {}, derive_enum(&name, &d)),
         _ => panic!("union is not supported"),
     };
 

@@ -132,37 +132,37 @@ pub trait Buildable: Sized + FromEnvironment {
         customize: Self::Customizer,
     ) -> Result<Self::Product, PropertyError>;
 
-    /// List All Keys
-    fn list_keys(namespace: &str) -> Vec<(String, bool, Option<String>)> {
-        let v = Self::load_keys();
-        let prefix = if namespace.is_empty() || namespace == DEFAULT_NAMESPACE {
-            Self::prefix().to_string()
-        } else {
-            format!("{}.{}", Self::prefix(), namespace)
-        };
-        v.iter()
-            .map(|(k, o, v)| {
-                (
-                    format!("{}.{}", prefix, k),
-                    *o,
-                    match v {
-                        Some(p) => std::convert::TryInto::<String>::try_into(p.clone()).ok(),
-                        _ => None,
-                    },
-                )
-            })
-            .collect()
-    }
+    // /// List All Keys
+    // fn list_keys(namespace: &str) -> Vec<(String, bool, Option<String>)> {
+    //     let v = Self::load_keys();
+    //     let prefix = if namespace.is_empty() || namespace == DEFAULT_NAMESPACE {
+    //         Self::prefix().to_string()
+    //     } else {
+    //         format!("{}.{}", Self::prefix(), namespace)
+    //     };
+    //     v.iter()
+    //         .map(|(k, o, v)| {
+    //             (
+    //                 format!("{}.{}", prefix, k),
+    //                 *o,
+    //                 match v {
+    //                     Some(p) => std::convert::TryInto::<String>::try_into(p.clone()).ok(),
+    //                     _ => None,
+    //                 },
+    //             )
+    //         })
+    //         .collect()
+    // }
 }
 
-#[allow(dead_code)]
-fn print_keys<T: Buildable>() {
-    println!("/// |property|required|default|");
-    println!("/// |-|-|-|");
-    for (k, r, v) in T::list_keys(DEFAULT_NAMESPACE) {
-        println!("/// |{}|{}|{}|", k, r, v.unwrap_or("".to_owned()));
-    }
-}
+// #[allow(dead_code)]
+// fn print_keys<T: Buildable>() {
+//     println!("/// |property|required|default|");
+//     println!("/// |-|-|-|");
+//     for (k, r, v) in T::list_keys(DEFAULT_NAMESPACE) {
+//         println!("/// |{}|{}|{}|", k, r, v.unwrap_or("".to_owned()));
+//     }
+// }
 
 /// Factory for build buildable
 pub trait Factory: Environment {

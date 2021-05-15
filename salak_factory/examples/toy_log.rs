@@ -21,9 +21,7 @@ struct Max {
 }
 
 fn main() {
-    let env = PropertyRegistry::new()
-        .with_default_args(auto_read_sys_args_param!())
-        .build();
+    let env = PropertyRegistry::new();
     let conf = env.load_config::<Max>().unwrap();
 
     let _any: Box<dyn Any> = match &conf.logger[..] {

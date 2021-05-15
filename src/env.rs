@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::DerefMut};
 
 use std::collections::HashSet;
 
@@ -160,6 +160,38 @@ impl<T: IsProperty> FromEnvironment for T {
             Some(v) => Self::from_property(v),
             _ => Err(PropertyError::NotFound(key.as_str().to_string())),
         }
+    }
+}
+
+/// A wrapper require vec is not empty when parsing configuration.
+#[derive(Debug)]
+pub struct NonEmptyVec<T>(pub Vec<T>);
+
+impl<T> std::ops::Deref for NonEmptyVec<T> {
+    type Target = Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for NonEmptyVec<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
+    fn from_env<'a>(
+        key: &mut Key<'a>,
+        val: Option<Property<'_>>,
+        env: &'a impl Environment,
+    ) -> Result<Self, PropertyError> {
+        let v = <Vec<T>>::from_env(key, val, env)?;
+        if v.is_empty() {
+            return Err(PropertyError::NotFound(key.as_str().to_string()));
+        }
+        Ok(NonEmptyVec(v))
     }
 }
 

@@ -28,6 +28,7 @@ use std::str::FromStr;
 /// |redis.pool.wait_for_init|false|${pool.wait_for_init:false}|
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
 #[derive(FromEnvironment, Debug)]
+#[salak(prefix = "redis")]
 pub struct RedisConfig {
     url: Option<String>,
     #[salak(default = "localhost")]
@@ -95,8 +96,7 @@ impl Buildable for RedisConfig {
         customizer: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
         let config = if let Some(url) = self.url {
-            ConnectionInfo::from_str(&url)
-                .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?
+            ConnectionInfo::from_str(&url)?
         } else {
             let host = self.host;
             let port = self.port;
@@ -133,8 +133,8 @@ mod tests {
     use super::*;
     #[test]
     fn redis_tests() {
-        let env = PropertyRegistry::new().build();
-        let pool = env.build::<RedisConfig>();
+        let env = Salak::new().unwrap();
+        let pool = env.get::<RedisConfig>();
         assert_eq!(true, pool.is_ok());
 
         print_keys::<RedisConfig>();

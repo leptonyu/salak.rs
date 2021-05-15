@@ -81,9 +81,7 @@ impl PoolConfig {
         set_option_field_return!(customize, build, event_handler);
         set_option_field_return!(customize, build, connection_customizer);
         if self.wait_for_init {
-            build
-                .build(m)
-                .map_err(|e| PropertyError::parse_failed(&format!("{}", e)))
+            Ok(build.build(m)?)
         } else {
             Ok(build.build_unchecked(m))
         }

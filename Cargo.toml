@@ -28,10 +28,8 @@ rustdoc-args = [
 all-features = true
 
 [dependencies]
-# clap = {optional = true, version = '^2.33'}
 lazy_static = '^1.4'
-# log = {optional = true, version = '^0.4'}
-# pico-args = {optional = true, version = '^0.4'}
+log = {optional = true, version = '^0.4'}
 rand = {optional = true, version = '^0.8'}
 salak_derive = {optional = true, path = './salak_derive', version = '^0.4'}
 toml = {optional = true, version = '^0.5'}
@@ -51,7 +49,7 @@ name = "property"
 [features]
 default = [
   'derive',
-  'toml', # 'enable_pico',
+  'toml',
 ]
 derive = ['salak_derive']
 yaml = ['yaml-rust']
@@ -59,5 +57,5 @@ yaml = ['yaml-rust']
 [workspace]
 members = [
   '.',
-  'salak_derive',
+  'salak_derive', # 'salak_factory',
 ]

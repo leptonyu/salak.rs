@@ -49,8 +49,7 @@ mod tests {
 
     #[test]
     fn enum_test() {
-        let env = Salak::new().unwrap();
-
+        let env = Salak::builder().set("hello", "world").unwrap_build();
         println!("{:?}", env.require::<Value>("hello"))
     }
 }

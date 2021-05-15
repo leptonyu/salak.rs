@@ -35,6 +35,7 @@ use std::time::Duration;
 /// |postgresql.pool.wait_for_init|false|${pool.wait_for_init:false}|
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
 #[derive(FromEnvironment, Debug)]
+#[salak(prefix = "postgresql")]
 pub struct PostgresConfig {
     #[salak(default = "postgresql://postgres@localhost")]
     url: Option<String>,
@@ -133,8 +134,7 @@ impl Buildable for PostgresConfig {
         customizer: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
         let mut config = match self.url {
-            Some(url) => std::str::FromStr::from_str(&url)
-                .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?,
+            Some(url) => std::str::FromStr::from_str(&url)?,
             None => postgres::Config::new(),
         };
         set_option_field!(self, config, &, user);

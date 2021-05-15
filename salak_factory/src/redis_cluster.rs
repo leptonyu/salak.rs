@@ -24,9 +24,9 @@ use std::str::FromStr;
 /// |redis_cluster.pool.wait_for_init|false|${pool.wait_for_init:false}|
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
 #[derive(FromEnvironment, Debug)]
+#[salak(prefix = "redis_cluster")]
 pub struct RedisClusterConfig {
-    #[salak(required = true)]
-    url: Vec<String>,
+    url: NonEmptyVec<String>,
     password: Option<String>,
     readonly: Option<bool>,
     read_timeout: Option<Duration>,
@@ -82,17 +82,8 @@ impl Buildable for RedisClusterConfig {
         customizer: Self::Customizer,
     ) -> Result<Self::Product, PropertyError> {
         let mut config = vec![];
-        for url in self.url {
-            config.push(
-                ConnectionInfo::from_str(&url)
-                    .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?,
-            )
-        }
-        if config.is_empty() {
-            return Err(PropertyError::ParseFail(format!(
-                "{}.url not set",
-                Self::prefix()
-            )));
+        for url in self.url.0 {
+            config.push(ConnectionInfo::from_str(&url)?)
         }
         let mut builder = ClusterClientBuilder::new(config);
         if let Some(password) = self.password {
@@ -101,9 +92,7 @@ impl Buildable for RedisClusterConfig {
         if let Some(readonly) = self.readonly {
             builder = builder.readonly(readonly);
         }
-        let client = builder
-            .open()
-            .map_err(|e| PropertyError::ParseFail(format!("{}", e)))?;
+        let client = builder.open()?;
 
         self.pool.build_pool(
             RedisClusterConnectionManager {
@@ -122,10 +111,10 @@ mod tests {
     use super::*;
     #[test]
     fn redis_tests() {
-        let env = PropertyRegistry::new()
-            .set_property("redis_cluster.url[0]", "redis://127.0.0.1/")
-            .build();
-        let pool = env.build::<RedisClusterConfig>();
+        let env = Salak::builder()
+            .set("redis_cluster.url[0]", "redis://127.0.0.1/")
+            .unwrap_build();
+        let pool = env.get::<RedisClusterConfig>();
         assert_eq!(true, pool.is_ok());
 
         print_keys::<RedisClusterConfig>();

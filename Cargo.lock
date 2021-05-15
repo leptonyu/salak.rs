@@ -532,6 +532,7 @@ dependencies = [
  "criterion",
  "env_logger",
  "lazy_static",
+ "log",
  "quickcheck",
  "quickcheck_macros",
  "rand",

@@ -38,6 +38,8 @@ mod raw;
 pub use crate::env::*;
 mod env;
 
+mod enums;
+
 pub use crate::err::PropertyError;
 pub use crate::source::{system_environment, HashMapSource, PropertyRegistry};
 
