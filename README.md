@@ -33,8 +33,8 @@ assert_eq!(false, config.verbose);
 ```
 
 
-## [salak_factory](https://crates.io/crates/salak_factory)
-Salak Factory is out-of-box crate for using well known components, such as redis, postgresql, etc.
+## Salak Factory
+[salak_factory](https://crates.io/crates/salak_factory) is out-of-box crate for using well known components, such as redis, postgresql, etc.
 ```rust
 use salak::*;
 use salak_factory::{redis_default::RedisConfig, Factory};
