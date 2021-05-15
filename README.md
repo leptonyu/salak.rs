@@ -11,7 +11,7 @@ Salak is a multi layered configuration loader and zero-boilerplate configuration
 Please refer to [salak doc](https://docs.rs/salak).
 
 ## *Notice*
-Please *notice* that `salak-0.9.0` is totally rewrited, so the APIs may changes much, and some functions may be removed. Some will be added in later version.
+Please *notice* that `salak-0.9.*` is totally rewrited, so the APIs may changes much, and some functions may be removed. They will be added in later version.
 
 ## Quick Example
 ```rust
