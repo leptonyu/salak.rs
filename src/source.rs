@@ -136,7 +136,7 @@ impl PropertyRegistry {
         };
         let mut history = HashSet::new();
         history.insert(key.as_str().to_string());
-        Ok(Some(self.resolve(v, &mut history)?))
+        Ok(Some(self.resolve(key, v, &mut history)?))
     }
 
     fn merge(val: Option<String>, new: &str) -> String {
@@ -151,6 +151,7 @@ impl PropertyRegistry {
 
     fn resolve(
         &self,
+        key: &Key<'_>,
         mut val: &str,
         history: &mut HashSet<String>,
     ) -> Result<Property<'_>, PropertyError> {
@@ -162,7 +163,7 @@ impl PropertyRegistry {
                 "$" => {
                     let pos_1 = pos + 1;
                     if val.len() == pos_1 || &val[pos_1..=pos_1] != "{" {
-                        return Err(PropertyError::ResolveFail);
+                        return Err(PropertyError::ResolveFail(key.as_str().to_string()));
                     }
                     let last = stack.pop();
                     stack.push(Self::merge(last, &val[..pos]));
@@ -172,7 +173,7 @@ impl PropertyRegistry {
                 "\\" => {
                     let pos_1 = pos + 1;
                     if val.len() == pos_1 {
-                        return Err(PropertyError::ResolveFail);
+                        return Err(PropertyError::ResolveFail(key.as_str().to_string()));
                     }
                     let last = stack.pop();
                     let mut v = Self::merge(last, &val[..pos]);
@@ -202,7 +203,7 @@ impl PropertyRegistry {
                     stack.push(v);
                     val = &val[pos + 1..];
                 }
-                _ => return Err(PropertyError::ResolveFail),
+                _ => return Err(PropertyError::ResolveFail(key.as_str().to_string())),
             }
         }
         if let Some(mut v) = stack.pop() {
@@ -211,7 +212,7 @@ impl PropertyRegistry {
                 return Ok(Property::O(v));
             }
         }
-        Err(PropertyError::ResolveFail)
+        Err(PropertyError::ResolveFail(key.as_str().to_string()))
     }
 }
 
@@ -222,7 +223,8 @@ pub(crate) struct FileConfig {
     profile: String,
 }
 
-const PREFIX: &str = "application";
+#[allow(dead_code)]
+const PREFIX: &str = "salak.app";
 
 impl FromEnvironment for FileConfig {
     fn from_env<'a>(
@@ -239,10 +241,12 @@ impl FromEnvironment for FileConfig {
 }
 
 impl FileConfig {
+    #[allow(dead_code)]
     pub(crate) fn new(env: &impl Environment) -> Result<Self, PropertyError> {
         env.require::<FileConfig>(PREFIX)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn build<F: Fn(String, &str) -> Result<S, PropertyError>, S: PropertySource>(
         &self,
         ext: &str,

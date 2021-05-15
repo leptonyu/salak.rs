@@ -62,40 +62,28 @@
 
 use salak::*;
 
-#[cfg(feature = "enable_pool")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
-mod pool;
-#[cfg(feature = "enable_pool")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
-pub use crate::pool::*;
+#[cfg(feature = "pool")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pool")))]
+pub mod pool;
 
-#[cfg(feature = "enable_postgres")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
-mod postgres;
-#[cfg(feature = "enable_postgres")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
-pub use crate::postgres::{PostgresConfig, PostgresConnectionManager, PostgresCustomizer};
+#[cfg(feature = "postgresql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
+pub mod postgresql;
 
-#[cfg(feature = "enable_redis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
-mod redis;
-#[cfg(feature = "enable_redis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
-pub use crate::redis::{RedisConfig, RedisConnectionManager};
+#[cfg(feature = "redis_default")]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis_default")))]
+pub mod redis_default;
 
-#[cfg(feature = "enable_redis_cluster")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
-mod redis_cluster;
-#[cfg(feature = "enable_redis_cluster")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
-pub use crate::redis_cluster::{RedisClusterConfig, RedisClusterConnectionManager};
+#[cfg(feature = "redis_cluster")]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
+pub mod redis_cluster;
 
-#[cfg(feature = "enable_log")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
-mod toy_log;
-#[cfg(feature = "enable_log")]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
-pub use crate::toy_log::*;
+// #[cfg(feature = "enable_log")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
+// mod toy_log;
+// #[cfg(feature = "enable_log")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "enable_log")))]
+// pub use crate::toy_log::*;
 
 /// Default namespace
 pub const DEFAULT_NAMESPACE: &str = "primary";
@@ -195,7 +183,7 @@ pub trait Factory: Environment {
     ) -> Result<T::Product, PropertyError>;
 }
 
-impl Factory for PropertyRegistry {
+impl Factory for Salak {
     fn build_by_namespace_and_customizer<T: Buildable>(
         &self,
         namespace: &str,
@@ -204,3 +192,7 @@ impl Factory for PropertyRegistry {
         T::build(namespace, self, customizer)
     }
 }
+
+/// Wrap enum for implement enum.
+#[derive(Debug)]
+pub struct WrapEnum<T>(pub(crate) T);

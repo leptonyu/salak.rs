@@ -57,5 +57,6 @@ yaml = ['yaml-rust']
 [workspace]
 members = [
   '.',
-  'salak_derive', # 'salak_factory',
+  'salak_derive',
+  'salak_factory',
 ]

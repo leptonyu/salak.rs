@@ -16,7 +16,7 @@ license = 'MIT'
 name = 'salak_factory'
 readme = 'README.md'
 repository = 'https://github.com/leptonyu/salak.rs'
-version = '0.2.1'
+version = '0.3.0'
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
@@ -54,20 +54,19 @@ slog-term = "2"
 
 [features]
 default = []
-enable_log = ['tracing-log', 'tracing-subscriber', 'tracing', 'log', 'humantime', 'rtrb']
-enable_pool = [
+pool = [
   'r2d2',
   'scheduled-thread-pool',
 ]
-enable_postgres = [
+postgresql = [
   'postgres',
-  'enable_pool',
+  'pool',
 ]
-enable_redis = [
-  'redis/default',
-  'enable_pool',
-]
-enable_redis_cluster = [
+redis_cluster = [
   'redis/cluster',
-  'enable_pool',
+  'pool',
+]
+redis_default = [
+  'redis/default',
+  'pool',
 ]

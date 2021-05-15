@@ -40,7 +40,8 @@ mod env;
 
 mod enums;
 
-pub use crate::err::PropertyError;
+pub use crate::enums::EnumProperty;
+pub use crate::err::{PropertyError, SalakParseError};
 pub use crate::source::{system_environment, HashMapSource, PropertyRegistry};
 
 mod source;

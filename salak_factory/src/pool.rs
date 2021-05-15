@@ -1,3 +1,5 @@
+//! Generic pool configuration.
+
 use r2d2::{CustomizeConnection, HandleError, HandleEvent};
 pub(crate) use r2d2::{ManageConnection, Pool};
 use scheduled_thread_pool::ScheduledThreadPool;

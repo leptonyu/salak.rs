@@ -100,15 +100,12 @@ fn derive_field(field: Field) -> quote::__private::TokenStream {
 }
 
 fn derive_fields(fields: Fields) -> Vec<quote::__private::TokenStream> {
-    match fields {
-        Fields::Named(fields) => {
-            let mut v = vec![];
-            for field in fields.named {
-                v.push(derive_field(field));
-            }
-            return v;
+    if let Fields::Named(fields) = fields {
+        let mut v = vec![];
+        for field in fields.named {
+            v.push(derive_field(field));
         }
-        _ => {}
+        return v;
     }
     panic!("Only support named body");
 }
@@ -146,23 +143,16 @@ fn derive_enum(type_name: &Ident, data: &DataEnum) -> quote::__private::TokenStr
         vs.push(body);
     }
     quote! {
-    impl IsProperty for #type_name {
-        fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+        impl EnumProperty for #type_name {
             #[inline]
             fn str_to_enum(val: &str) -> Result<#type_name, PropertyError>{
-              match &val.to_lowercase()[..] {
+            match &val.to_lowercase()[..] {
                 #(#vs)*
                 _ => Err(PropertyError::parse_fail("invalid enum value")),
-              }
             }
-            match p {
-                Property::S(v) => str_to_enum(v),
-                Property::O(v) => str_to_enum(&v),
-                _ => Err(PropertyError::parse_fail("only string can convert to enum")),
             }
         }
     }
-       }
 }
 
 #[proc_macro_derive(FromEnvironment, attributes(salak))]

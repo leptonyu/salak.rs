@@ -1,7 +1,13 @@
-use super::*;
+//! Redis cluster configuration.
+use crate::{
+    pool::{PoolConfig, PoolCustomizer},
+    Buildable,
+};
 use ::redis::cluster::*;
 use ::redis::*;
-use std::str::FromStr;
+use r2d2::{ManageConnection, Pool};
+use salak::*;
+use std::{str::FromStr, time::Duration};
 
 /// Redis Connection Pool Configuration.
 ///
@@ -22,7 +28,7 @@ use std::str::FromStr;
 /// |redis_cluster.pool.idle_timeout|false|${pool.idle_timeout:}|
 /// |redis_cluster.pool.connection_timeout|false|${pool.connection_timeout:5s}|
 /// |redis_cluster.pool.wait_for_init|false|${pool.wait_for_init:false}|
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "redis_cluster")]
 pub struct RedisClusterConfig {
@@ -36,7 +42,7 @@ pub struct RedisClusterConfig {
 }
 
 /// Redis connection manager
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis_cluster")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisClusterConnectionManager {
     client: ClusterClient,
@@ -117,6 +123,6 @@ mod tests {
         let pool = env.get::<RedisClusterConfig>();
         assert_eq!(true, pool.is_ok());
 
-        print_keys::<RedisClusterConfig>();
+        // print_keys::<RedisClusterConfig>();
     }
 }

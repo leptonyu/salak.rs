@@ -1,11 +1,18 @@
-use super::*;
-use ::postgres::{
+//! Postgresql configuration.
+use postgres::{
     config::{ChannelBinding, TargetSessionAttrs},
     error::DbError,
     tls::{MakeTlsConnect, TlsConnect},
     Client, Config, Error, NoTls, Socket,
 };
+use r2d2::{ManageConnection, Pool};
+use salak::*;
 use std::time::Duration;
+
+use crate::{
+    pool::{PoolConfig, PoolCustomizer},
+    Buildable, WrapEnum,
+};
 
 /// Postgres Connection Pool Configuration.
 ///
@@ -33,7 +40,7 @@ use std::time::Duration;
 /// |postgresql.pool.idle_timeout|false|${pool.idle_timeout:}|
 /// |postgresql.pool.connection_timeout|false|${pool.connection_timeout:5s}|
 /// |postgresql.pool.wait_for_init|false|${pool.wait_for_init:false}|
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "postgresql")]
 pub struct PostgresConfig {
@@ -52,13 +59,19 @@ pub struct PostgresConfig {
     keepalives_idle: Option<Duration>,
     #[salak(default = "true")]
     must_allow_write: bool,
-    channel_binding: Option<String>,
+    channel_binding: Option<WrapEnum<ChannelBinding>>,
     pool: PoolConfig,
 }
 
+impl_enum_property!(WrapEnum<ChannelBinding> {
+    "disable" => WrapEnum(ChannelBinding::Disable)
+    "prefer" => WrapEnum(ChannelBinding::Prefer)
+    "require" => WrapEnum(ChannelBinding::Require)
+});
+
 /// Postgres connection pool configuration.
 #[derive(Debug)]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
 pub struct PostgresConnectionManager<T> {
     config: Config,
     tls_connector: T,
@@ -102,7 +115,7 @@ macro_rules! set_option_field {
 
 /// Postgres Customizer
 #[allow(missing_debug_implementations)]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
 pub struct PostgresCustomizer {
     /// Sets the notice callback.
     pub notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
@@ -156,12 +169,7 @@ impl Buildable for PostgresConfig {
         }
 
         if let Some(channel_binding) = self.channel_binding {
-            config.channel_binding(match &channel_binding.to_lowercase()[..] {
-                "disable" => Ok(ChannelBinding::Disable),
-                "prefer" => Ok(ChannelBinding::Prefer),
-                "require" => Ok(ChannelBinding::Require),
-                _ => Err(PropertyError::parse_failed("Invalid ChannelBinding")),
-            }?);
+            config.channel_binding(channel_binding.0);
         }
 
         let m = PostgresConnectionManager {
@@ -177,9 +185,9 @@ mod tests {
     use super::*;
     #[test]
     fn postgres_tests() {
-        let env = PropertyRegistry::new().build();
-        let pool = env.build::<PostgresConfig>();
+        let env = Salak::new().unwrap();
+        let pool = env.get::<PostgresConfig>();
         assert_eq!(true, pool.is_ok());
-        print_keys::<PostgresConfig>();
+        // print_keys::<PostgresConfig>();
     }
 }

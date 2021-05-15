@@ -1,6 +1,12 @@
-use super::*;
+//! Single node redis configuratino.
+use crate::{
+    pool::{PoolConfig, PoolCustomizer},
+    Buildable,
+};
 use ::redis::*;
-use std::str::FromStr;
+use r2d2::{ManageConnection, Pool};
+use salak::*;
+use std::{str::FromStr, time::Duration};
 
 /// Redis Connection Pool Configuration.
 ///
@@ -26,7 +32,7 @@ use std::str::FromStr;
 /// |redis.pool.idle_timeout|false|${pool.idle_timeout:}|
 /// |redis.pool.connection_timeout|false|${pool.connection_timeout:5s}|
 /// |redis.pool.wait_for_init|false|${pool.wait_for_init:false}|
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis_default")))]
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "redis")]
 pub struct RedisConfig {
@@ -49,7 +55,7 @@ pub struct RedisConfig {
 }
 
 /// Redis connection manager
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_redis")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis_default")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisConnectionManager {
     config: ConnectionInfo,
@@ -137,6 +143,6 @@ mod tests {
         let pool = env.get::<RedisConfig>();
         assert_eq!(true, pool.is_ok());
 
-        print_keys::<RedisConfig>();
+        // print_keys::<RedisConfig>();
     }
 }

@@ -3,23 +3,31 @@ use log::*;
 
 use crate::*;
 
-/// Implement enum as [`IsProperty`]
+/// Any enum implement this trait is automatically implement [`IsProperty`].
+pub trait EnumProperty: Sized {
+    /// Convert str to enum.
+    fn str_to_enum(val: &str) -> Result<Self, PropertyError>;
+}
+
+impl<T: EnumProperty> IsProperty for T {
+    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+        match p {
+            Property::S(v) => T::str_to_enum(v),
+            Property::O(v) => T::str_to_enum(&v),
+            _ => Err(PropertyError::parse_fail("only string can convert to enum")),
+        }
+    }
+}
+
+/// Implement enum as [`EnumProperty`]
 #[macro_export]
 macro_rules! impl_enum_property {
-    ($x:ident {$($k:literal => $v:path)+ }) => {
-        impl IsProperty for $x {
-            fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
-                #[inline]
-                fn str_to_enum(val: &str) -> Result<$x, PropertyError> {
-                    match &val.to_lowercase()[..] {
-                        $($k => Ok($v),)+
-                        _ => Err(PropertyError::parse_fail("invalid enum value")),
-                    }
-                }
-                match p {
-                    Property::S(v) => str_to_enum(v),
-                    Property::O(v) => str_to_enum(&v),
-                    _ => Err(PropertyError::parse_fail("only string can convert to enum")),
+    ($x:path {$($k:literal => $v:expr)+ }) => {
+        impl EnumProperty for $x {
+            fn str_to_enum(val: &str) -> Result<$x, PropertyError> {
+                match &val.to_lowercase()[..] {
+                    $($k => Ok($v),)+
+                    _ => Err(PropertyError::parse_fail("invalid enum value")),
                 }
             }
         }

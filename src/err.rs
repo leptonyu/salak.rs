@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Display};
 
 #[allow(unused_imports)]
 use crate::*;
@@ -7,9 +7,9 @@ use crate::*;
 #[derive(Debug)]
 pub enum PropertyError {
     /// [`Property`] parse failed.
-    ParseFail(Option<Box<dyn Error>>),
+    ParseFail(Option<String>, Box<dyn Error>),
     /// Resolve fail.
-    ResolveFail,
+    ResolveFail(String),
     /// [`Property`] not found when resolve.
     ResolveNotFound(String),
     /// Recursive parsing same key.
@@ -18,15 +18,27 @@ pub enum PropertyError {
     NotFound(String),
 }
 
+#[derive(Debug)]
+/// Salak parse error.
+pub struct SalakParseError(String);
+
+impl Display for SalakParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Error for SalakParseError {}
+
 impl PropertyError {
     /// Create parse fail error.
-    pub fn parse_fail(_msg: &str) -> Self {
-        PropertyError::ParseFail(None)
+    pub fn parse_fail(msg: &str) -> Self {
+        PropertyError::ParseFail(None, Box::new(SalakParseError(msg.to_string())))
     }
 }
 
 impl<E: Error + 'static> From<E> for PropertyError {
     fn from(err: E) -> Self {
-        PropertyError::ParseFail(Some(Box::new(err)))
+        PropertyError::ParseFail(None, Box::new(err))
     }
 }

@@ -3,10 +3,13 @@ use std::{collections::HashMap, ops::DerefMut};
 use std::collections::HashSet;
 
 use crate::{
-    source::{system_environment, FileConfig, HashMapSource, PropertyRegistry},
+    source::{system_environment, HashMapSource, PropertyRegistry},
     Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
     SubKeys,
 };
+
+#[allow(unused_imports)]
+use crate::source::FileConfig;
 
 /// A builder which can configure for how to build a salak env.
 #[derive(Debug)]
@@ -128,7 +131,12 @@ impl Environment for PropertyRegistry {
         key.push(sub_key.into());
         let val = self.get(key, def).map(|val| T::from_env(key, val, self));
         key.pop();
-        val?
+        match val? {
+            Err(PropertyError::ParseFail(None, v)) if !key.as_str().is_empty() => {
+                Err(PropertyError::ParseFail(Some(key.as_str().to_string()), v))
+            }
+            val => val,
+        }
     }
 
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
@@ -156,10 +164,12 @@ impl<T: IsProperty> FromEnvironment for T {
         val: Option<Property<'_>>,
         _: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
-        match val {
-            Some(v) => Self::from_property(v),
-            _ => Err(PropertyError::NotFound(key.as_str().to_string())),
+        if let Some(v) = val {
+            if !Self::is_empty(&v) {
+                return Self::from_property(v);
+            }
         }
+        Err(PropertyError::NotFound(key.as_str().to_string()))
     }
 }
 

@@ -130,7 +130,7 @@ fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
             'm' | 'u' | 'n' if last == Some('s') => {
                 last = Some(c);
             }
-            c if c >= '0' && c <= '9' => {
+            c if ('0'..='9').contains(&c) => {
                 if last.is_none() {
                     last = Some('s');
                 }
@@ -184,27 +184,138 @@ mod tests {
             .build()
             .unwrap();
 
-        fn validate(env: &Salak, key: &str) {
-            println!("{}: {:?}", key, env.require::<String>(key));
-            println!("{}: {:?}", key, env.require::<bool>(key));
-            println!("{}: {:?}", key, env.require::<u8>(key));
-            println!("{}: {:?}", key, env.require::<Option<u8>>(key));
+        fn validate<T: std::fmt::Debug + FromEnvironment>(env: &Salak, key: &str, val: &str) {
+            println!("{} key: {}", std::any::type_name::<T>(), key);
+            assert_eq!(val, &format!("{:?}", env.require::<T>(key)));
         }
 
-        validate(&env, "a");
-        validate(&env, "b");
-        validate(&env, "c");
-        validate(&env, "d");
-        validate(&env, "e");
-        validate(&env, "f");
-        validate(&env, "g");
-        validate(&env, "h");
-        validate(&env, "i");
-        validate(&env, "j");
-        validate(&env, "k");
-        validate(&env, "l");
-        validate(&env, "m");
-        validate(&env, "z");
+        validate::<String>(&env, "a", "Ok(\"0\")");
+        validate::<String>(&env, "b", "Err(RecursiveFail(\"b\"))");
+        validate::<String>(&env, "c", "Ok(\"0\")");
+        validate::<String>(&env, "d", "Err(ResolveNotFound(\"z\"))");
+        validate::<String>(&env, "e", "Ok(\"\")");
+        validate::<String>(&env, "f", "Ok(\"0\")");
+        validate::<String>(&env, "g", "Ok(\"a\")");
+        validate::<String>(&env, "h", "Ok(\"0\")");
+        validate::<String>(&env, "i", "Ok(\"${a}\")");
+        validate::<String>(&env, "j", "Ok(\"0\")");
+        validate::<String>(&env, "k", "Ok(\"0 0\")");
+        validate::<String>(&env, "l", "Ok(\"0\")");
+        validate::<String>(&env, "m", "Ok(\"hello\")");
+
+        validate::<bool>(
+            &env,
+            "a",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(&env, "b", "Err(RecursiveFail(\"b\"))");
+        validate::<bool>(
+            &env,
+            "c",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(&env, "d", "Err(ResolveNotFound(\"z\"))");
+        validate::<bool>(&env, "e", "Err(NotFound(\"e\"))");
+        validate::<bool>(
+            &env,
+            "f",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "g",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "h",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "i",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "j",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "k",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "l",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+        validate::<bool>(
+            &env,
+            "m",
+            "Err(ParseFail(None, SalakParseError(\"invalid bool value\")))",
+        );
+
+        validate::<u8>(&env, "a", "Ok(0)");
+        validate::<u8>(&env, "b", "Err(RecursiveFail(\"b\"))");
+        validate::<u8>(&env, "c", "Ok(0)");
+        validate::<u8>(&env, "d", "Err(ResolveNotFound(\"z\"))");
+        validate::<u8>(&env, "e", "Err(NotFound(\"e\"))");
+        validate::<u8>(&env, "f", "Ok(0)");
+        validate::<u8>(
+            &env,
+            "g",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+        validate::<u8>(&env, "h", "Ok(0)");
+        validate::<u8>(
+            &env,
+            "i",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+        validate::<u8>(&env, "j", "Ok(0)");
+        validate::<u8>(
+            &env,
+            "k",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+        validate::<u8>(&env, "l", "Ok(0)");
+        validate::<u8>(
+            &env,
+            "m",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+
+        validate::<Option<u8>>(&env, "a", "Ok(Some(0))");
+        validate::<Option<u8>>(&env, "b", "Err(RecursiveFail(\"b\"))");
+        validate::<Option<u8>>(&env, "c", "Ok(Some(0))");
+        validate::<Option<u8>>(&env, "d", "Err(ResolveNotFound(\"z\"))");
+        validate::<Option<u8>>(&env, "e", "Ok(None)");
+        validate::<Option<u8>>(&env, "f", "Ok(Some(0))");
+        validate::<Option<u8>>(
+            &env,
+            "g",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+        validate::<Option<u8>>(&env, "h", "Ok(Some(0))");
+        validate::<Option<u8>>(
+            &env,
+            "i",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+        validate::<Option<u8>>(&env, "j", "Ok(Some(0))");
+        validate::<Option<u8>>(
+            &env,
+            "k",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
+        validate::<Option<u8>>(&env, "l", "Ok(Some(0))");
+        validate::<Option<u8>>(
+            &env,
+            "m",
+            "Err(ParseFail(None, ParseIntError { kind: InvalidDigit }))",
+        );
     }
 
     #[derive(Debug)]
@@ -262,6 +373,29 @@ mod tests {
         assert_key("[0]", "[0]");
         assert_key("0", "[0]");
     }
+
+    #[test]
+    fn key_modification_test() {
+        fn assert_key<'a>(key: &mut Key<'a>, target: &'a str) {
+            let prefix = key.as_str().to_string();
+            let p = key.as_str().to_string();
+            key.push(SubKey::S(target));
+            assert_eq!(key.as_str(), &format!("{}.{}", p, target));
+            key.pop();
+            assert_eq!(prefix, key.as_str());
+        }
+
+        fn assert_keys(key: &str, targets: Vec<&str>) {
+            let mut key = Key::from_str(key);
+            for target in targets {
+                assert_key(&mut key, target);
+            }
+        }
+
+        assert_keys("redis", vec!["port", "host", "ssl", "pool"]);
+        assert_keys("hello.hey", vec!["world"]);
+        assert_keys("hello[0].hey", vec!["world"]);
+    }
 }
 
 /// Sub key is partial [`Key`] having values with either `[_a-zA-Z0-9]+` or [`usize`].
@@ -308,12 +442,13 @@ impl<'a> Key<'a> {
         k
     }
 
+    #[allow(dead_code)]
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, SubKey<'_>> {
         self.key.iter()
     }
 
     pub(crate) fn as_str(&self) -> &str {
-        if self.buf.chars().next() == Some('.') {
+        if self.buf.starts_with('.') {
             return &self.buf.as_str()[1..];
         }
         self.buf.as_str()
@@ -349,14 +484,15 @@ pub struct SubKeys<'a> {
     pub(crate) upper: Option<usize>,
 }
 
-impl<'a> Into<SubKey<'a>> for &'a str {
-    fn into(self) -> SubKey<'a> {
-        SubKey::S(self)
+impl<'a> From<&'a str> for SubKey<'a> {
+    fn from(u: &'a str) -> Self {
+        SubKey::S(u)
     }
 }
-impl<'a> Into<SubKey<'a>> for usize {
-    fn into(self) -> SubKey<'a> {
-        SubKey::I(self)
+
+impl From<usize> for SubKey<'_> {
+    fn from(u: usize) -> Self {
+        SubKey::I(u)
     }
 }
 
