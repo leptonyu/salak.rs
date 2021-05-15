@@ -1,9 +1,6 @@
 use toml::Value;
 
-use crate::{
-    source::{FileConfig, PropertyRegistry},
-    Key, Property, PropertyError, PropertySource, SubKey, SubKeys,
-};
+use crate::{Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
 
 #[doc(hidden)]
 #[derive(Debug)]
@@ -69,13 +66,6 @@ impl PropertySource for Toml {
             _ => false,
         }
     }
-}
-
-pub(crate) fn init_toml(env: &mut PropertyRegistry, fc: &FileConfig) -> Result<(), PropertyError> {
-    for p in fc.build("toml", Toml::new)? {
-        env.register_by_ref(p);
-    }
-    Ok(())
 }
 
 /// Inline toml file as [`PropertySource`].

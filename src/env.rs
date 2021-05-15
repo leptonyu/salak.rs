@@ -15,6 +15,8 @@ use crate::source::FileConfig;
 #[derive(Debug)]
 pub struct SalakBuilder {
     args: HashMap<String, String>,
+    disable_file: bool,
+    disable_random: bool,
 }
 
 impl SalakBuilder {
@@ -30,6 +32,22 @@ impl SalakBuilder {
         self
     }
 
+    #[cfg(any(feature = "toml", feature = "yaml"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "toml", feature = "yaml"))))]
+    /// Not add file source to environment.
+    pub fn disable_load_file(mut self) -> Self {
+        self.disable_file = true;
+        self
+    }
+
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    /// Disable random support.
+    pub fn disable_random(mut self) -> Self {
+        self.disable_random = true;
+        self
+    }
+
     /// Build salak env, and panic if any error happens.
     pub fn unwrap_build(self) -> Salak {
         self.build().unwrap()
@@ -37,10 +55,10 @@ impl SalakBuilder {
 
     /// Build salak env.
     pub fn build(self) -> Result<Salak, PropertyError> {
-        let mut env = PropertyRegistry::new();
+        let mut env = PropertyRegistry::default();
 
         #[cfg(feature = "rand")]
-        {
+        if !self.disable_random {
             env.register_by_ref(crate::source_rand::Random);
         }
 
@@ -49,17 +67,17 @@ impl SalakBuilder {
             .register(system_environment());
 
         #[cfg(any(feature = "toml", feature = "yaml"))]
-        {
-            let fc = FileConfig::new(&env)?;
+        if !self.disable_file {
+            let mut fc = FileConfig::new(&env)?;
             #[cfg(feature = "toml")]
             {
-                crate::source_toml::init_toml(&mut env, &fc)?;
+                fc.build("toml", crate::source_toml::Toml::new)?;
             }
-
             #[cfg(feature = "yaml")]
             {
-                crate::source_yaml::init_yaml(&mut env, &fc)?;
+                fc.build("yaml", crate::source_yaml::YamlValue::new)?;
             }
+            fc.register_to_env(&mut env);
         }
 
         Ok(Salak(env))
@@ -91,6 +109,8 @@ impl Salak {
     pub fn builder() -> SalakBuilder {
         SalakBuilder {
             args: HashMap::new(),
+            disable_file: false,
+            disable_random: false,
         }
     }
 

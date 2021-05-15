@@ -47,10 +47,15 @@
 //!    * `random.u8`
 //!    * `random.u16`
 //!    * `random.u32`
+//!    * `random.u64`
+//!    * `random.u128`
+//!    * `random.usize`
 //!    * `random.i8`
 //!    * `random.i16`
 //!    * `random.i32`
 //!    * `random.i64`
+//!    * `random.i128`
+//!    * `random.isize`
 //! 2. Custom arguments source. [`SalakBuilder::set()`] can set a single kv,
 //! and [`SalakBuilder::set_args()`] can set a group of kvs.
 //! 3. System environment source. Implemented by [`system_environment`].
@@ -61,7 +66,7 @@
 //! #### Key Convention
 //! Key is used for search configuration from [`Environment`], normally it is represented by string.
 //! Key is a group of SubKey separated by dot(`.`), and SubKey is a name or a name followed by index.
-//! 1. SubKey Format (`[a-z][_a-z0-9]+(\[[0-9]+\])`)
+//! 1. SubKey Format (`[a-z][_a-z0-9]+(\[[0-9]+\])*`)
 //!    * `a`
 //!    * `a0`
 //!    * `a_b`

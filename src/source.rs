@@ -72,12 +72,13 @@ pub fn system_environment() -> HashMapSource {
 /// An implementation of [`Environment`] for registering [`PropertySource`].
 #[allow(missing_debug_implementations)]
 pub struct PropertyRegistry {
+    name: &'static str,
     providers: Vec<Box<dyn PropertySource>>,
 }
 
 impl PropertySource for PropertyRegistry {
     fn name(&self) -> &str {
-        "registry"
+        self.name
     }
 
     fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
@@ -97,14 +98,17 @@ impl PropertySource for PropertyRegistry {
 
 impl Default for PropertyRegistry {
     fn default() -> Self {
-        Self::new()
+        Self::new("registry")
     }
 }
 
 impl PropertyRegistry {
     /// Create an empty source.
-    pub fn new() -> Self {
-        Self { providers: vec![] }
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            providers: vec![],
+        }
     }
 
     pub(crate) fn register_by_ref<P: PropertySource + 'static>(&mut self, provider: P) {
@@ -215,12 +219,12 @@ impl PropertyRegistry {
         Err(PropertyError::ResolveFail(key.as_str().to_string()))
     }
 }
-
-#[derive(Debug)]
 pub(crate) struct FileConfig {
     dir: Option<String>,
     name: String,
     profile: String,
+    env_profile: PropertyRegistry,
+    env_default: PropertyRegistry,
 }
 
 #[allow(dead_code)]
@@ -236,6 +240,8 @@ impl FromEnvironment for FileConfig {
             dir: env.require_def(key, SubKey::S("dir"), None)?,
             name: env.require_def(key, SubKey::S("name"), Some(Property::S("app")))?,
             profile: env.require_def(key, SubKey::S("profile"), Some(Property::S("default")))?,
+            env_profile: PropertyRegistry::new("profile-files"),
+            env_default: PropertyRegistry::new("default-files"),
         })
     }
 }
@@ -247,28 +253,51 @@ impl FileConfig {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn build<F: Fn(String, &str) -> Result<S, PropertyError>, S: PropertySource>(
-        &self,
+    pub(crate) fn register_to_env(self, env: &mut PropertyRegistry) {
+        env.register_by_ref(self.env_profile);
+        env.register_by_ref(self.env_default);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build<
+        F: Fn(String, &str) -> Result<S, PropertyError>,
+        S: PropertySource + 'static,
+    >(
+        &mut self,
         ext: &str,
         f: F,
-    ) -> Result<Vec<S>, PropertyError> {
-        let mut vs = vec![];
-        for file in vec![
-            format!("{}.{}", self.name, ext),
-            format!("{}-{}.{}", self.name, self.profile, ext),
-        ] {
+    ) -> Result<(), PropertyError> {
+        fn make<F: Fn(String, &str) -> Result<S, PropertyError>, S: PropertySource + 'static>(
+            f: F,
+            file: String,
+            dir: &Option<String>,
+            env: &mut PropertyRegistry,
+        ) -> Result<(), PropertyError> {
             let mut path = PathBuf::new();
-            if let Some(d) = &self.dir {
+            if let Some(d) = &dir {
                 path.push(d);
             }
             path.push(file);
             if path.exists() {
-                vs.push((f)(
+                env.register_by_ref((f)(
                     path.as_path().display().to_string(),
                     &std::fs::read_to_string(path)?,
                 )?);
             }
+            Ok(())
         }
-        Ok(vs)
+
+        make(
+            &f,
+            format!("{}-{}.{}", self.name, self.profile, ext),
+            &self.dir,
+            &mut self.env_profile,
+        )?;
+        make(
+            &f,
+            format!("{}.{}", self.name, ext),
+            &self.dir,
+            &mut self.env_default,
+        )
     }
 }

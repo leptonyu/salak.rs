@@ -164,7 +164,7 @@ impl IsProperty for Duration {
     }
 }
 
-/// Sub key is partial [`Key`] having values with either `[_a-zA-Z0-9]+` or [`usize`].
+/// Sub key is partial [`Key`] having values with either `[a-z][_a-z0-9]*` or [`usize`].
 #[derive(Debug)]
 pub enum SubKey<'a> {
     /// Str sub key.

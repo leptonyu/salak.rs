@@ -1,17 +1,14 @@
 use yaml_rust::Yaml;
 
-use crate::{
-    source::{FileConfig, PropertyRegistry},
-    Key, Property, PropertyError, PropertySource, SubKey, SubKeys,
-};
+use crate::{Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
 
-struct YamlValue {
+pub(crate) struct YamlValue {
     name: String,
     value: Vec<Yaml>,
 }
 
 impl YamlValue {
-    fn new(name: String, content: &str) -> Result<Self, PropertyError> {
+    pub(crate) fn new(name: String, content: &str) -> Result<Self, PropertyError> {
         Ok(Self {
             name,
             value: yaml_rust::YamlLoader::load_from_str(content)?,
@@ -80,11 +77,4 @@ impl PropertySource for YamlValue {
         }
         false
     }
-}
-
-pub(crate) fn init_yaml(env: &mut PropertyRegistry, fc: &FileConfig) -> Result<(), PropertyError> {
-    for p in fc.build("yaml", YamlValue::new)? {
-        env.register_by_ref(p);
-    }
-    Ok(())
 }
