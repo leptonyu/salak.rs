@@ -10,6 +10,28 @@ Salak is a multi layered configuration loader and zero-boilerplate configuration
 
 Please refer to [salak doc](https://docs.rs/salak).
 
+## Quick Example
+```rust
+use salak::*;
+
+#[derive(Debug, FromEnvironment)]
+#[salak(prefix = "config")]
+struct Config {
+    #[salak(default = false)]
+    verbose: bool,
+    optional: Option<String>,
+    #[salak(name = "val")]
+    value: i64,
+}
+let env = Salak::builder()
+    .set("config.val", "2021")
+    .unwrap_build();
+let config = env.get::<Config>().unwrap();
+assert_eq!(2021, config.value);
+assert_eq!(None, config.optional);
+assert_eq!(false, config.verbose);
+```
+
 
 ## [salak_factory](https://crates.io/crates/salak_factory)
 Salak Factory is out-of-box crate for using well known components, such as redis, postgresql, etc.
