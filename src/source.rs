@@ -76,7 +76,7 @@ pub fn system_environment() -> HashMapSource {
 #[allow(missing_debug_implementations)]
 pub struct PropertyRegistry {
     name: &'static str,
-    providers: Vec<Box<dyn PropertySource>>,
+    providers: Vec<Box<dyn PropertySource + Send>>,
 }
 
 impl PropertySource for PropertyRegistry {
@@ -114,7 +114,7 @@ impl PropertyRegistry {
         }
     }
 
-    pub(crate) fn register_by_ref<P: PropertySource + 'static>(&mut self, provider: P) {
+    pub(crate) fn register_by_ref<P: PropertySource + Send + 'static>(&mut self, provider: P) {
         if !provider.is_empty() {
             self.providers.push(Box::new(provider));
         }
@@ -122,7 +122,7 @@ impl PropertyRegistry {
 
     /// Register source to registry, sources that register earlier will have higher priority of
     /// configuration.
-    pub fn register<P: PropertySource + 'static>(mut self, provider: P) -> Self {
+    pub fn register<P: PropertySource + Send + 'static>(mut self, provider: P) -> Self {
         self.register_by_ref(provider);
         self
     }
@@ -277,13 +277,16 @@ impl FileConfig {
     #[allow(dead_code)]
     pub(crate) fn build<
         F: Fn(String, &str) -> Result<S, PropertyError>,
-        S: PropertySource + 'static,
+        S: PropertySource + Send + 'static,
     >(
         &mut self,
         ext: &str,
         f: F,
     ) -> Result<(), PropertyError> {
-        fn make<F: Fn(String, &str) -> Result<S, PropertyError>, S: PropertySource + 'static>(
+        fn make<
+            F: Fn(String, &str) -> Result<S, PropertyError>,
+            S: PropertySource + Send + 'static,
+        >(
             f: F,
             file: String,
             dir: &Option<String>,
