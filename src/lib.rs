@@ -126,15 +126,19 @@ pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironm
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use salak_derive::FromEnvironment;
 
-mod err;
+#[cfg(feature = "args")]
+#[cfg_attr(docsrs, doc(cfg(feature = "args")))]
+mod args;
+#[cfg(feature = "args")]
+#[cfg_attr(docsrs, doc(cfg(feature = "args")))]
+pub use crate::args::*;
 
+mod err;
 pub use crate::raw::*;
 mod raw;
-
 pub use crate::env::*;
-mod env;
-
 mod enums;
+mod env;
 
 pub use crate::enums::EnumProperty;
 pub use crate::err::{PropertyError, SalakParseError};

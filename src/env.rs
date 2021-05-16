@@ -9,8 +9,10 @@ use crate::{
 };
 
 #[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 use crate::KeyDesc;
+
+#[cfg(feature = "args")]
+use crate::{from_args, AppInfo};
 
 #[allow(unused_imports)]
 use crate::source::FileConfig;
@@ -21,6 +23,8 @@ pub struct SalakBuilder {
     args: HashMap<String, String>,
     disable_file: bool,
     disable_random: bool,
+    #[cfg(feature = "args")]
+    app_info: Option<AppInfo<'static>>,
 }
 
 impl SalakBuilder {
@@ -52,18 +56,32 @@ impl SalakBuilder {
         self
     }
 
+    #[cfg(feature = "args")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
+    /// Enable arguments.
+    pub fn enable_args(mut self, info: AppInfo<'static>) -> Self {
+        self.app_info = Some(info);
+        self
+    }
+
     /// Build salak env, and panic if any error happens.
     pub fn unwrap_build(self) -> Salak {
         self.build().unwrap()
     }
 
     /// Build salak env.
-    pub fn build(self) -> Result<Salak, PropertyError> {
+    #[allow(unused_mut)]
+    pub fn build(mut self) -> Result<Salak, PropertyError> {
         let mut env = PropertyRegistry::default();
 
         #[cfg(feature = "rand")]
         if !self.disable_random {
             env.register_by_ref(crate::source_rand::Random);
+        }
+
+        #[cfg(feature = "args")]
+        if let Some(app) = self.app_info {
+            self.args.extend(from_args(app)?);
         }
 
         env = env
@@ -115,6 +133,8 @@ impl Salak {
             args: HashMap::new(),
             disable_file: false,
             disable_random: false,
+            #[cfg(feature = "args")]
+            app_info: None,
         }
     }
 

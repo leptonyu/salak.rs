@@ -28,6 +28,7 @@ rustdoc-args = [
 all-features = true
 
 [dependencies]
+clap = {optional = true, version = "^2.33"}
 lazy_static = '^1.4'
 log = {optional = true, version = '^0.4'}
 rand = {optional = true, version = '^0.8'}
@@ -42,11 +43,8 @@ quickcheck = '1'
 quickcheck_macros = '1'
 rand = '0.8'
 
-[[bench]]
-harness = false
-name = "property"
-
 [features]
+args = ["clap"]
 default = [
   'derive',
   'rand',
@@ -61,3 +59,11 @@ members = [
   'salak_derive',
   'salak_factory',
 ]
+
+[[bench]]
+harness = false
+name = "property"
+
+[[example]]
+name = "salak"
+required-features = ["default", "args"]
