@@ -9,7 +9,8 @@ cargo test --verbose --lib --no-default-features --features=yaml
 cargo test --verbose --lib --no-default-features --features=derive
 cargo test --verbose --lib --no-default-features --features=args
 
-# cargo run --example salak
+cargo bench 
+cargo run --example salak --features='default args'
 
 cd salak_factory
 cargo test --verbose --all-features
