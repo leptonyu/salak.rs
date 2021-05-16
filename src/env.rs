@@ -4,8 +4,8 @@ use std::collections::HashSet;
 
 use crate::{
     source::{system_environment, HashMapSource, PropertyRegistry},
-    Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
-    SubKeys,
+    Environment, FromEnvironment, IsProperty, Key, PrefixedFromEnvironment, Property,
+    PropertyError, PropertySource, SubKey, SubKeys,
 };
 
 #[cfg(feature = "derive")]
@@ -18,11 +18,14 @@ use crate::{from_args, AppInfo};
 use crate::source::FileConfig;
 
 /// A builder which can configure for how to build a salak env.
-#[derive(Debug)]
+#[allow(missing_debug_implementations)]
 pub struct SalakBuilder {
     args: HashMap<String, String>,
     disable_file: bool,
     disable_random: bool,
+    registry: PropertyRegistry,
+    #[cfg(feature = "args")]
+    app_desc: Vec<KeyDesc>,
     #[cfg(feature = "args")]
     app_info: Option<AppInfo<'static>>,
 }
@@ -64,6 +67,14 @@ impl SalakBuilder {
         self
     }
 
+    #[cfg(feature = "args")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
+    /// Enable arguments.
+    pub fn add_config_desc<T: PrefixedFromEnvironment>(mut self) -> Self {
+        self.app_desc.extend(self.registry.get_desc::<T>());
+        self
+    }
+
     /// Build salak env, and panic if any error happens.
     pub fn unwrap_build(self) -> Salak {
         self.build().unwrap()
@@ -72,7 +83,7 @@ impl SalakBuilder {
     /// Build salak env.
     #[allow(unused_mut)]
     pub fn build(mut self) -> Result<Salak, PropertyError> {
-        let mut env = PropertyRegistry::default();
+        let mut env = self.registry;
 
         #[cfg(feature = "rand")]
         if !self.disable_random {
@@ -81,7 +92,7 @@ impl SalakBuilder {
 
         #[cfg(feature = "args")]
         if let Some(app) = self.app_info {
-            self.args.extend(from_args(app)?);
+            self.args.extend(from_args(self.app_desc, app)?);
         }
 
         env = env
@@ -106,23 +117,10 @@ impl SalakBuilder {
     }
 }
 
-/// Salak is a wrapper for salak env, all functions this crate provides will be implemented on it.
+/// Salak is a wrapper for salak env, all functions that this crate provides will be implemented on it.
 /// * Provides a group of sources that have predefined orders.
 /// * Provides custom source registration.
 ///
-/// Predefined sources:
-/// 1. Source for generating random values with following keys..
-///    * random.i8
-///    * random.i16
-///    * random.i32
-///    * random.i64
-///    * random.u8
-///    * random.u16
-///    * random.u32
-/// 2. Source from arguments and direct coding.
-/// 3. Source from environment.
-/// 4. Source from toml if feature enabled.
-/// 5. Source from yaml if feature enabled.
 #[allow(missing_debug_implementations)]
 pub struct Salak(PropertyRegistry);
 
@@ -133,6 +131,9 @@ impl Salak {
             args: HashMap::new(),
             disable_file: false,
             disable_random: false,
+            registry: PropertyRegistry::new("registry"),
+            #[cfg(feature = "args")]
+            app_desc: vec![],
             #[cfg(feature = "args")]
             app_info: None,
         }

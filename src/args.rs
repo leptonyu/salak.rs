@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::PropertyError;
+use crate::{KeyDesc, PropertyError};
 
 /// Application info.
 #[derive(Debug)]
@@ -36,14 +36,26 @@ fn parse(s: String) -> Result<(String, String), PropertyError> {
 }
 
 /// Generate source from args.
-pub fn from_args(info: AppInfo<'_>) -> Result<HashMap<String, String>, PropertyError> {
-    let mut app = clap::App::new(info.name).version(info.version).arg(
-        clap::Arg::with_name("property")
-            .long("property")
-            .short("P")
-            .value_name("KEY=VALUE")
-            .help("Set properties."),
-    );
+pub fn from_args(
+    desc: Vec<KeyDesc>,
+    info: AppInfo<'_>,
+) -> Result<HashMap<String, String>, PropertyError> {
+    let help = desc
+        .iter()
+        .map(|f| f.to_string())
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let mut app = clap::App::new(info.name)
+        .version(info.version)
+        .arg(
+            clap::Arg::with_name("property")
+                .long("property")
+                .short("P")
+                .value_name("KEY=VALUE")
+                .help("Set properties."),
+        )
+        .after_help(help.as_str());
     if let Some(v) = info.author {
         app = app.author(v);
     }

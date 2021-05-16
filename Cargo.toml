@@ -44,7 +44,7 @@ quickcheck_macros = '1'
 rand = '0.8'
 
 [features]
-args = ["clap"]
+args = ['clap', 'derive']
 default = [
   'derive',
   'rand',
