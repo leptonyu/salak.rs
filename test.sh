@@ -10,7 +10,7 @@ cargo test --verbose --lib --no-default-features --features=derive
 cargo test --verbose --lib --no-default-features --features=args
 
 cargo bench 
-cargo run --example salak --features='default args'
+cargo run --example salak --features='default args' -- -h
 
 cd salak_factory
 cargo test --verbose --all-features
