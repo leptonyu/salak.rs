@@ -7,6 +7,7 @@ cargo test --verbose --lib --no-default-features
 cargo test --verbose --lib --no-default-features --features=toml
 cargo test --verbose --lib --no-default-features --features=yaml
 cargo test --verbose --lib --no-default-features --features=derive
+cargo test --verbose --lib --no-default-features --features=args
 
 # cargo run --example salak
 

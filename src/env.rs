@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::{
     source::{system_environment, HashMapSource, PropertyRegistry},
-    Environment, FromEnvironment, IsProperty, Key, PrefixedFromEnvironment, Property,
+    Environment, FromEnvironment, IsProperty, Key, Property,
     PropertyError, PropertySource, SubKey, SubKeys,
 };
 
