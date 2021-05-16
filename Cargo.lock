@@ -975,7 +975,7 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "salak"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "criterion",
  "env_logger",
@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "salak_factory"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "postgres",
  "r2d2",
