@@ -49,6 +49,7 @@ name = "property"
 [features]
 default = [
   'derive',
+  'rand',
   'toml',
 ]
 derive = ['salak_derive']

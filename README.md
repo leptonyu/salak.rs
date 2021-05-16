@@ -45,8 +45,8 @@ use salak_factory::{redis_default::RedisConfig, Factory};
 fn main() -> Result<(), PropertyError> {
     let env = Salak::new()?;
     let redis_pool = env.build::<RedisConfig>()?;
-    let redis_conn = redis_pool.get().unwrap();
-    let _: u64 = redis_conn.set("hello", 1u64).unwrap();
+    let redis_conn = redis_pool.get()?;
+    let _: u64 = redis_conn.set("hello", 1u64)?;
     Ok(())
 }
 ```
