@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[cfg(feature = "derive")]
-use crate::KeyDesc;
+use crate::{KeyDesc, PrefixedFromEnvironment};
 
 #[cfg(feature = "args")]
 use crate::{from_args, AppInfo};
@@ -21,7 +21,9 @@ use crate::source::FileConfig;
 #[allow(missing_debug_implementations)]
 pub struct SalakBuilder {
     args: HashMap<String, String>,
+    #[cfg(any(feature = "toml", feature = "yaml"))]
     disable_file: bool,
+    #[cfg(feature = "args")]
     disable_random: bool,
     registry: PropertyRegistry,
     #[cfg(any(feature = "args", feature = "derive"))]
@@ -129,7 +131,9 @@ impl Salak {
     pub fn builder() -> SalakBuilder {
         SalakBuilder {
             args: HashMap::new(),
+            #[cfg(any(feature = "toml", feature = "yaml"))]
             disable_file: false,
+            #[cfg(feature = "args")]
             disable_random: false,
             registry: PropertyRegistry::new("registry"),
             #[cfg(any(feature = "args", feature = "derive"))]
