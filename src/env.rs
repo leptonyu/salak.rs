@@ -23,7 +23,7 @@ pub struct SalakBuilder {
     args: HashMap<String, String>,
     #[cfg(any(feature = "toml", feature = "yaml"))]
     disable_file: bool,
-    #[cfg(feature = "args")]
+    #[cfg(feature = "rand")]
     disable_random: bool,
     registry: PropertyRegistry,
     #[cfg(any(feature = "args", feature = "derive"))]
@@ -133,7 +133,7 @@ impl Salak {
             args: HashMap::new(),
             #[cfg(any(feature = "toml", feature = "yaml"))]
             disable_file: false,
-            #[cfg(feature = "args")]
+            #[cfg(feature = "rand")]
             disable_random: false,
             registry: PropertyRegistry::new("registry"),
             #[cfg(any(feature = "args", feature = "derive"))]
