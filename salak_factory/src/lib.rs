@@ -72,7 +72,7 @@ pub mod redis_cluster;
 pub const DEFAULT_NAMESPACE: &str = "primary";
 
 /// Buildable component from [`Environment`].
-pub trait Buildable: Sized + DefaultSourceFromEnvironment {
+pub trait Buildable: Sized + PrefixedFromEnvironment {
     /// Target product.
     type Product;
 

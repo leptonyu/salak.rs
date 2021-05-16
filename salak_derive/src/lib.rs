@@ -56,9 +56,13 @@ fn is_salak(list: &MetaList) -> bool {
     false
 }
 
-fn parse_field_attribute(attrs: Vec<Attribute>, name: &mut Ident) -> quote::__private::TokenStream {
+fn parse_field_attribute(
+    attrs: Vec<Attribute>,
+    name: &mut Ident,
+) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
     let mut def = None;
     let mut rename = None;
+    let mut desc = None;
     for attr in attrs {
         if let Ok(Meta::List(list)) = attr.parse_meta() {
             if !is_salak(&list) {
@@ -69,7 +73,8 @@ fn parse_field_attribute(attrs: Vec<Attribute>, name: &mut Ident) -> quote::__pr
                     match &parse_path(nv.path)[..] {
                         "default" => def = Some(parse_lit(nv.lit)),
                         "name" => rename = Some(parse_lit(nv.lit)),
-                        _ => panic!("Only support default/name/required"),
+                        "desc" => desc = Some(parse_lit(nv.lit)),
+                        _ => panic!("Only support default/name/desc"),
                     }
                 } else {
                     panic!("Only support NestedMeta::Meta(Meta::NameValue)");
@@ -81,39 +86,75 @@ fn parse_field_attribute(attrs: Vec<Attribute>, name: &mut Ident) -> quote::__pr
         *name = quote::format_ident!("{}", rename);
     }
 
-    match def {
-        Some(def) => quote! {
-            Some(Property::S(#def))
+    let (a, b) = match def {
+        Some(def) => (
+            quote! {
+                Some(Property::S(#def))
+            },
+            quote! {
+                Some(false), Some(#def)
+            },
+        ),
+        _ => (
+            quote! {
+                None
+            },
+            quote! {
+                None, None
+            },
+        ),
+    };
+
+    (
+        a,
+        if let Some(desc) = desc {
+            quote! {
+                #b, Some(#desc.to_string())
+            }
+        } else {
+            quote! {
+                #b, None
+            }
         },
-        _ => quote! {
-            None
-        },
-    }
+    )
 }
 
-fn derive_field(field: Field) -> quote::__private::TokenStream {
+fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
     let name = field.ident.expect("Not possible");
     let ty = field.ty;
     let mut rename = name.clone();
-    let def = parse_field_attribute(field.attrs, &mut rename);
-    quote! {
-        #name: env.require_def::<#ty, &str>(key, stringify!(#rename), #def)?
-    }
+    let (def, def_desc) = parse_field_attribute(field.attrs, &mut rename);
+    (
+        quote! {
+            #name: env.require_def::<#ty, &str>(key, stringify!(#rename), #def)?
+        },
+        quote! {
+            env.key_desc::<#ty, &str>(key, stringify!(#rename), #def_desc, keys);
+        },
+    )
 }
 
-fn derive_fields(fields: Fields) -> Vec<quote::__private::TokenStream> {
+fn derive_fields(
+    fields: Fields,
+) -> (
+    Vec<quote::__private::TokenStream>,
+    Vec<quote::__private::TokenStream>,
+) {
     if let Fields::Named(fields) = fields {
         let mut v = vec![];
+        let mut d = vec![];
         for field in fields.named {
-            v.push(derive_field(field));
+            let (a, b) = derive_field(field);
+            v.push(a);
+            d.push(b);
         }
-        return v;
+        return (v, d);
     }
     panic!("Only support named body");
 }
 
 fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStream {
-    let field = derive_fields(data.fields);
+    let (field, field_desc) = derive_fields(data.fields);
     quote! {
         impl FromEnvironment for #name {
             fn from_env<'a>(
@@ -124,6 +165,15 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
                 Ok(Self {
                    #(#field),*
                 })
+            }
+
+            fn key_desc<'a>(
+                key: &mut Key<'a>,
+                _: &mut KeyDesc,
+                keys: &mut Vec<KeyDesc>,
+                env: &'a impl Environment,
+            ) {
+                #(#field_desc)*
             }
         }
     }
@@ -166,7 +216,7 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
         Data::Struct(d) => (
             if let Some(prefix) = parse_attribute_prefix(&input.attrs) {
                 quote! {
-                        impl DefaultSourceFromEnvironment for #name {
+                        impl PrefixedFromEnvironment for #name {
                         fn prefix() -> &'static str {
                             #prefix
                         }

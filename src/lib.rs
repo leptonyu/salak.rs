@@ -6,6 +6,7 @@
 //!    * [Predefined Sources](#predefined-sources)
 //!    * [Key Convention](#key-convention)
 //!    * [Value Placeholder Parsing](#value-placeholder-parsing)
+//!    * [Attributes For Derive](#attributes-for-derive)
 //!
 //! ## About
 //! `salak` is a multi layered configuration loader with many predefined sources. Also it
@@ -86,7 +87,15 @@
 //!    * `\$\{key\}` => Return `${key}`.
 //!    * `$`, `\`, `{`, `}` must use escape format.
 //!
-//!
+//! #### Attributes For Derive
+//! `salak` supports some attributes for automatically derive [`FromEnvironment`].
+//! All attributes have format `#[salak(..)]`, eg. `#[salak(default = "default value")]`.
+//! 1. Struct Header Attribute.
+//!    * `#[salak(prefix = "salak.application")]`, has this attr will auto implement [`PrefixedFromEnvironment`].
+//! 2. Struct Field Attribute.
+//!    * `#[salak(default = "value")]`, this attr can specify default value.
+//!    * `#[salak(name = "key")]`, this attr can specify property key, default convension is use field name.
+//!    * `#[salak(desc = "Field Description")]`, this attr can be describe this property.
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(
@@ -111,7 +120,7 @@ mod derive;
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use crate::derive::{AutoDeriveFromEnvironment, DefaultSourceFromEnvironment};
+pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironment};
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -190,9 +199,31 @@ pub trait Environment {
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Get config with predefined prefix.
-    fn get<T: DefaultSourceFromEnvironment>(&self) -> Result<T, PropertyError> {
+    fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }
+
+    /// Get key description.
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
+        let mut keys = vec![];
+        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
+        keys
+    }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    #[doc(hidden)]
+    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        required: Option<bool>,
+        def: Option<&'a str>,
+        desc: Option<String>,
+        keys: &mut Vec<KeyDesc>,
+    );
 }
 
 /// Convert from [`Environment`].
@@ -206,4 +237,14 @@ pub trait FromEnvironment: Sized {
         val: Option<Property<'_>>,
         env: &'a impl Environment,
     ) -> Result<Self, PropertyError>;
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    #[doc(hidden)]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl Environment,
+    );
 }

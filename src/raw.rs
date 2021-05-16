@@ -173,7 +173,7 @@ pub enum SubKey<'a> {
     I(usize),
 }
 
-/// Key has a string buffer, used for avoid allocate memory when parsing properties.
+/// Key with a string buffer, can be avoid allocating memory when parsing configuration.
 #[derive(Debug)]
 pub struct Key<'a> {
     buf: String,
@@ -209,6 +209,11 @@ impl<'a> Key<'a> {
     }
 
     #[allow(dead_code)]
+    pub(crate) fn as_generic(&self) -> String {
+        self.as_str().replace("[0]", "[*]")
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, SubKey<'_>> {
         self.key.iter()
     }
@@ -220,6 +225,7 @@ impl<'a> Key<'a> {
         self.buf.as_str()
     }
 
+    #[doc(hidden)]
     pub(crate) fn push(&mut self, k: SubKey<'a>) {
         match &k {
             SubKey::S(v) => {
@@ -233,6 +239,7 @@ impl<'a> Key<'a> {
         self.key.push(k)
     }
 
+    #[doc(hidden)]
     pub(crate) fn pop(&mut self) {
         if let Some(v) = self.key.pop() {
             match v {
@@ -594,6 +601,17 @@ mod tests {
             Ok(Config {
                 i8: env.require_def(key, SubKey::S("i8"), None)?,
             })
+        }
+
+        #[cfg(feature = "derive")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+        fn key_desc<'a>(
+            key: &mut Key<'a>,
+            _: &mut KeyDesc,
+            keys: &mut Vec<KeyDesc>,
+            env: &'a impl Environment,
+        ) {
+            env.key_desc::<i8, &str>(key, "i8", None, None, None, keys);
         }
     }
     #[test]

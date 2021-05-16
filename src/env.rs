@@ -8,6 +8,10 @@ use crate::{
     SubKeys,
 };
 
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+use crate::KeyDesc;
+
 #[allow(unused_imports)]
 use crate::source::FileConfig;
 
@@ -139,6 +143,21 @@ impl Environment for Salak {
     ) -> Result<T, PropertyError> {
         self.0.require_def(key, sub_key, def)
     }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        required: Option<bool>,
+        def: Option<&'a str>,
+        desc: Option<String>,
+        keys: &mut Vec<KeyDesc>,
+    ) {
+        self.0
+            .key_desc::<T, K>(key, sub_key, required, def, desc, keys);
+    }
 }
 
 impl Environment for PropertyRegistry {
@@ -162,6 +181,26 @@ impl Environment for PropertyRegistry {
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         PropertySource::sub_keys(self, prefix, sub_keys)
     }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        required: Option<bool>,
+        def: Option<&'a str>,
+        desc: Option<String>,
+        keys: &mut Vec<KeyDesc>,
+    ) {
+        key.push(sub_key.into());
+        let mut desc = KeyDesc::new(key.as_generic(), required, def, desc);
+        T::key_desc(key, &mut desc, keys, self);
+        if !desc.ignore {
+            keys.push(desc);
+        }
+        key.pop();
+    }
 }
 
 impl<T: FromEnvironment> FromEnvironment for Option<T> {
@@ -175,6 +214,18 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
             Err(PropertyError::NotFound(_)) => Ok(None),
             Err(err) => Err(err),
         }
+    }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl Environment,
+    ) {
+        desc.set_required(false);
+        T::key_desc(key, desc, keys, env);
     }
 }
 
@@ -191,9 +242,21 @@ impl<T: IsProperty> FromEnvironment for T {
         }
         Err(PropertyError::NotFound(key.as_str().to_string()))
     }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        _: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        _: &mut Vec<KeyDesc>,
+        _: &'a impl Environment,
+    ) {
+        desc.ignore = false;
+        desc.set_required(true);
+    }
 }
 
-/// A wrapper require vec is not empty when parsing configuration.
+/// A wrapper of [`Vec<T>`], but require having at least one value when parsing configuration.
 #[derive(Debug)]
 pub struct NonEmptyVec<T>(pub Vec<T>);
 
@@ -223,6 +286,18 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
         }
         Ok(NonEmptyVec(v))
     }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl Environment,
+    ) {
+        desc.set_required(true);
+        <Vec<T>>::key_desc(key, desc, keys, env);
+    }
 }
 
 impl<T: FromEnvironment> FromEnvironment for Vec<T> {
@@ -246,6 +321,19 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         }
         Ok(vs)
     }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl Environment,
+    ) {
+        desc.ignore = true;
+        desc.set_required(false);
+        env.key_desc::<T, usize>(key, 0, desc.required, None, desc.desc.clone(), keys);
+    }
 }
 
 impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
@@ -264,6 +352,18 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
         }
         Ok(v)
     }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl Environment,
+    ) {
+        desc.set_required(false);
+        env.key_desc::<T, &str>(key, "*", None, None, desc.desc.clone(), keys);
+    }
 }
 
 impl<T> FromEnvironment for HashSet<T>
@@ -276,6 +376,17 @@ where
         env: &'a impl Environment,
     ) -> Result<Self, PropertyError> {
         Ok(<Vec<T>>::from_env(key, val, env)?.into_iter().collect())
+    }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl Environment,
+    ) {
+        <Vec<T>>::key_desc(key, desc, keys, env);
     }
 }
 
