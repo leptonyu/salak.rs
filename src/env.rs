@@ -24,7 +24,7 @@ pub struct SalakBuilder {
     disable_file: bool,
     disable_random: bool,
     registry: PropertyRegistry,
-    #[cfg(feature = "args")]
+    #[cfg(any(feature = "args", feature = "derive"))]
     app_desc: Vec<KeyDesc>,
     #[cfg(feature = "args")]
     app_info: Option<AppInfo<'static>>,
@@ -67,8 +67,8 @@ impl SalakBuilder {
         self
     }
 
-    #[cfg(feature = "args")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Enable arguments.
     pub fn add_config_desc<T: PrefixedFromEnvironment>(mut self) -> Self {
         self.app_desc.extend(self.registry.get_desc::<T>());
@@ -132,7 +132,7 @@ impl Salak {
             disable_file: false,
             disable_random: false,
             registry: PropertyRegistry::new("registry"),
-            #[cfg(feature = "args")]
+            #[cfg(any(feature = "args", feature = "derive"))]
             app_desc: vec![],
             #[cfg(feature = "args")]
             app_info: None,
