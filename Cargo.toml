@@ -1,6 +1,3 @@
-[profile.bench]
-debug = true
-
 [package]
 authors = ['Daniel Yu <leptonyu@gmail.com>']
 categories = ['config']
