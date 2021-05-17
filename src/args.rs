@@ -42,9 +42,10 @@ pub fn from_args(
 ) -> Result<HashMap<String, String>, PropertyError> {
     let help = desc
         .iter()
-        .map(|f| f.to_string())
+        .map(|f| format!("    {}",f.to_string()))
         .collect::<Vec<String>>()
         .join("\n");
+    let help=format!("KEY:\n{}",&help);
 
     let mut app = clap::App::new(info.name)
         .version(info.version)
