@@ -136,7 +136,7 @@ fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
                     last = Some('s');
                 }
                 i += multi * (c as u64 - '0' as u64);
-                multi = multi * 10;
+                multi *= 10;
             }
             _ => return Err(PropertyError::parse_fail("Invalid duration")),
         }
@@ -263,7 +263,7 @@ impl<'a> From<&'a str> for SubKey<'a> {
             u = &u[1..];
             let mut x = 0;
             for i in u.chars() {
-                if i >= '0' && i <= '9' {
+                if ('0'..='9').contains(&i) {
                     x = x * 10 + (i as usize) - ('0' as usize);
                 } else {
                     break;
