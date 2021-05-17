@@ -97,6 +97,12 @@ impl PropertySource for PropertyRegistry {
             .iter()
             .for_each(|f| f.sub_keys(key, sub_keys));
     }
+
+    fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
+        self.providers
+            .iter()
+            .for_each(|f| f.list_source_names(names));
+    }
 }
 
 impl Default for PropertyRegistry {

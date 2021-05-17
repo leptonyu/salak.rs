@@ -177,6 +177,11 @@ pub trait PropertySource {
     /// Check whether the [`PropertySource`] is empty.
     /// Empty source will not be ignored when register to registry.
     fn is_empty(&self) -> bool;
+
+    #[doc(hidden)]
+    fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
+        names.push(self.name());
+    }
 }
 
 /// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
