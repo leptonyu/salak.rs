@@ -27,7 +27,10 @@ pub struct PoolConfig {
     idle_timeout: Option<Duration>,
     #[salak(default = "${pool.connection_timeout:5s}")]
     connection_timeout: Option<Duration>,
-    #[salak(default = "${pool.wait_for_init:false}")]
+    #[salak(
+        default = "${pool.wait_for_init:false}",
+        desc = "Wait for init when start pool."
+    )]
     wait_for_init: bool,
 }
 

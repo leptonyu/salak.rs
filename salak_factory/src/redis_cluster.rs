@@ -118,7 +118,5 @@ mod tests {
             .unwrap_build();
         let pool = env.get::<RedisClusterConfig>();
         assert_eq!(true, pool.is_ok());
-
-        // print_keys::<RedisClusterConfig>();
     }
 }

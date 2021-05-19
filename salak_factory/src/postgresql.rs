@@ -44,9 +44,14 @@ use crate::{
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "postgresql")]
 pub struct PostgresConfig {
-    #[salak(default = "postgresql://postgres@localhost")]
+    #[salak(
+        default = "postgresql://postgres@localhost",
+        desc = "Postgresql url, can reset by host & port."
+    )]
     url: Option<String>,
+    #[salak(desc = "Postgresql host")]
     host: Option<String>,
+    #[salak(desc = "Postgresql port")]
     port: Option<u16>,
     user: Option<String>,
     password: Option<String>,
@@ -59,6 +64,7 @@ pub struct PostgresConfig {
     keepalives_idle: Option<Duration>,
     #[salak(default = "true")]
     must_allow_write: bool,
+    #[salak(desc = "disable/prefer/require")]
     channel_binding: Option<WrapEnum<ChannelBinding>>,
     pool: PoolConfig,
 }
@@ -184,6 +190,5 @@ mod tests {
         let env = Salak::new().unwrap();
         let pool = env.get::<PostgresConfig>();
         assert_eq!(true, pool.is_ok());
-        // print_keys::<PostgresConfig>();
     }
 }

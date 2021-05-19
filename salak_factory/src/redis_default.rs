@@ -138,7 +138,5 @@ mod tests {
         let env = Salak::new().unwrap();
         let pool = env.get::<RedisConfig>();
         assert_eq!(true, pool.is_ok());
-
-        // print_keys::<RedisConfig>();
     }
 }
