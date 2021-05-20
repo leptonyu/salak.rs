@@ -31,6 +31,7 @@ all-features = true
 clap = {optional = true, version = "^2.33"}
 lazy_static = '^1.4'
 log = {optional = true, version = '^0.4'}
+pad = {optional = true, version = "0.1"}
 rand = {optional = true, version = '^0.8'}
 salak_derive = {optional = true, path = './salak_derive', version = '^0.5'}
 toml = {optional = true, version = '^0.5'}
@@ -44,7 +45,7 @@ quickcheck_macros = '1'
 rand = '0.8'
 
 [features]
-args = ['clap', 'derive']
+args = ['clap', 'derive', 'pad']
 default = [
   'derive',
   'rand',

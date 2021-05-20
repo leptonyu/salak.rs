@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{KeyDesc, PropertyError};
+use crate::{derive::KeyDescs, KeyDesc, PropertyError};
 
 /// Application info.
 #[derive(Debug)]
@@ -40,12 +40,7 @@ pub fn from_args(
     desc: Vec<KeyDesc>,
     info: AppInfo<'_>,
 ) -> Result<HashMap<String, String>, PropertyError> {
-    let help = desc
-        .iter()
-        .map(|f| format!("    {}", f.to_string()))
-        .collect::<Vec<String>>()
-        .join("\n");
-    let help = format!("KEY:\n{}", &help);
+    let help = format!("KEY:\n{}", &KeyDescs(desc));
 
     let mut app = clap::App::new(info.name)
         .version(info.version)

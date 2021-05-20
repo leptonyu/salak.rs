@@ -52,3 +52,7 @@ redis_default = [
   'redis/default',
   'pool',
 ]
+
+[[example]]
+name = "redis"
+required-features = ["default", "redis_default", "salak/args"]

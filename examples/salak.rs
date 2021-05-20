@@ -13,7 +13,7 @@ struct Config {
     #[salak(default = 123)]
     num: u8,
     arr: Vec<u8>,
-    #[salak(desc = "must at least have one")]
+    #[salak(desc = "Non empty u8")]
     brr: NonEmptyVec<u8>,
     #[salak(desc = "map desc")]
     map: HashMap<String, u8>,
