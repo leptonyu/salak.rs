@@ -219,7 +219,13 @@ impl Environment for PropertyRegistry {
         keys: &mut Vec<KeyDesc>,
     ) {
         key.push(sub_key.into());
-        let mut desc = KeyDesc::new(key.as_generic(), required, def, desc);
+        let mut desc = KeyDesc::new(
+            key.as_generic(),
+            std::any::type_name::<T>(),
+            required,
+            def,
+            desc,
+        );
         T::key_desc(key, &mut desc, keys, self);
         if !desc.ignore {
             keys.push(desc);

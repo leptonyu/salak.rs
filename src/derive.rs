@@ -24,6 +24,7 @@ impl<P: PrefixedFromEnvironment> PrefixedFromEnvironment for Option<P> {
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub struct KeyDesc {
     key: String,
+    tp: &'static str,
     pub(crate) required: Option<bool>,
     def: Option<String>,
     pub(crate) desc: Option<String>,
@@ -39,8 +40,10 @@ impl std::fmt::Display for KeyDescs {
         let mut l2 = 8;
         let mut l3 = 7;
         let mut l4 = 11;
+        // let mut l5 = 0;
         for desc in self.0.iter() {
             l1 = l1.max(desc.key.len());
+            // l5 = l5.max(desc.tp.len());
             l2 = l2.max(desc.required.map(|_| 5).unwrap_or(0));
             l3 = l3.max(desc.def.as_ref().map(|def| def.len()).unwrap_or(0));
             l4 = l4.max(desc.desc.as_ref().map(|d| d.len()).unwrap_or(0));
@@ -49,6 +52,7 @@ impl std::fmt::Display for KeyDescs {
         f.write_fmt(format_args!(
             " {} | {} | {} | {} \n",
             "Key".pad_to_width_with_alignment(l1, Alignment::Middle),
+            // "Type".pad_to_width_with_alignment(l5, Alignment::Middle),
             "Required".pad_to_width_with_alignment(l2, Alignment::Middle),
             "Default".pad_to_width_with_alignment(l3, Alignment::Middle),
             "Description".pad_to_width_with_alignment(l4, Alignment::Middle)
@@ -56,6 +60,7 @@ impl std::fmt::Display for KeyDescs {
         f.write_fmt(format_args!(
             "{}+{}+{}+{}\n",
             "-".repeat(l1 + 2),
+            // "-".repeat(l5 + 2),
             "-".repeat(l2 + 2),
             "-".repeat(l3 + 2),
             "-".repeat(l4 + 2),
@@ -65,6 +70,7 @@ impl std::fmt::Display for KeyDescs {
             f.write_fmt(format_args!(
                 " {} | {} | {} | {} \n",
                 desc.key.pad_to_width_with_alignment(l1, Alignment::Left),
+                // desc.tp.pad_to_width_with_alignment(l5, Alignment::Middle),
                 desc.required
                     .unwrap_or(true)
                     .to_string()
@@ -89,12 +95,14 @@ impl std::fmt::Display for KeyDescs {
 impl KeyDesc {
     pub(crate) fn new(
         key: String,
+        tp: &'static str,
         required: Option<bool>,
         def: Option<&str>,
         desc: Option<String>,
     ) -> Self {
         Self {
             key,
+            tp,
             required,
             def: def.map(|c| c.to_string()),
             desc,

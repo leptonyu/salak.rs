@@ -40,7 +40,7 @@ pub fn from_args(
     desc: Vec<KeyDesc>,
     info: AppInfo<'_>,
 ) -> Result<HashMap<String, String>, PropertyError> {
-    let help = format!("KEY:\n{}", &KeyDescs(desc));
+    let help = format!("KEYS:\n{}\n", &KeyDescs(desc));
 
     let mut app = clap::App::new(info.name)
         .version(info.version)
