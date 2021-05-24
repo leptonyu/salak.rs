@@ -6,7 +6,7 @@ use std::{
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-use crate::KeyDesc;
+use crate::{DescribableEnvironment, KeyDesc};
 use crate::{
     Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
     SubKeys,
@@ -260,7 +260,7 @@ impl FromEnvironment for FileConfig {
         key: &mut Key<'a>,
         _: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     ) {
         env.key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
         env.key_desc::<String, &str>(key, "name", Some(false), Some("app"), None, keys);

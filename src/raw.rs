@@ -609,7 +609,7 @@ mod tests {
             key: &mut Key<'a>,
             _: &mut KeyDesc,
             keys: &mut Vec<KeyDesc>,
-            env: &'a impl Environment,
+            env: &'a impl DescribableEnvironment,
         ) {
             env.key_desc::<i8, &str>(key, "i8", None, None, None, keys);
         }

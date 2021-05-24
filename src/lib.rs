@@ -120,7 +120,9 @@ mod derive;
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironment};
+pub use crate::derive::{
+    AutoDeriveFromEnvironment, DescribableEnvironment, KeyDesc, PrefixedFromEnvironment,
+};
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -211,28 +213,6 @@ pub trait Environment {
     fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }
-
-    /// Get key description.
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
-        let mut keys = vec![];
-        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
-        keys
-    }
-
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    #[doc(hidden)]
-    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        required: Option<bool>,
-        def: Option<&'a str>,
-        desc: Option<String>,
-        keys: &mut Vec<KeyDesc>,
-    );
 }
 
 /// Convert from [`Environment`].
@@ -254,6 +234,6 @@ pub trait FromEnvironment: Sized {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     );
 }

@@ -171,7 +171,7 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
                 key: &mut Key<'a>,
                 _: &mut KeyDesc,
                 keys: &mut Vec<KeyDesc>,
-                env: &'a impl Environment,
+                env: &'a impl DescribableEnvironment,
             ) {
                 #(#field_desc)*
             }

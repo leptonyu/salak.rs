@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[cfg(feature = "derive")]
-use crate::{KeyDesc, PrefixedFromEnvironment};
+use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 
 #[cfg(feature = "args")]
 use crate::{from_args, AppInfo};
@@ -168,9 +168,10 @@ impl Environment for Salak {
     ) -> Result<T, PropertyError> {
         self.0.require_def(key, sub_key, def)
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+impl DescribableEnvironment for Salak {
     fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
@@ -206,9 +207,10 @@ impl Environment for PropertyRegistry {
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         PropertySource::sub_keys(self, prefix, sub_keys)
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+impl DescribableEnvironment for PropertyRegistry {
     fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
@@ -253,7 +255,7 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     ) {
         desc.set_required(false);
         T::key_desc(key, desc, keys, env);
@@ -324,7 +326,7 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     ) {
         desc.set_required(true);
         <Vec<T>>::key_desc(key, desc, keys, env);
@@ -359,7 +361,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     ) {
         desc.ignore = true;
         desc.set_required(false);
@@ -390,7 +392,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     ) {
         desc.set_required(false);
         env.key_desc::<T, &str>(key, "*", None, None, desc.desc.clone(), keys);
@@ -415,7 +417,7 @@ where
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl Environment,
+        env: &'a impl DescribableEnvironment,
     ) {
         <Vec<T>>::key_desc(key, desc, keys, env);
     }
