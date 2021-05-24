@@ -45,13 +45,13 @@ quickcheck_macros = '1'
 rand = '0.8'
 
 [features]
-args = ['clap', 'derive', 'pad']
+args = ['clap', 'derive']
 default = [
   'derive',
   'rand',
   'toml',
 ]
-derive = ['salak_derive']
+derive = ['salak_derive', 'pad']
 yaml = ['yaml-rust']
 
 [workspace]
