@@ -4,6 +4,7 @@ use crate::{derive::KeyDescs, KeyDesc, PropertyError};
 
 /// Application info.
 #[derive(Debug)]
+#[cfg_attr(docsrs, doc(cfg(feature = "args")))]
 pub struct AppInfo<'a> {
     /// Application name.
     pub name: &'a str,
@@ -17,6 +18,7 @@ pub struct AppInfo<'a> {
 
 /// Generate [`AppInfo`] from Cargo.toml.
 #[macro_export]
+#[cfg_attr(docsrs, doc(cfg(feature = "args")))]
 macro_rules! app_info {
     () => {
         AppInfo {
@@ -35,6 +37,7 @@ fn parse(s: String) -> Result<(String, String), PropertyError> {
     Err(PropertyError::parse_fail("Invalid arguments"))
 }
 
+#[cfg_attr(docsrs, doc(cfg(feature = "args")))]
 /// Generate source from args.
 pub fn from_args(
     desc: Vec<KeyDesc>,
