@@ -1,0 +1,7 @@
+error: proc-macro derive panicked
+ --> $DIR/struct_attr_3.rs:3:17
+  |
+3 | #[derive(Debug, FromEnvironment)]
+  |                 ^^^^^^^^^^^^^^^
+  |
+  = help: message: Only support prefix

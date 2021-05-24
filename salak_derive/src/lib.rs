@@ -49,6 +49,17 @@ fn parse_attribute_prefix(attrs: &[Attribute]) -> Option<String> {
     None
 }
 
+fn disable_attribute_prefix_enum(attrs: &[Attribute]) {
+    for attr in attrs {
+        if let Ok(Meta::List(list)) = attr.parse_meta() {
+            if !is_salak(&list) {
+                continue;
+            }
+            panic!("Salak attribute is not supporting enum");
+        }
+    }
+}
+
 fn is_salak(list: &MetaList) -> bool {
     if let Some(v) = list.path.segments.iter().next() {
         return v.ident == "salak";
@@ -182,6 +193,7 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
 fn derive_enum(type_name: &Ident, data: &DataEnum) -> quote::__private::TokenStream {
     let mut vs = vec![];
     for variant in &data.variants {
+        disable_attribute_prefix_enum(&variant.attrs);
         let lname = quote::format_ident!("{}", format!("{}", variant.ident).to_lowercase());
         let name = &variant.ident;
         let body = match variant.fields {
@@ -227,7 +239,10 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
             },
             derive_struct(&name, d),
         ),
-        Data::Enum(d) => (quote! {}, derive_enum(&name, &d)),
+        Data::Enum(d) => {
+            disable_attribute_prefix_enum(&input.attrs);
+            (quote! {}, derive_enum(&name, &d))
+        }
         _ => panic!("union is not supported"),
     };
 

@@ -1,0 +1,9 @@
+error[E0277]: the trait bound `RefCell<u8>: EnumProperty` is not satisfied
+ --> $DIR/struct_field_2.rs:3:17
+  |
+3 | #[derive(Debug, FromEnvironment)]
+  |                 ^^^^^^^^^^^^^^^ the trait `EnumProperty` is not implemented for `RefCell<u8>`
+  |
+  = note: required because of the requirements on the impl of `IsProperty` for `RefCell<u8>`
+  = note: required because of the requirements on the impl of `salak::FromEnvironment` for `RefCell<u8>`
+  = note: this error originates in a derive macro (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,7 @@
+error: proc-macro derive panicked
+ --> $DIR/enum_attr_2.rs:3:17
+  |
+3 | #[derive(Debug, FromEnvironment)]
+  |                 ^^^^^^^^^^^^^^^
+  |
+  = help: message: Salak attribute is not supporting enum

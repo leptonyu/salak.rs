@@ -1,0 +1,7 @@
+error: proc-macro derive panicked
+ --> $DIR/enum_fail.rs:3:17
+  |
+3 | #[derive(Debug, FromEnvironment)]
+  |                 ^^^^^^^^^^^^^^^
+  |
+  = help: message: Enum only support no field pattern.

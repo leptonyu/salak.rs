@@ -1,0 +1,7 @@
+error: proc-macro derive panicked
+ --> $DIR/struct_field_1.rs:3:17
+  |
+3 | #[derive(Debug, FromEnvironment)]
+  |                 ^^^^^^^^^^^^^^^
+  |
+  = help: message: Only support default/name/desc

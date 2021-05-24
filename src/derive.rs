@@ -197,4 +197,10 @@ mod tests {
         let env = Salak::builder().set("hello", "world").unwrap_build();
         println!("{:?}", env.require::<Value>("hello"))
     }
+
+    #[test]
+    fn derive_fail_test() {
+        let t = trybuild::TestCases::new();
+        t.compile_fail("tests/fail/*.rs");
+    }
 }
