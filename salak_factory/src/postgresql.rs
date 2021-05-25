@@ -57,6 +57,7 @@ pub struct PostgresConfig {
     password: Option<String>,
     dbname: Option<String>,
     options: Option<String>,
+    #[salak(default = "${salak.application.name:}")]
     application_name: Option<String>,
     #[salak(default = "1s")]
     connect_timeout: Option<Duration>,

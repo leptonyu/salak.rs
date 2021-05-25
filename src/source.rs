@@ -6,10 +6,10 @@ use std::{
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-use crate::{DescribableEnvironment, KeyDesc};
+use crate::{AutoDeriveFromEnvironment, DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 use crate::{
     Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
-    SubKeys,
+    SubKeys, PREFIX,
 };
 
 /// An in-memory source, which is a string to string hashmap.
@@ -236,9 +236,6 @@ pub(crate) struct FileConfig {
     env_default: PropertyRegistry,
 }
 
-#[allow(dead_code)]
-const PREFIX: &str = "salak.app";
-
 impl FromEnvironment for FileConfig {
     fn from_env<'a>(
         key: &mut Key<'a>,
@@ -247,7 +244,7 @@ impl FromEnvironment for FileConfig {
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
             dir: env.require_def(key, SubKey::S("dir"), None)?,
-            name: env.require_def(key, SubKey::S("name"), Some(Property::S("app")))?,
+            name: env.require_def(key, SubKey::S("filename"), Some(Property::S("app")))?,
             profile: env.require_def(key, SubKey::S("profile"), Some(Property::S("default")))?,
             env_profile: PropertyRegistry::new("profile-files"),
             env_default: PropertyRegistry::new("default-files"),
@@ -263,8 +260,18 @@ impl FromEnvironment for FileConfig {
         env: &'a impl DescribableEnvironment,
     ) {
         env.key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
-        env.key_desc::<String, &str>(key, "name", Some(false), Some("app"), None, keys);
+        env.key_desc::<String, &str>(key, "filename", Some(false), Some("app"), None, keys);
         env.key_desc::<String, &str>(key, "profile", Some(false), Some("default"), None, keys);
+    }
+}
+
+#[cfg(feature = "derive")]
+impl AutoDeriveFromEnvironment for FileConfig {}
+
+#[cfg(feature = "derive")]
+impl PrefixedFromEnvironment for FileConfig {
+    fn prefix() -> &'static str {
+        PREFIX
     }
 }
 

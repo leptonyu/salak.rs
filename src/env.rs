@@ -32,6 +32,9 @@ pub struct SalakBuilder {
     app_info: Option<AppInfo<'static>>,
 }
 
+#[allow(dead_code)]
+pub(crate) const PREFIX: &str = "salak.app";
+
 impl SalakBuilder {
     /// Set argument properties.
     pub fn set_args(mut self, args: HashMap<String, String>) -> Self {
@@ -85,6 +88,11 @@ impl SalakBuilder {
     /// Build salak env.
     #[allow(unused_mut)]
     pub fn build(mut self) -> Result<Salak, PropertyError> {
+        #[cfg(feature = "derive")]
+        #[cfg(any(feature = "toml", feature = "yaml"))]
+        {
+            self = self.add_config_desc::<FileConfig>();
+        }
         let mut env = self.registry;
 
         #[cfg(feature = "rand")]
@@ -94,6 +102,28 @@ impl SalakBuilder {
 
         #[cfg(feature = "args")]
         if let Some(app) = self.app_info {
+            self.args
+                .insert(format!("{}.name", PREFIX), app.name.into());
+            self.args
+                .insert(format!("{}.version", PREFIX), app.version.into());
+
+            #[cfg(feature = "derive")]
+            {
+                self.app_desc.push(KeyDesc::new(
+                    format!("{}.name", PREFIX),
+                    "String",
+                    Some(false),
+                    Some(app.name),
+                    None,
+                ));
+                self.app_desc.push(KeyDesc::new(
+                    format!("{}.version", PREFIX),
+                    "String",
+                    Some(false),
+                    Some(app.version),
+                    None,
+                ));
+            }
             self.args.extend(from_args(self.app_desc, app)?);
         }
 

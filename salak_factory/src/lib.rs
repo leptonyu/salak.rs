@@ -1,6 +1,6 @@
-//! A resource initializationfactory using `salak`.
+//! A resource initialization factory using `salak`.
 //! `salak` is a zero-boilerplate configuration parser, it can
-//! parsing struct from a unified [`salak::Environment`]. After
+//! parsing struct from a unified [`Environment`]. After
 //! we got the config struct, we can continue to initialize
 //! resource from it. That means we have a unified way to
 //! package the initialization process of resources, by specifying
@@ -11,7 +11,7 @@
 //! initialize target [`Buildable::Resource`] from config struct,
 //! which itself can be built by `salak`. Any resource that
 //! implements [`Buildable`] can be built by [`Factory`]. And also
-//! [`salak::Salak`] is a factory instance.
+//! [`Salak`] is a factory instance.
 //!
 //!
 //! ### Provide Resources
@@ -79,6 +79,7 @@ pub mod redis_cluster;
 pub const DEFAULT_NAMESPACE: &str = "primary";
 
 /// Buildable component from [`Environment`].
+///
 /// This trait defines standards configuration properties, and
 /// the initialization process of target [`Buildable::Resource`].
 /// Also it has [`Buildable::Customizer`] to provide coding config,
@@ -97,7 +98,7 @@ pub trait Buildable: Sized + PrefixedFromEnvironment {
     ) -> Result<Self::Resource, PropertyError>;
 }
 
-/// Factory for build buildable
+/// Factory defines how to build resource from [`Environment`].
 pub trait Factory: Environment {
     /// Build by namespace
     fn build<T: Buildable>(&self) -> Result<T::Resource, PropertyError> {
@@ -145,6 +146,6 @@ pub trait Factory: Environment {
 
 impl<T: Environment> Factory for T {}
 
-/// Wrap enum for implement enum.
+/// Wrap enum for implement [`EnumProperty`].
 #[derive(Debug)]
 pub struct WrapEnum<T>(pub(crate) T);
