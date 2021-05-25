@@ -1,6 +1,20 @@
-//! Packages that can be initialized by `salak`.
+//! A resource initializationfactory using `salak`.
+//! `salak` is a zero-boilerplate configuration parser, it can
+//! parsing struct from a unified [`salak::Environment`]. After
+//! we got the config struct, we can continue to initialize
+//! resource from it. That means we have a unified way to
+//! package the initialization process of resources, by specifying
+//! configuration properties, and provide a customizer to customize
+//! resource by coding.
 //!
-//! ### Provide packages
+//! This is how [`Buildable`] works. It provides an interface to
+//! initialize target [`Buildable::Resource`] from config struct,
+//! which itself can be built by `salak`. Any resource that
+//! implements [`Buildable`] can be built by [`Factory`]. And also
+//! [`salak::Salak`] is a factory instance.
+//!
+//!
+//! ### Provide Resources
 //! 1. redis
 //! ```no_run
 //! use salak::*;
@@ -65,39 +79,28 @@ pub mod redis_cluster;
 pub const DEFAULT_NAMESPACE: &str = "primary";
 
 /// Buildable component from [`Environment`].
+/// This trait defines standards configuration properties, and
+/// the initialization process of target [`Buildable::Resource`].
+/// Also it has [`Buildable::Customizer`] to provide coding config,
+/// such as set the error handler.
 pub trait Buildable: Sized + PrefixedFromEnvironment {
-    /// Target product.
-    type Product;
+    /// Target resource.
+    type Resource;
 
-    /// Customize when building.
+    /// Customize the resource by coding.
     type Customizer: Default;
 
-    /// Build product.
-    fn build(
-        namespace: &str,
-        env: &impl Environment,
-        customize: Self::Customizer,
-    ) -> Result<Self::Product, PropertyError> {
-        let config = if namespace.is_empty() || namespace == DEFAULT_NAMESPACE {
-            env.require(Self::prefix())
-        } else {
-            env.require(&format!("{}.{}", Self::prefix(), namespace))
-        };
-        Self::build_with_key(config?, env, customize)
-    }
-
-    /// Build with specified prefix.
-    fn build_with_key(
+    /// Build presource by customizer.
+    fn build_with_customizer(
         self,
-        env: &impl Environment,
         customize: Self::Customizer,
-    ) -> Result<Self::Product, PropertyError>;
+    ) -> Result<Self::Resource, PropertyError>;
 }
 
 /// Factory for build buildable
 pub trait Factory: Environment {
     /// Build by namespace
-    fn build<T: Buildable>(&self) -> Result<T::Product, PropertyError> {
+    fn build<T: Buildable>(&self) -> Result<T::Resource, PropertyError> {
         self.build_by_namespace::<T>(DEFAULT_NAMESPACE)
     }
 
@@ -105,7 +108,7 @@ pub trait Factory: Environment {
     fn build_by_namespace<T: Buildable>(
         &self,
         namespace: &str,
-    ) -> Result<T::Product, PropertyError> {
+    ) -> Result<T::Resource, PropertyError> {
         self.build_by_namespace_and_customizer::<T>(namespace, T::Customizer::default())
     }
 
@@ -113,29 +116,35 @@ pub trait Factory: Environment {
     fn build_by_customizer<T: Buildable>(
         &self,
         customizer: T::Customizer,
-    ) -> Result<T::Product, PropertyError> {
+    ) -> Result<T::Resource, PropertyError> {
         self.build_by_namespace_and_customizer::<T>(DEFAULT_NAMESPACE, customizer)
     }
 
-    /// Build by namespace and customizer
+    /// Build the resource by namespace and customizer.
+    /// By using different namespace, we can easily extend the
+    /// instances of same resource.
+    ///
+    /// Default namespace is [`DEFAULT_NAMESPACE`]. If the prefix
+    /// of resource property is 'salak', and property is 'key',
+    /// then the combined key for default namespace is 'salak.key'.
+    /// And if you using a customized namespace, eg 'secondary',
+    /// the key is 'salak.secondary.key'.
     fn build_by_namespace_and_customizer<T: Buildable>(
         &self,
         namespace: &str,
         customizer: T::Customizer,
-    ) -> Result<T::Product, PropertyError>;
-}
-
-impl Factory for Salak {
-    fn build_by_namespace_and_customizer<T: Buildable>(
-        &self,
-        namespace: &str,
-        customizer: T::Customizer,
-    ) -> Result<T::Product, PropertyError> {
-        T::build(namespace, self, customizer)
+    ) -> Result<T::Resource, PropertyError> {
+        let config = if namespace.is_empty() || namespace == DEFAULT_NAMESPACE {
+            self.require(T::prefix())
+        } else {
+            self.require(&format!("{}.{}", T::prefix(), namespace))
+        };
+        T::build_with_customizer(config?, customizer)
     }
 }
 
+impl<T: Environment> Factory for T {}
+
 /// Wrap enum for implement enum.
-#[doc(hidden)]
 #[derive(Debug)]
 pub struct WrapEnum<T>(pub(crate) T);

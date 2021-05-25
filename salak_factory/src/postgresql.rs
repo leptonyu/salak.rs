@@ -139,15 +139,14 @@ impl Default for PostgresCustomizer {
 }
 
 impl Buildable for PostgresConfig {
-    type Product = Pool<PostgresConnectionManager<NoTls>>;
+    type Resource = Pool<PostgresConnectionManager<NoTls>>;
 
     type Customizer = PostgresCustomizer;
 
-    fn build_with_key(
+    fn build_with_customizer(
         self,
-        _: &impl Environment,
         customizer: Self::Customizer,
-    ) -> Result<Self::Product, PropertyError> {
+    ) -> Result<Self::Resource, PropertyError> {
         let mut config = match self.url {
             Some(url) => std::str::FromStr::from_str(&url)?,
             None => postgres::Config::new(),

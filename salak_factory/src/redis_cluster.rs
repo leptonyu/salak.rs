@@ -75,14 +75,13 @@ impl ManageConnection for RedisClusterConnectionManager {
 }
 
 impl Buildable for RedisClusterConfig {
-    type Product = Pool<RedisClusterConnectionManager>;
+    type Resource = Pool<RedisClusterConnectionManager>;
     type Customizer = PoolCustomizer<RedisClusterConnectionManager>;
 
-    fn build_with_key(
+    fn build_with_customizer(
         self,
-        _: &impl Environment,
         customizer: Self::Customizer,
-    ) -> Result<Self::Product, PropertyError> {
+    ) -> Result<Self::Resource, PropertyError> {
         let mut config = vec![];
         for url in self.url.0 {
             config.push(ConnectionInfo::from_str(&url)?)

@@ -89,14 +89,13 @@ impl ManageConnection for RedisConnectionManager {
 }
 
 impl Buildable for RedisConfig {
-    type Product = Pool<RedisConnectionManager>;
+    type Resource = Pool<RedisConnectionManager>;
     type Customizer = PoolCustomizer<RedisConnectionManager>;
 
-    fn build_with_key(
+    fn build_with_customizer(
         self,
-        _: &impl Environment,
         customizer: Self::Customizer,
-    ) -> Result<Self::Product, PropertyError> {
+    ) -> Result<Self::Resource, PropertyError> {
         let config = if let Some(url) = self.url {
             ConnectionInfo::from_str(&url)?
         } else {
