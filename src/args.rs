@@ -52,6 +52,7 @@ pub fn from_args(
                 .long("property")
                 .short("P")
                 .value_name("KEY=VALUE")
+                .multiple(true)
                 .help("Set properties."),
         )
         .after_help(help.as_str());
