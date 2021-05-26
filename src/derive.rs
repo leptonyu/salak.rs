@@ -32,7 +32,7 @@ impl<P: AutoDeriveFromEnvironment> AutoDeriveFromEnvironment for Option<P> {}
 
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 /// This trait is automatically derived, which is required by [`Environment::get()`].
-pub trait PrefixedFromEnvironment: AutoDeriveFromEnvironment {
+pub trait PrefixedFromEnvironment: FromEnvironment {
     /// Set configuration prefix.
     fn prefix() -> &'static str;
 }

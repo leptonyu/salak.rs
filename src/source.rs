@@ -6,7 +6,7 @@ use std::{
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-use crate::{AutoDeriveFromEnvironment, DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
+use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 use crate::{
     Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
     SubKeys, PREFIX,
@@ -264,9 +264,6 @@ impl FromEnvironment for FileConfig {
         env.key_desc::<String, &str>(key, "profile", Some(false), Some("default"), None, keys);
     }
 }
-
-#[cfg(feature = "derive")]
-impl AutoDeriveFromEnvironment for FileConfig {}
 
 #[cfg(feature = "derive")]
 impl PrefixedFromEnvironment for FileConfig {
