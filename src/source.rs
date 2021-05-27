@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -8,8 +9,8 @@ use std::{
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 use crate::{
-    Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
-    SubKeys, PREFIX,
+    Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property, PropertyError,
+    PropertySource, SubKey, SubKeys, PREFIX,
 };
 
 /// An in-memory source, which is a string to string hashmap.
@@ -77,6 +78,7 @@ pub fn system_environment() -> HashMapSource {
 pub struct PropertyRegistry {
     name: &'static str,
     providers: Vec<Box<dyn PropertySource + Send>>,
+    pub(crate) reload: Mutex<Vec<Box<dyn IORefT + Send>>>,
 }
 
 impl PropertySource for PropertyRegistry {
@@ -117,7 +119,14 @@ impl PropertyRegistry {
         Self {
             name,
             providers: vec![],
+            reload: Mutex::new(vec![]),
         }
+    }
+
+    pub(crate) fn add_reload<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
+        let mut guard = self.reload.lock().unwrap();
+        let io = ioref.clone();
+        guard.push(Box::new(io));
     }
 
     pub(crate) fn register_by_ref<P: PropertySource + Send + 'static>(&mut self, provider: P) {

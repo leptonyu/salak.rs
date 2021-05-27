@@ -186,6 +186,9 @@ impl Salak {
 }
 
 impl Environment for Salak {
+    fn reload(&self) -> Result<(), PropertyError> {
+        Environment::reload(&self.0)
+    }
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         PropertySource::sub_keys(&self.0, prefix, sub_keys)
     }
@@ -197,6 +200,10 @@ impl Environment for Salak {
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError> {
         self.0.require_def(key, sub_key, def)
+    }
+
+    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
+        self.0.register_ioref(ioref)
     }
 }
 
@@ -217,6 +224,14 @@ impl DescribableEnvironment for Salak {
 }
 
 impl Environment for PropertyRegistry {
+    fn reload(&self) -> Result<(), PropertyError> {
+        let guard = self.reload.lock().unwrap();
+        for io in guard.iter() {
+            io.reload(self)?;
+        }
+        Ok(())
+    }
+
     fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
@@ -236,6 +251,10 @@ impl Environment for PropertyRegistry {
 
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         PropertySource::sub_keys(self, prefix, sub_keys)
+    }
+
+    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
+        self.add_reload(ioref)
     }
 }
 
@@ -450,6 +469,74 @@ where
         env: &'a impl DescribableEnvironment,
     ) {
         <Vec<T>>::key_desc(key, desc, keys, env);
+    }
+}
+
+use std::sync::Arc;
+use std::sync::Mutex;
+
+pub(crate) trait IORefT {
+    fn reload(&self, env: &PropertyRegistry) -> Result<(), PropertyError>;
+}
+
+/// A reference that can be changed when reloading configurations.
+#[allow(missing_debug_implementations)]
+#[derive(Clone)]
+pub struct IORef<T>(Arc<Mutex<T>>, String);
+
+impl<T: Clone + FromEnvironment> IORefT for IORef<T> {
+    fn reload(&self, env: &PropertyRegistry) -> Result<(), PropertyError> {
+        self.set(env.require::<T>(&self.1)?)
+    }
+}
+
+impl<T: Clone> IORef<T> {
+    pub(crate) fn new(key: String, val: T) -> Self {
+        Self(Arc::new(Mutex::new(val)), key)
+    }
+
+    fn set(&self, val: T) -> Result<(), PropertyError> {
+        let mut guard = self
+            .0
+            .lock()
+            .map_err(|_| PropertyError::parse_fail("IORef get fail"))?;
+        *guard = val;
+        Ok(())
+    }
+
+    /// Get value from reference.
+    pub fn get_val(&self) -> Result<T, PropertyError> {
+        let guard = self
+            .0
+            .lock()
+            .map_err(|_| PropertyError::parse_fail("IORef get fail"))?;
+        Ok(T::clone(&*guard))
+    }
+}
+
+impl<T> FromEnvironment for IORef<T>
+where
+    T: Clone + FromEnvironment + Send + 'static,
+{
+    fn from_env<'a>(
+        key: &mut Key<'a>,
+        val: Option<Property<'_>>,
+        env: &'a impl Environment,
+    ) -> Result<Self, PropertyError> {
+        let v = IORef::new(key.as_str().to_string(), T::from_env(key, val, env)?);
+        env.register_ioref(&v);
+        Ok(v)
+    }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl DescribableEnvironment,
+    ) {
+        T::key_desc(key, desc, keys, env);
     }
 }
 

@@ -184,6 +184,11 @@ pub trait PropertySource {
     fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
         names.push(self.name());
     }
+
+    /// Reload property source. If nothing changes, then return none.
+    fn reload(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Ok(None)
+    }
 }
 
 /// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
@@ -192,6 +197,9 @@ pub trait Environment {
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
         self.require_def(&mut Key::new(), SubKey::S(key), None)
     }
+
+    /// Reload configuration.
+    fn reload(&self) -> Result<(), PropertyError>;
 
     /// Get config with specific type, if config not exists, then return default value.
     /// * `key` - Property key.
@@ -213,6 +221,9 @@ pub trait Environment {
     fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }
+
+    /// Register [`IORef`] instance, it can be updated when reloading.
+    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>);
 }
 
 /// Convert from [`Environment`].
