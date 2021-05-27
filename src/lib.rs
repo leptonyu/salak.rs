@@ -30,7 +30,8 @@
 //! }
 //! let env = Salak::builder()
 //!     .set("config.val", "2021")
-//!     .unwrap_build();
+//!     .build()
+//!     .unwrap();
 //! let config = env.get::<Config>().unwrap();
 //! assert_eq!(2021, config.value);
 //! assert_eq!(None, config.optional);
@@ -186,7 +187,7 @@ pub trait PropertySource {
     }
 
     /// Reload property source. If nothing changes, then return none.
-    fn reload(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+    fn reload(&self) -> Result<Option<Box<dyn PropertySource + Send>>, PropertyError> {
         Ok(None)
     }
 }
@@ -194,13 +195,21 @@ pub trait PropertySource {
 /// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
 pub trait Environment {
     /// Get config with specific type.
-    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
-        self.require_def(&mut Key::new(), SubKey::S(key), None)
-    }
+    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError>;
 
     /// Reload configuration.
     fn reload(&self) -> Result<(), PropertyError>;
 
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    /// Get config with predefined prefix.
+    fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
+        self.require::<T>(T::prefix())
+    }
+}
+
+#[doc(hidden)]
+pub trait DetailEnvironment {
     /// Get config with specific type, if config not exists, then return default value.
     /// * `key` - Property key.
     /// * `sub_key` - Property sub key.
@@ -215,27 +224,20 @@ pub trait Environment {
     #[doc(hidden)]
     fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Get config with predefined prefix.
-    fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
-        self.require::<T>(T::prefix())
-    }
-
     /// Register [`IORef`] instance, it can be updated when reloading.
     fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>);
 }
 
-/// Convert from [`Environment`].
+/// Convert from [`DetailEnvironment`].
 pub trait FromEnvironment: Sized {
-    /// Generate object from [`Environment`].
+    /// Generate object from [`DetailEnvironment`].
     /// * `key` - Property key.
     /// * `property` - Property value with key is `key`.
-    /// * `env` - Instance of [`Environment`]
+    /// * `env` - Instance of [`DetailEnvironment`]
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError>;
 
     #[cfg(feature = "derive")]

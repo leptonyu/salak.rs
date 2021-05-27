@@ -28,7 +28,8 @@ struct Config {
 }
 let env = Salak::builder()
     .set("config.val", "2021")
-    .unwrap_build();
+    .build()
+    .unwrap();
 let config = env.get::<Config>().unwrap();
 assert_eq!(2021, config.value);
 assert_eq!(None, config.optional);

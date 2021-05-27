@@ -1003,7 +1003,7 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "salak"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "clap",
  "criterion",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "salak_derive"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "lazy_static",
  "quote",
@@ -1031,7 +1031,7 @@ dependencies = [
 
 [[package]]
 name = "salak_factory"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "postgres",
  "r2d2",

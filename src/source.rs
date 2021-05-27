@@ -9,8 +9,8 @@ use std::{
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 use crate::{
-    Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property, PropertyError,
-    PropertySource, SubKey, SubKeys, PREFIX,
+    DetailEnvironment, Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property,
+    PropertyError, PropertySource, SubKey, SubKeys, PREFIX,
 };
 
 /// An in-memory source, which is a string to string hashmap.
@@ -73,15 +73,47 @@ pub fn system_environment() -> HashMapSource {
     }
 }
 
-/// An implementation of [`Environment`] for registering [`PropertySource`].
-#[allow(missing_debug_implementations)]
-pub struct PropertyRegistry {
-    name: &'static str,
-    providers: Vec<Box<dyn PropertySource + Send>>,
-    pub(crate) reload: Mutex<Vec<Box<dyn IORefT + Send>>>,
+enum PS<'a> {
+    Ref(&'a Box<dyn PropertySource + Send>),
+    Own(Box<dyn PropertySource + Send>),
 }
 
-impl PropertySource for PropertyRegistry {
+impl PropertySource for PS<'_> {
+    fn name(&self) -> &str {
+        match self {
+            PS::Ref(f) => f.name(),
+            PS::Own(f) => f.name(),
+        }
+    }
+
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
+        match self {
+            PS::Ref(f) => f.get_property(key),
+            PS::Own(f) => f.get_property(key),
+        }
+    }
+
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        match self {
+            PS::Ref(f) => f.sub_keys(key, sub_keys),
+            PS::Own(f) => f.sub_keys(key, sub_keys),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            PS::Ref(f) => f.is_empty(),
+            PS::Own(f) => f.is_empty(),
+        }
+    }
+}
+
+pub(crate) struct PropertyRegistryInternal<'a> {
+    name: &'a str,
+    providers: Vec<PS<'a>>,
+}
+
+impl PropertySource for PropertyRegistryInternal<'_> {
     fn name(&self) -> &str {
         self.name
     }
@@ -107,31 +139,174 @@ impl PropertySource for PropertyRegistry {
     }
 }
 
-impl Default for PropertyRegistry {
+/// An implementation of [`Environment`] for registering [`PropertySource`].
+#[allow(missing_debug_implementations)]
+pub struct PropertyRegistry<'a> {
+    internal: PropertyRegistryInternal<'a>,
+    reload: Mutex<Vec<Box<dyn IORefT + Send>>>,
+}
+
+impl PropertySource for PropertyRegistry<'_> {
+    fn name(&self) -> &str {
+        self.internal.name()
+    }
+
+    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
+        self.internal.get_property(key)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.internal.is_empty()
+    }
+
+    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        self.internal.sub_keys(key, sub_keys)
+    }
+
+    fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
+        self.internal.list_source_names(names)
+    }
+}
+
+impl Default for PropertyRegistry<'static> {
     fn default() -> Self {
         Self::new("registry")
     }
 }
 
-impl PropertyRegistry {
-    /// Create an empty source.
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            providers: vec![],
+impl Environment for PropertyRegistry<'_> {
+    fn reload(&self) -> Result<(), PropertyError> {
+        let internal = PropertyRegistryInternal {
+            name: "reload",
+            providers: self
+                .internal
+                .providers
+                .iter()
+                .map(|f| match f.reload() {
+                    Ok(None) => Ok(match f {
+                        PS::Own(v) => PS::Ref(&*v),
+                        PS::Ref(v) => PS::Ref(*v),
+                    }),
+                    Ok(Some(v)) => Ok(PS::Own(v)),
+                    Err(err) => Err(err),
+                })
+                .collect::<Result<Vec<PS<'_>>, PropertyError>>()?,
+        };
+
+        let env = PropertyRegistry {
+            internal,
             reload: Mutex::new(vec![]),
+        };
+
+        let guard = self.reload.lock().unwrap();
+        for io in guard.iter() {
+            io.reload_ref(&env)?;
+        }
+        Ok(())
+    }
+
+    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
+        self.require_def(&mut Key::new(), SubKey::S(key), None)
+    }
+}
+
+impl DetailEnvironment for PropertyRegistry<'_> {
+    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError> {
+        key.push(sub_key.into());
+        let val = self.get(key, def).map(|val| T::from_env(key, val, self));
+        key.pop();
+        match val? {
+            Err(PropertyError::ParseFail(None, v)) if !key.as_str().is_empty() => {
+                Err(PropertyError::ParseFail(Some(key.as_str().to_string()), v))
+            }
+            val => val,
         }
     }
 
-    pub(crate) fn add_reload<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
+    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        PropertySource::sub_keys(self, prefix, sub_keys)
+    }
+
+    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
         let mut guard = self.reload.lock().unwrap();
         let io = ioref.clone();
         guard.push(Box::new(io));
     }
+}
+
+#[cfg(feature = "derive")]
+impl DescribableEnvironment for PropertyRegistry<'_> {
+    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        required: Option<bool>,
+        def: Option<&'a str>,
+        desc: Option<String>,
+        keys: &mut Vec<KeyDesc>,
+    ) {
+        key.push(sub_key.into());
+        let mut desc = KeyDesc::new(
+            key.as_generic(),
+            std::any::type_name::<T>(),
+            required,
+            def,
+            desc,
+        );
+        T::key_desc(key, &mut desc, keys, self);
+        if !desc.ignore {
+            keys.push(desc);
+        }
+        key.pop();
+    }
+}
+
+impl<T: FromEnvironment> FromEnvironment for Option<T> {
+    fn from_env<'a>(
+        key: &mut Key<'a>,
+        val: Option<Property<'_>>,
+        env: &'a impl DetailEnvironment,
+    ) -> Result<Self, PropertyError> {
+        match T::from_env(key, val, env) {
+            Ok(v) => Ok(Some(v)),
+            Err(PropertyError::NotFound(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc<'a>(
+        key: &mut Key<'a>,
+        desc: &mut KeyDesc,
+        keys: &mut Vec<KeyDesc>,
+        env: &'a impl DescribableEnvironment,
+    ) {
+        desc.set_required(false);
+        T::key_desc(key, desc, keys, env);
+    }
+}
+
+impl PropertyRegistry<'_> {
+    /// Create an empty source.
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            internal: PropertyRegistryInternal {
+                name,
+                providers: vec![],
+            },
+            reload: Mutex::new(vec![]),
+        }
+    }
 
     pub(crate) fn register_by_ref<P: PropertySource + Send + 'static>(&mut self, provider: P) {
         if !provider.is_empty() {
-            self.providers.push(Box::new(provider));
+            self.internal.providers.push(PS::Own(Box::new(provider)));
         }
     }
 
@@ -241,15 +416,15 @@ pub(crate) struct FileConfig {
     dir: Option<String>,
     name: String,
     profile: String,
-    env_profile: PropertyRegistry,
-    env_default: PropertyRegistry,
+    env_profile: PropertyRegistry<'static>,
+    env_default: PropertyRegistry<'static>,
 }
 
 impl FromEnvironment for FileConfig {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
             dir: env.require_def(key, SubKey::S("dir"), None)?,
@@ -287,11 +462,11 @@ impl FileConfig {
         env.require::<FileConfig>(PREFIX)
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn register_to_env(self, env: &mut PropertyRegistry) {
-        env.register_by_ref(self.env_profile);
-        env.register_by_ref(self.env_default);
-    }
+    // #[allow(dead_code)]
+    // pub(crate) fn register_to_env(self, env: &mut PropertyRegistry) {
+    //     env.register_by_ref(self.env_profile);
+    //     env.register_by_ref(self.env_default);
+    // }
 
     #[allow(dead_code)]
     pub(crate) fn build<
@@ -309,7 +484,7 @@ impl FileConfig {
             f: F,
             file: String,
             dir: &Option<String>,
-            env: &mut PropertyRegistry,
+            env: &mut PropertyRegistry<'_>,
         ) -> Result<(), PropertyError> {
             let mut path = PathBuf::new();
             if let Some(d) = &dir {

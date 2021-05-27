@@ -596,7 +596,7 @@ mod tests {
         fn from_env<'a>(
             key: &mut Key<'a>,
             _: Option<Property<'_>>,
-            env: &'a impl Environment,
+            env: &'a impl DetailEnvironment,
         ) -> Result<Self, PropertyError> {
             Ok(Config {
                 i8: env.require_def(key, SubKey::S("i8"), None)?,

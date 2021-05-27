@@ -186,7 +186,7 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
             fn from_env<'a>(
                 key: &mut Key<'a>,
                 val: Option<Property<'_>>,
-                env: &'a impl Environment,
+                env: &'a impl DetailEnvironment,
             ) -> Result<Self, PropertyError> {
                 Ok(Self {
                    #(#field),*

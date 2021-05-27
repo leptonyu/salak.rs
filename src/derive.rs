@@ -3,7 +3,7 @@ use pad::{Alignment, PadStr};
 
 #[doc(hidden)]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub trait DescribableEnvironment: Environment {
+pub trait DescribableEnvironment: DetailEnvironment {
     /// Get key description.
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn config_test() {
-        let env = Salak::builder().set("salak.brr[0]", "1").unwrap_build();
+        let env = Salak::builder().set("salak.brr[0]", "1").build().unwrap();
 
         let config = env.get::<Config>().unwrap();
 
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn enum_test() {
-        let env = Salak::builder().set("hello", "world").unwrap_build();
+        let env = Salak::builder().set("hello", "world").build().unwrap();
         println!("{:?}", env.require::<Value>("hello"))
     }
 

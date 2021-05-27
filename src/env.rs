@@ -2,9 +2,10 @@ use std::{collections::HashMap, ops::DerefMut};
 
 use std::collections::HashSet;
 
+use crate::DetailEnvironment;
 use crate::{
     source::{system_environment, HashMapSource, PropertyRegistry},
-    Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource, SubKey,
+    Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource,
     SubKeys,
 };
 
@@ -25,7 +26,7 @@ pub struct SalakBuilder {
     disable_file: bool,
     #[cfg(feature = "rand")]
     disable_random: bool,
-    registry: PropertyRegistry,
+    registry: PropertyRegistry<'static>,
     #[cfg(any(feature = "args", feature = "derive"))]
     app_desc: Vec<KeyDesc>,
     #[cfg(feature = "args")]
@@ -78,11 +79,6 @@ impl SalakBuilder {
     pub fn add_config_desc<T: PrefixedFromEnvironment>(mut self) -> Self {
         self.app_desc.extend(self.registry.get_desc::<T>());
         self
-    }
-
-    /// Build salak env, and panic if any error happens.
-    pub fn unwrap_build(self) -> Salak {
-        self.build().unwrap()
     }
 
     /// Build salak env.
@@ -142,7 +138,7 @@ impl SalakBuilder {
             {
                 fc.build("yaml", crate::source_yaml::YamlValue::new)?;
             }
-            fc.register_to_env(&mut env);
+            // fc.register_to_env(&mut env);
         }
 
         Ok(Salak(env))
@@ -154,7 +150,7 @@ impl SalakBuilder {
 /// * Provides custom source registration.
 ///
 #[allow(missing_debug_implementations)]
-pub struct Salak(PropertyRegistry);
+pub struct Salak(PropertyRegistry<'static>);
 
 impl Salak {
     /// Create a builder for configure salak env.
@@ -183,131 +179,22 @@ impl Salak {
     pub fn register<P: PropertySource + Send + 'static>(&mut self, provider: P) {
         self.0.register_by_ref(provider)
     }
+
+    /// Get key description.
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    pub fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
+        self.0.get_desc::<T>()
+    }
 }
 
 impl Environment for Salak {
     fn reload(&self) -> Result<(), PropertyError> {
         Environment::reload(&self.0)
     }
-    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        PropertySource::sub_keys(&self.0, prefix, sub_keys)
-    }
 
-    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError> {
-        self.0.require_def(key, sub_key, def)
-    }
-
-    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
-        self.0.register_ioref(ioref)
-    }
-}
-
-#[cfg(feature = "derive")]
-impl DescribableEnvironment for Salak {
-    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        required: Option<bool>,
-        def: Option<&'a str>,
-        desc: Option<String>,
-        keys: &mut Vec<KeyDesc>,
-    ) {
-        self.0
-            .key_desc::<T, K>(key, sub_key, required, def, desc, keys);
-    }
-}
-
-impl Environment for PropertyRegistry {
-    fn reload(&self) -> Result<(), PropertyError> {
-        let guard = self.reload.lock().unwrap();
-        for io in guard.iter() {
-            io.reload(self)?;
-        }
-        Ok(())
-    }
-
-    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError> {
-        key.push(sub_key.into());
-        let val = self.get(key, def).map(|val| T::from_env(key, val, self));
-        key.pop();
-        match val? {
-            Err(PropertyError::ParseFail(None, v)) if !key.as_str().is_empty() => {
-                Err(PropertyError::ParseFail(Some(key.as_str().to_string()), v))
-            }
-            val => val,
-        }
-    }
-
-    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        PropertySource::sub_keys(self, prefix, sub_keys)
-    }
-
-    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
-        self.add_reload(ioref)
-    }
-}
-
-#[cfg(feature = "derive")]
-impl DescribableEnvironment for PropertyRegistry {
-    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        required: Option<bool>,
-        def: Option<&'a str>,
-        desc: Option<String>,
-        keys: &mut Vec<KeyDesc>,
-    ) {
-        key.push(sub_key.into());
-        let mut desc = KeyDesc::new(
-            key.as_generic(),
-            std::any::type_name::<T>(),
-            required,
-            def,
-            desc,
-        );
-        T::key_desc(key, &mut desc, keys, self);
-        if !desc.ignore {
-            keys.push(desc);
-        }
-        key.pop();
-    }
-}
-
-impl<T: FromEnvironment> FromEnvironment for Option<T> {
-    fn from_env<'a>(
-        key: &mut Key<'a>,
-        val: Option<Property<'_>>,
-        env: &'a impl Environment,
-    ) -> Result<Self, PropertyError> {
-        match T::from_env(key, val, env) {
-            Ok(v) => Ok(Some(v)),
-            Err(PropertyError::NotFound(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
-    }
-
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn key_desc<'a>(
-        key: &mut Key<'a>,
-        desc: &mut KeyDesc,
-        keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
-    ) {
-        desc.set_required(false);
-        T::key_desc(key, desc, keys, env);
+    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
+        self.0.require(key)
     }
 }
 
@@ -315,7 +202,7 @@ impl<T: IsProperty> FromEnvironment for T {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        _: &'a impl Environment,
+        _: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         if let Some(v) = val {
             if !Self::is_empty(&v) {
@@ -331,7 +218,7 @@ impl<T: IsProperty> FromEnvironment for T {
         _: &mut Key<'a>,
         desc: &mut KeyDesc,
         _: &mut Vec<KeyDesc>,
-        _: &'a impl Environment,
+        _: &'a impl DetailEnvironment,
     ) {
         desc.ignore = false;
         desc.set_required(true);
@@ -360,7 +247,7 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         let v = <Vec<T>>::from_env(key, val, env)?;
         if v.is_empty() {
@@ -386,7 +273,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
         env.sub_keys(key, &mut sub_keys);
@@ -422,7 +309,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
         env.sub_keys(key, &mut sub_keys);
@@ -455,7 +342,7 @@ where
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         Ok(<Vec<T>>::from_env(key, val, env)?.into_iter().collect())
     }
@@ -476,7 +363,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 pub(crate) trait IORefT {
-    fn reload(&self, env: &PropertyRegistry) -> Result<(), PropertyError>;
+    fn reload_ref(&self, env: &PropertyRegistry<'_>) -> Result<(), PropertyError>;
 }
 
 /// A reference that can be changed when reloading configurations.
@@ -485,7 +372,7 @@ pub(crate) trait IORefT {
 pub struct IORef<T>(Arc<Mutex<T>>, String);
 
 impl<T: Clone + FromEnvironment> IORefT for IORef<T> {
-    fn reload(&self, env: &PropertyRegistry) -> Result<(), PropertyError> {
+    fn reload_ref(&self, env: &PropertyRegistry<'_>) -> Result<(), PropertyError> {
         self.set(env.require::<T>(&self.1)?)
     }
 }
@@ -521,7 +408,7 @@ where
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl Environment,
+        env: &'a impl DetailEnvironment,
     ) -> Result<Self, PropertyError> {
         let v = IORef::new(key.as_str().to_string(), T::from_env(key, val, env)?);
         env.register_ioref(&v);

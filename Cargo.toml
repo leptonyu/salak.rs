@@ -16,7 +16,7 @@ license = 'MIT'
 name = 'salak'
 readme = 'README.md'
 repository = 'https://github.com/leptonyu/salak.rs'
-version = '0.10.1'
+version = '0.11.0'
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
@@ -33,7 +33,7 @@ lazy_static = '^1.4'
 log = {optional = true, version = '^0.4'}
 pad = {optional = true, version = "0.1"}
 rand = {optional = true, version = '^0.8'}
-salak_derive = {optional = true, path = './salak_derive', version = '^0.5.1'}
+salak_derive = {optional = true, path = './salak_derive', version = '^0.6'}
 toml = {optional = true, version = '^0.5'}
 yaml-rust = {optional = true, version = '^0.4.5'}
 
