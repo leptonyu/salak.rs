@@ -74,8 +74,8 @@ pub fn system_environment() -> HashMapSource {
 }
 
 enum PS<'a> {
-    Ref(&'a Box<dyn PropertySource + Send>),
-    Own(Box<dyn PropertySource + Send>),
+    Ref(&'a Box<dyn PropertySource + Send + Sync>),
+    Own(Box<dyn PropertySource + Send + Sync>),
 }
 
 impl PropertySource for PS<'_> {
@@ -304,16 +304,16 @@ impl PropertyRegistry<'_> {
         }
     }
 
-    pub(crate) fn register_by_ref<P: PropertySource + Send + 'static>(&mut self, provider: P) {
+    pub(crate) fn register_by_ref(&mut self, provider: Box<dyn PropertySource + Send + Sync>) {
         if !provider.is_empty() {
-            self.internal.providers.push(PS::Own(Box::new(provider)));
+            self.internal.providers.push(PS::Own(provider));
         }
     }
 
     /// Register source to registry, sources that register earlier will have higher priority of
     /// configuration.
-    pub fn register<P: PropertySource + Send + 'static>(mut self, provider: P) -> Self {
-        self.register_by_ref(provider);
+    pub fn register<P: PropertySource + Send + Sync + 'static>(mut self, provider: P) -> Self {
+        self.register_by_ref(Box::new(provider));
         self
     }
 
@@ -462,16 +462,16 @@ impl FileConfig {
         env.require::<FileConfig>(PREFIX)
     }
 
-    // #[allow(dead_code)]
-    // pub(crate) fn register_to_env(self, env: &mut PropertyRegistry) {
-    //     env.register_by_ref(self.env_profile);
-    //     env.register_by_ref(self.env_default);
-    // }
+    #[allow(dead_code)]
+    pub(crate) fn register_to_env(self, env: &mut PropertyRegistry<'_>) {
+        env.register_by_ref(Box::new(self.env_profile));
+        env.register_by_ref(Box::new(self.env_default));
+    }
 
     #[allow(dead_code)]
     pub(crate) fn build<
         F: Fn(String, &str) -> Result<S, PropertyError>,
-        S: PropertySource + Send + 'static,
+        S: PropertySource + Send + Sync + 'static,
     >(
         &mut self,
         ext: &str,
@@ -479,7 +479,7 @@ impl FileConfig {
     ) -> Result<(), PropertyError> {
         fn make<
             F: Fn(String, &str) -> Result<S, PropertyError>,
-            S: PropertySource + Send + 'static,
+            S: PropertySource + Send + Sync + 'static,
         >(
             f: F,
             file: String,
@@ -492,10 +492,10 @@ impl FileConfig {
             }
             path.push(file);
             if path.exists() {
-                env.register_by_ref((f)(
+                env.register_by_ref(Box::new((f)(
                     path.as_path().display().to_string(),
                     &std::fs::read_to_string(path)?,
-                )?);
+                )?));
             }
             Ok(())
         }

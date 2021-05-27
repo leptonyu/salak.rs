@@ -187,7 +187,7 @@ pub trait PropertySource {
     }
 
     /// Reload property source. If nothing changes, then return none.
-    fn reload(&self) -> Result<Option<Box<dyn PropertySource + Send>>, PropertyError> {
+    fn reload(&self) -> Result<Option<Box<dyn PropertySource + Send + Sync>>, PropertyError> {
         Ok(None)
     }
 }

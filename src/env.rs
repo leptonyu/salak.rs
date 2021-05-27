@@ -93,7 +93,7 @@ impl SalakBuilder {
 
         #[cfg(feature = "rand")]
         if !self.disable_random {
-            env.register_by_ref(crate::source_rand::Random);
+            env.register_by_ref(Box::new(crate::source_rand::Random));
         }
 
         #[cfg(feature = "args")]
@@ -138,7 +138,7 @@ impl SalakBuilder {
             {
                 fc.build("yaml", crate::source_yaml::YamlValue::new)?;
             }
-            // fc.register_to_env(&mut env);
+            fc.register_to_env(&mut env);
         }
 
         Ok(Salak(env))
@@ -176,8 +176,8 @@ impl Salak {
 
     /// Register source to registry, source that register earlier that higher priority for
     /// configuration.
-    pub fn register<P: PropertySource + Send + 'static>(&mut self, provider: P) {
-        self.0.register_by_ref(provider)
+    pub fn register<P: PropertySource + Send + Sync + 'static>(&mut self, provider: P) {
+        self.0.register_by_ref(Box::new(provider))
     }
 
     /// Get key description.
