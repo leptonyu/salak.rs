@@ -9,8 +9,8 @@ use std::{
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 use crate::{
-    DetailEnvironment, Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property,
-    PropertyError, PropertySource, SubKey, SubKeys, PREFIX,
+    Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property, PropertyError,
+    PropertySource, SubKey, SubKeys, PREFIX,
 };
 
 /// An in-memory source, which is a string to string hashmap.
@@ -74,36 +74,18 @@ pub fn system_environment() -> HashMapSource {
 }
 
 enum PS<'a> {
-    Ref(&'a Box<dyn PropertySource + Send + Sync>),
-    Own(Box<dyn PropertySource + Send + Sync>),
+    Ref(&'a Box<dyn PropertySource>),
+    Own(Box<dyn PropertySource>),
 }
+use core::ops::Deref;
 
-impl PropertySource for PS<'_> {
-    fn name(&self) -> &str {
-        match self {
-            PS::Ref(f) => f.name(),
-            PS::Own(f) => f.name(),
-        }
-    }
+impl Deref for PS<'_> {
+    type Target = dyn PropertySource;
 
-    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
+    fn deref(&self) -> &Self::Target {
         match self {
-            PS::Ref(f) => f.get_property(key),
-            PS::Own(f) => f.get_property(key),
-        }
-    }
-
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        match self {
-            PS::Ref(f) => f.sub_keys(key, sub_keys),
-            PS::Own(f) => f.sub_keys(key, sub_keys),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        match self {
-            PS::Ref(f) => f.is_empty(),
-            PS::Own(f) => f.is_empty(),
+            PS::Own(f) => f.as_ref(),
+            PS::Ref(f) => f.as_ref(),
         }
     }
 }
@@ -131,12 +113,6 @@ impl PropertySource for PropertyRegistryInternal<'_> {
             .iter()
             .for_each(|f| f.sub_keys(key, sub_keys));
     }
-
-    fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
-        self.providers
-            .iter()
-            .for_each(|f| f.list_source_names(names));
-    }
 }
 
 /// An implementation of [`Environment`] for registering [`PropertySource`].
@@ -162,10 +138,6 @@ impl PropertySource for PropertyRegistry<'_> {
     fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         self.internal.sub_keys(key, sub_keys)
     }
-
-    fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
-        self.internal.list_source_names(names)
-    }
 }
 
 impl Default for PropertyRegistry<'static> {
@@ -175,19 +147,23 @@ impl Default for PropertyRegistry<'static> {
 }
 
 impl Environment for PropertyRegistry<'_> {
-    fn reload(&self) -> Result<(), PropertyError> {
+    fn reload(&self) -> Result<bool, PropertyError> {
+        let mut flag = false;
         let internal = PropertyRegistryInternal {
             name: "reload",
             providers: self
                 .internal
                 .providers
                 .iter()
-                .map(|f| match f.reload() {
+                .map(|f| match f.reload_source() {
                     Ok(None) => Ok(match f {
                         PS::Own(v) => PS::Ref(&*v),
                         PS::Ref(v) => PS::Ref(*v),
                     }),
-                    Ok(Some(v)) => Ok(PS::Own(v)),
+                    Ok(Some(v)) => {
+                        flag = true;
+                        Ok(PS::Own(v))
+                    }
                     Err(err) => Err(err),
                 })
                 .collect::<Result<Vec<PS<'_>>, PropertyError>>()?,
@@ -202,7 +178,7 @@ impl Environment for PropertyRegistry<'_> {
         for io in guard.iter() {
             io.reload_ref(&env)?;
         }
-        Ok(())
+        Ok(flag)
     }
 
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
@@ -210,8 +186,8 @@ impl Environment for PropertyRegistry<'_> {
     }
 }
 
-impl DetailEnvironment for PropertyRegistry<'_> {
-    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+impl PropertyRegistry<'_> {
+    pub(crate) fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -228,11 +204,10 @@ impl DetailEnvironment for PropertyRegistry<'_> {
         }
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        PropertySource::sub_keys(self, prefix, sub_keys)
-    }
-
-    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
+    pub(crate) fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(
+        &self,
+        ioref: &IORef<T>,
+    ) {
         let mut guard = self.reload.lock().unwrap();
         let io = ioref.clone();
         guard.push(Box::new(io));
@@ -270,7 +245,7 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         match T::from_env(key, val, env) {
             Ok(v) => Ok(Some(v)),
@@ -285,7 +260,7 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         desc.set_required(false);
         T::key_desc(key, desc, keys, env);
@@ -424,7 +399,7 @@ impl FromEnvironment for FileConfig {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
             dir: env.require_def(key, SubKey::S("dir"), None)?,
@@ -441,7 +416,7 @@ impl FromEnvironment for FileConfig {
         key: &mut Key<'a>,
         _: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         env.key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
         env.key_desc::<String, &str>(key, "filename", Some(false), Some("app"), None, keys);

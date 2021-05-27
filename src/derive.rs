@@ -3,7 +3,7 @@ use pad::{Alignment, PadStr};
 
 #[doc(hidden)]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub trait DescribableEnvironment: DetailEnvironment {
+pub trait DescribableEnvironment {
     /// Get key description.
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {

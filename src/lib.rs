@@ -167,7 +167,7 @@ extern crate quickcheck_macros;
 
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.
-pub trait PropertySource {
+pub trait PropertySource: Send + Sync {
     /// [`PropertySource`] name.
     fn name(&self) -> &str;
 
@@ -181,13 +181,9 @@ pub trait PropertySource {
     /// Empty source will not be ignored when register to registry.
     fn is_empty(&self) -> bool;
 
-    #[doc(hidden)]
-    fn list_source_names<'a>(&'a self, names: &mut Vec<&'a str>) {
-        names.push(self.name());
-    }
-
-    /// Reload property source. If nothing changes, then return none.
-    fn reload(&self) -> Result<Option<Box<dyn PropertySource + Send + Sync>>, PropertyError> {
+    /// Reload property source.
+    /// If nothing changes, then return none.
+    fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
         Ok(None)
     }
 }
@@ -198,7 +194,7 @@ pub trait Environment {
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError>;
 
     /// Reload configuration.
-    fn reload(&self) -> Result<(), PropertyError>;
+    fn reload(&self) -> Result<bool, PropertyError>;
 
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -206,26 +202,6 @@ pub trait Environment {
     fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }
-}
-
-#[doc(hidden)]
-pub trait DetailEnvironment {
-    /// Get config with specific type, if config not exists, then return default value.
-    /// * `key` - Property key.
-    /// * `sub_key` - Property sub key.
-    /// * `def` - Default property.
-    fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError>;
-
-    #[doc(hidden)]
-    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>);
-
-    /// Register [`IORef`] instance, it can be updated when reloading.
-    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>);
 }
 
 /// Convert from [`DetailEnvironment`].
@@ -237,7 +213,7 @@ pub trait FromEnvironment: Sized {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError>;
 
     #[cfg(feature = "derive")]
@@ -247,6 +223,6 @@ pub trait FromEnvironment: Sized {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     );
 }

@@ -2,7 +2,6 @@ use std::{collections::HashMap, ops::DerefMut};
 
 use std::collections::HashSet;
 
-use crate::DetailEnvironment;
 use crate::{
     source::{system_environment, HashMapSource, PropertyRegistry},
     Environment, FromEnvironment, IsProperty, Key, Property, PropertyError, PropertySource,
@@ -189,8 +188,8 @@ impl Salak {
 }
 
 impl Environment for Salak {
-    fn reload(&self) -> Result<(), PropertyError> {
-        Environment::reload(&self.0)
+    fn reload(&self) -> Result<bool, PropertyError> {
+        self.0.reload()
     }
 
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
@@ -202,7 +201,7 @@ impl<T: IsProperty> FromEnvironment for T {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        _: &'a impl DetailEnvironment,
+        _: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         if let Some(v) = val {
             if !Self::is_empty(&v) {
@@ -218,7 +217,7 @@ impl<T: IsProperty> FromEnvironment for T {
         _: &mut Key<'a>,
         desc: &mut KeyDesc,
         _: &mut Vec<KeyDesc>,
-        _: &'a impl DetailEnvironment,
+        _: &'a PropertyRegistry<'a>,
     ) {
         desc.ignore = false;
         desc.set_required(true);
@@ -247,7 +246,7 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         let v = <Vec<T>>::from_env(key, val, env)?;
         if v.is_empty() {
@@ -262,7 +261,7 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         desc.set_required(true);
         <Vec<T>>::key_desc(key, desc, keys, env);
@@ -273,7 +272,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
         env.sub_keys(key, &mut sub_keys);
@@ -297,7 +296,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         desc.ignore = true;
         desc.set_required(false);
@@ -309,7 +308,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
         env.sub_keys(key, &mut sub_keys);
@@ -328,7 +327,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         desc.set_required(false);
         env.key_desc::<T, &str>(key, "*", None, None, desc.desc.clone(), keys);
@@ -342,7 +341,7 @@ where
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         Ok(<Vec<T>>::from_env(key, val, env)?.into_iter().collect())
     }
@@ -353,7 +352,7 @@ where
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         <Vec<T>>::key_desc(key, desc, keys, env);
     }
@@ -362,7 +361,7 @@ where
 use std::sync::Arc;
 use std::sync::Mutex;
 
-pub(crate) trait IORefT {
+pub(crate) trait IORefT: Send {
     fn reload_ref(&self, env: &PropertyRegistry<'_>) -> Result<(), PropertyError>;
 }
 
@@ -371,7 +370,7 @@ pub(crate) trait IORefT {
 #[derive(Clone)]
 pub struct IORef<T>(Arc<Mutex<T>>, String);
 
-impl<T: Clone + FromEnvironment> IORefT for IORef<T> {
+impl<T: Send + Clone + FromEnvironment> IORefT for IORef<T> {
     fn reload_ref(&self, env: &PropertyRegistry<'_>) -> Result<(), PropertyError> {
         self.set(env.require::<T>(&self.1)?)
     }
@@ -408,7 +407,7 @@ where
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl DetailEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError> {
         let v = IORef::new(key.as_str().to_string(), T::from_env(key, val, env)?);
         env.register_ioref(&v);
@@ -421,7 +420,7 @@ where
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl DescribableEnvironment,
+        env: &'a PropertyRegistry<'a>,
     ) {
         T::key_desc(key, desc, keys, env);
     }
