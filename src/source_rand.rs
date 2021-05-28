@@ -28,7 +28,7 @@ impl PropertySource for Random {
         false
     }
 
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+    fn get_sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         if key.as_str() == "random" {
             sub_keys.insert("u8");
             sub_keys.insert("u16");

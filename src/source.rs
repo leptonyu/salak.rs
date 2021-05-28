@@ -51,7 +51,7 @@ impl PropertySource for HashMapSource {
         self.map.get(key.as_str()).map(|s| Property::S(s))
     }
 
-    fn sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+    fn get_sub_keys<'a>(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         for key in self.map.keys() {
             if let Some(k) = key.strip_prefix(prefix.as_str()) {
                 let pos = k.find('.').unwrap_or_else(|| k.len());
@@ -108,10 +108,10 @@ impl PropertySource for PropertyRegistryInternal<'_> {
         self.providers.is_empty() || self.providers.iter().all(|f| f.is_empty())
     }
 
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+    fn get_sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         self.providers
             .iter()
-            .for_each(|f| f.sub_keys(key, sub_keys));
+            .for_each(|f| f.get_sub_keys(key, sub_keys));
     }
 }
 
@@ -197,7 +197,7 @@ impl PropertyRegistry<'_> {
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
         let mut keys = vec![];
-        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
+        self.add_key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
         keys
     }
 }
@@ -222,7 +222,7 @@ impl<'a> SalakContext<'a> for PropertyRegistry<'a> {
     }
 
     #[cfg(feature = "derive")]
-    fn key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    fn add_key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -252,7 +252,7 @@ impl<'a> SalakContext<'a> for PropertyRegistry<'a> {
         guard.push(Box::new(io));
     }
     fn sub_keys(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        self.internal.sub_keys(prefix, sub_keys)
+        self.get_sub_keys(prefix, sub_keys)
     }
 }
 
@@ -433,9 +433,9 @@ impl FromEnvironment for FileConfig {
         keys: &mut Vec<KeyDesc>,
         env: &'a impl SalakContext<'a>,
     ) {
-        env.key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
-        env.key_desc::<String, &str>(key, "filename", Some(false), Some("app"), None, keys);
-        env.key_desc::<String, &str>(key, "profile", Some(false), Some("default"), None, keys);
+        env.add_key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
+        env.add_key_desc::<String, &str>(key, "filename", Some(false), Some("app"), None, keys);
+        env.add_key_desc::<String, &str>(key, "profile", Some(false), Some("default"), None, keys);
     }
 }
 

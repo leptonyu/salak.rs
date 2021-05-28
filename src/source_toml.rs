@@ -52,7 +52,7 @@ impl PropertySource for Toml {
         }
     }
 
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+    fn get_sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         match sub_value(self, key) {
             Some(Value::Table(t)) => t.keys().for_each(|f| sub_keys.insert(f.as_str())),
             Some(Value::Array(vs)) => sub_keys.insert(vs.len()),

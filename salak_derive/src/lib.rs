@@ -155,7 +155,7 @@ fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__privat
             #name: env.require_def::<#ty, &str>(key, stringify!(#rename), #def)?
         },
         quote! {
-            env.key_desc::<#ty, &str>(key, stringify!(#rename), #def_desc, keys);
+            env.add_key_desc::<#ty, &str>(key, stringify!(#rename), #def_desc, keys);
         },
     )
 }

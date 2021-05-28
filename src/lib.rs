@@ -173,7 +173,7 @@ pub trait PropertySource: Send + Sync {
     fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>>;
 
     /// Return next sub keys with prefix, sub keys are seperated by dot(.) in a key.
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>);
+    fn get_sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
     /// Check whether the [`PropertySource`] is empty.
     /// Empty source will not be ignored when register to registry.
@@ -202,10 +202,12 @@ pub trait Environment {
     }
 }
 
-/// Context used for implement FromEnvironment.
+/// Context for [`FromEnvironment`].
+/// It has all functions needed for implementing [`FromEnvironment`].
 pub trait SalakContext<'a> {
-
-    /// Parse config single field.
+    /// Parse sub part of current object.
+    /// Normally the 'sub_key' is the field name of current struct.
+    /// Default value can be passed to this function.
     fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
@@ -213,15 +215,16 @@ pub trait SalakContext<'a> {
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError>;
 
-    /// Register IORef value.
+    /// Regster [`IORef`] value to [`Environment`],
+    /// it will be updated when calling [`Environment::reload()`].  
     fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>);
 
-    /// Get all sub keys with prefix.
-    fn sub_keys(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>);
+    /// Get all sub keys with current 'key'.
+    fn sub_keys(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
     /// Generate key description.
     #[cfg(feature = "derive")]
-    fn key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    fn add_key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -237,7 +240,7 @@ pub trait FromEnvironment: Sized {
     /// Generate object from [`PropertyRegistry`].
     /// * `key` - Property key.
     /// * `property` - Property value with key is `key`.
-    /// * `env` - environment
+    /// * `env` - Context.
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
@@ -248,7 +251,7 @@ pub trait FromEnvironment: Sized {
     /// * `key` - Current property key.
     /// * `desc` - Current key description.
     /// * `keys` - Key description registry.
-    /// * `env` - environment
+    /// * `env` - Context.
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn key_desc<'a>(

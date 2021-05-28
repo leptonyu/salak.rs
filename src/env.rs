@@ -300,7 +300,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
     ) {
         desc.ignore = true;
         desc.set_required(false);
-        env.key_desc::<T, usize>(key, 0, desc.required, None, desc.desc.clone(), keys);
+        env.add_key_desc::<T, usize>(key, 0, desc.required, None, desc.desc.clone(), keys);
     }
 }
 
@@ -330,7 +330,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
         env: &'a impl SalakContext<'a>,
     ) {
         desc.set_required(false);
-        env.key_desc::<T, &str>(key, "*", None, None, desc.desc.clone(), keys);
+        env.add_key_desc::<T, &str>(key, "*", None, None, desc.desc.clone(), keys);
     }
 }
 

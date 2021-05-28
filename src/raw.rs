@@ -611,7 +611,7 @@ mod tests {
             keys: &mut Vec<KeyDesc>,
             env: &'a impl SalakContext<'a>,
         ) {
-            env.key_desc::<i8, &str>(key, "i8", None, None, None, keys);
+            env.add_key_desc::<i8, &str>(key, "i8", None, None, None, keys);
         }
     }
     #[test]

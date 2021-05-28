@@ -52,7 +52,7 @@ impl PropertySource for YamlValue {
         None
     }
 
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+    fn get_sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
         for v in &self.value {
             if let Some(v) = sub_value(v, key) {
                 match v {
