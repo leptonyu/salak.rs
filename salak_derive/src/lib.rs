@@ -186,7 +186,7 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
             fn from_env<'a>(
                 key: &mut Key<'a>,
                 val: Option<Property<'_>>,
-                env: &'a PropertyRegistry<'a>,
+                env: &'a impl SalakContext<'a>,
             ) -> Result<Self, PropertyError> {
                 Ok(Self {
                    #(#field),*
@@ -197,7 +197,7 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
                 key: &mut Key<'a>,
                 _: &mut KeyDesc,
                 keys: &mut Vec<KeyDesc>,
-                env: &'a PropertyRegistry<'a>,
+                env: &'a impl SalakContext<'a>,
             ) {
                 #(#field_desc)*
             }

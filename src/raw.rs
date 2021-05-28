@@ -596,7 +596,7 @@ mod tests {
         fn from_env<'a>(
             key: &mut Key<'a>,
             _: Option<Property<'_>>,
-            env: &'a PropertyRegistry<'a>,
+            env: &'a impl SalakContext<'a>,
         ) -> Result<Self, PropertyError> {
             Ok(Config {
                 i8: env.require_def(key, SubKey::S("i8"), None)?,
@@ -609,7 +609,7 @@ mod tests {
             key: &mut Key<'a>,
             _: &mut KeyDesc,
             keys: &mut Vec<KeyDesc>,
-            env: &'a PropertyRegistry<'a>,
+            env: &'a impl SalakContext<'a>,
         ) {
             env.key_desc::<i8, &str>(key, "i8", None, None, None, keys);
         }

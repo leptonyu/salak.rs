@@ -202,6 +202,36 @@ pub trait Environment {
     }
 }
 
+/// Context used for implement FromEnvironment.
+pub trait SalakContext<'a> {
+
+    /// Parse config single field.
+    fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError>;
+
+    /// Register IORef value.
+    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>);
+
+    /// Get all sub keys with prefix.
+    fn sub_keys(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>);
+
+    /// Generate key description.
+    #[cfg(feature = "derive")]
+    fn key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
+        &'a self,
+        key: &mut Key<'a>,
+        sub_key: K,
+        required: Option<bool>,
+        def: Option<&'a str>,
+        desc: Option<String>,
+        keys: &mut Vec<KeyDesc>,
+    );
+}
+
 /// Convert from [`PropertyRegistry`].
 pub trait FromEnvironment: Sized {
     /// Generate object from [`PropertyRegistry`].
@@ -211,7 +241,7 @@ pub trait FromEnvironment: Sized {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a PropertyRegistry<'a>,
+        env: &'a impl SalakContext<'a>,
     ) -> Result<Self, PropertyError>;
 
     /// Generate key description.
@@ -225,6 +255,6 @@ pub trait FromEnvironment: Sized {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a PropertyRegistry<'a>,
+        env: &'a impl SalakContext<'a>,
     );
 }

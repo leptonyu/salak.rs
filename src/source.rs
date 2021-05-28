@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property, PropertyError,
-    PropertySource, SubKey, SubKeys, PREFIX,
+    PropertySource, SalakContext, SubKey, SubKeys, PREFIX,
 };
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -115,6 +115,21 @@ impl PropertySource for PropertyRegistryInternal<'_> {
     }
 }
 
+impl<'a> PropertyRegistryInternal<'a> {
+    pub(crate) fn register_by_ref(&mut self, provider: Box<dyn PropertySource>) {
+        if !provider.is_empty() {
+            self.providers.push(PS::Own(provider));
+        }
+    }
+
+    fn new(name: &'a str) -> Self {
+        Self {
+            name,
+            providers: vec![],
+        }
+    }
+}
+
 /// An implementation of [`Environment`] for registering [`PropertySource`].
 #[allow(missing_debug_implementations)]
 pub struct PropertyRegistry<'a> {
@@ -122,21 +137,11 @@ pub struct PropertyRegistry<'a> {
     reload: Mutex<Vec<Box<dyn IORefT + Send>>>,
 }
 
-impl PropertySource for PropertyRegistry<'_> {
-    fn name(&self) -> &str {
-        self.internal.name()
-    }
+impl<'a> Deref for PropertyRegistry<'a> {
+    type Target = dyn PropertySource + 'a;
 
-    fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
-        self.internal.get_property(key)
-    }
-
-    fn is_empty(&self) -> bool {
-        self.internal.is_empty()
-    }
-
-    fn sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        self.internal.sub_keys(key, sub_keys)
+    fn deref(&self) -> &Self::Target {
+        &self.internal
     }
 }
 
@@ -187,8 +192,19 @@ impl Environment for PropertyRegistry<'_> {
 }
 
 impl PropertyRegistry<'_> {
+    #[cfg(feature = "derive")]
+    /// Get key description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
+        let mut keys = vec![];
+        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
+        keys
+    }
+}
+
+impl<'a> SalakContext<'a> for PropertyRegistry<'a> {
     /// Parse property from env.
-    pub fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+    fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -205,28 +221,8 @@ impl PropertyRegistry<'_> {
         }
     }
 
-    pub(crate) fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(
-        &self,
-        ioref: &IORef<T>,
-    ) {
-        let mut guard = self.reload.lock().unwrap();
-        let io = ioref.clone();
-        guard.push(Box::new(io));
-    }
-}
-
-#[cfg(feature = "derive")]
-impl PropertyRegistry<'_> {
-    /// Get key description.
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
-        let mut keys = vec![];
-        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
-        keys
-    }
-
-    /// Generate key description.
-    pub fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+    #[cfg(feature = "derive")]
+    fn key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -249,13 +245,22 @@ impl PropertyRegistry<'_> {
         }
         key.pop();
     }
+
+    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
+        let mut guard = self.reload.lock().unwrap();
+        let io = ioref.clone();
+        guard.push(Box::new(io));
+    }
+    fn sub_keys(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
+        self.internal.sub_keys(prefix, sub_keys)
+    }
 }
 
 impl<T: FromEnvironment> FromEnvironment for Option<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a PropertyRegistry<'a>,
+        env: &'a impl SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         match T::from_env(key, val, env) {
             Ok(v) => Ok(Some(v)),
@@ -270,7 +275,7 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a PropertyRegistry<'a>,
+        env: &'a impl SalakContext<'a>,
     ) {
         desc.set_required(false);
         T::key_desc(key, desc, keys, env);
@@ -401,22 +406,22 @@ pub(crate) struct FileConfig {
     dir: Option<String>,
     name: String,
     profile: String,
-    env_profile: PropertyRegistry<'static>,
-    env_default: PropertyRegistry<'static>,
+    env_profile: PropertyRegistryInternal<'static>,
+    env_default: PropertyRegistryInternal<'static>,
 }
 
 impl FromEnvironment for FileConfig {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a PropertyRegistry<'a>,
+        env: &'a impl SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
             dir: env.require_def(key, SubKey::S("dir"), None)?,
             name: env.require_def(key, SubKey::S("filename"), Some(Property::S("app")))?,
             profile: env.require_def(key, SubKey::S("profile"), Some(Property::S("default")))?,
-            env_profile: PropertyRegistry::new("profile-files"),
-            env_default: PropertyRegistry::new("default-files"),
+            env_profile: PropertyRegistryInternal::new("profile-files"),
+            env_default: PropertyRegistryInternal::new("default-files"),
         })
     }
 
@@ -426,7 +431,7 @@ impl FromEnvironment for FileConfig {
         key: &mut Key<'a>,
         _: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a PropertyRegistry<'a>,
+        env: &'a impl SalakContext<'a>,
     ) {
         env.key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
         env.key_desc::<String, &str>(key, "filename", Some(false), Some("app"), None, keys);
@@ -469,7 +474,7 @@ impl FileConfig {
             f: F,
             file: String,
             dir: &Option<String>,
-            env: &mut PropertyRegistry<'_>,
+            env: &mut PropertyRegistryInternal<'_>,
         ) -> Result<(), PropertyError> {
             let mut path = PathBuf::new();
             if let Some(d) = &dir {
