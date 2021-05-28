@@ -5,13 +5,13 @@ use std::{
     vec,
 };
 
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
 use crate::{
     Environment, FromEnvironment, IORef, IORefT, IsProperty, Key, Property, PropertyError,
     PropertySource, SubKey, SubKeys, PREFIX,
 };
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+use crate::{KeyDesc, PrefixedFromEnvironment};
 
 /// An in-memory source, which is a string to string hashmap.
 #[derive(Debug)]
@@ -187,7 +187,8 @@ impl Environment for PropertyRegistry<'_> {
 }
 
 impl PropertyRegistry<'_> {
-    pub(crate) fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+    /// Parse property from env.
+    pub fn require_def<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -215,8 +216,17 @@ impl PropertyRegistry<'_> {
 }
 
 #[cfg(feature = "derive")]
-impl DescribableEnvironment for PropertyRegistry<'_> {
-    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
+impl PropertyRegistry<'_> {
+    /// Get key description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
+        let mut keys = vec![];
+        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
+        keys
+    }
+
+    /// Generate key description.
+    pub fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,

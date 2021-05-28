@@ -121,9 +121,7 @@ mod derive;
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use crate::derive::{
-    AutoDeriveFromEnvironment, DescribableEnvironment, KeyDesc, PrefixedFromEnvironment,
-};
+pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironment};
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -204,21 +202,25 @@ pub trait Environment {
     }
 }
 
-/// Convert from [`DetailEnvironment`].
+/// Convert from [`PropertyRegistry`].
 pub trait FromEnvironment: Sized {
-    /// Generate object from [`DetailEnvironment`].
+    /// Generate object from [`PropertyRegistry`].
     /// * `key` - Property key.
     /// * `property` - Property value with key is `key`.
-    /// * `env` - Instance of [`DetailEnvironment`]
+    /// * `env` - environment
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
         env: &'a PropertyRegistry<'a>,
     ) -> Result<Self, PropertyError>;
 
+    /// Generate key description.
+    /// * `key` - Current property key.
+    /// * `desc` - Current key description.
+    /// * `keys` - Key description registry.
+    /// * `env` - environment
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    #[doc(hidden)]
     fn key_desc<'a>(
         key: &mut Key<'a>,
         desc: &mut KeyDesc,

@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[cfg(feature = "derive")]
-use crate::{DescribableEnvironment, KeyDesc, PrefixedFromEnvironment};
+use crate::{KeyDesc, PrefixedFromEnvironment};
 
 #[cfg(feature = "args")]
 use crate::{from_args, AppInfo};

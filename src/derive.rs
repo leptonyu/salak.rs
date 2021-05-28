@@ -3,29 +3,6 @@ use pad::{Alignment, PadStr};
 
 #[doc(hidden)]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub trait DescribableEnvironment {
-    /// Get key description.
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
-        let mut keys = vec![];
-        self.key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
-        keys
-    }
-
-    #[doc(hidden)]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn key_desc<'a, T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        required: Option<bool>,
-        def: Option<&'a str>,
-        desc: Option<String>,
-        keys: &mut Vec<KeyDesc>,
-    );
-}
-#[doc(hidden)]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub trait AutoDeriveFromEnvironment: FromEnvironment {}
 
 impl<P: AutoDeriveFromEnvironment> AutoDeriveFromEnvironment for Option<P> {}
