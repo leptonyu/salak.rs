@@ -187,31 +187,45 @@ impl Environment for PropertyRegistry<'_> {
     }
 
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
-        self.require_def(&mut Key::new(), SubKey::S(key), None)
+        SalakContext(self).require_def(&mut Key::new(), SubKey::S(key), None)
     }
 }
 
 impl PropertyRegistry<'_> {
     #[cfg(feature = "derive")]
-    /// Get key description.
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
         let mut keys = vec![];
-        self.add_key_desc::<T, &str>(&mut Key::new(), T::prefix(), None, None, None, &mut keys);
+        SalakContext(self).add_key_desc::<T, &str>(
+            &mut Key::new(),
+            T::prefix(),
+            None,
+            None,
+            None,
+            &mut keys,
+        );
         keys
+    }
+    pub(crate) fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(
+        &self,
+        ioref: &IORef<T>,
+    ) {
+        let mut guard = self.reload.lock().unwrap();
+        let io = ioref.clone();
+        guard.push(Box::new(io));
     }
 }
 
-impl<'a> SalakContext<'a> for PropertyRegistry<'a> {
+impl<'a> SalakContext<'a> {
     /// Parse property from env.
-    fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    pub fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
         def: Option<Property<'_>>,
     ) -> Result<T, PropertyError> {
         key.push(sub_key.into());
-        let val = self.get(key, def).map(|val| T::from_env(key, val, self));
+        let val = self.0.get(key, def).map(|val| T::from_env(key, val, self));
         key.pop();
         match val? {
             Err(PropertyError::ParseFail(None, v)) if !key.as_str().is_empty() => {
@@ -221,8 +235,9 @@ impl<'a> SalakContext<'a> for PropertyRegistry<'a> {
         }
     }
 
+    /// Add key description.
     #[cfg(feature = "derive")]
-    fn add_key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    pub fn add_key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &'a self,
         key: &mut Key<'a>,
         sub_key: K,
@@ -245,22 +260,13 @@ impl<'a> SalakContext<'a> for PropertyRegistry<'a> {
         }
         key.pop();
     }
-
-    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>) {
-        let mut guard = self.reload.lock().unwrap();
-        let io = ioref.clone();
-        guard.push(Box::new(io));
-    }
-    fn sub_keys(&'a self, prefix: &Key<'_>, sub_keys: &mut SubKeys<'a>) {
-        self.get_sub_keys(prefix, sub_keys)
-    }
 }
 
 impl<T: FromEnvironment> FromEnvironment for Option<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         match T::from_env(key, val, env) {
             Ok(v) => Ok(Some(v)),
@@ -275,7 +281,7 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         desc.set_required(false);
         T::key_desc(key, desc, keys, env);
@@ -414,7 +420,7 @@ impl FromEnvironment for FileConfig {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
             dir: env.require_def(key, SubKey::S("dir"), None)?,
@@ -431,7 +437,7 @@ impl FromEnvironment for FileConfig {
         key: &mut Key<'a>,
         _: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         env.add_key_desc::<Option<String>, &str>(key, "dir", None, None, None, keys);
         env.add_key_desc::<String, &str>(key, "filename", Some(false), Some("app"), None, keys);

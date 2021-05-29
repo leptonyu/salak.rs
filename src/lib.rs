@@ -204,36 +204,8 @@ pub trait Environment {
 
 /// Context for [`FromEnvironment`].
 /// It has all functions needed for implementing [`FromEnvironment`].
-pub trait SalakContext<'a> {
-    /// Parse sub part of current object.
-    /// Normally the 'sub_key' is the field name of current struct.
-    /// Default value can be passed to this function.
-    fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError>;
-
-    /// Regster [`IORef`] value to [`Environment`],
-    /// it will be updated when calling [`Environment::reload()`].  
-    fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(&self, ioref: &IORef<T>);
-
-    /// Get all sub keys with current 'key'.
-    fn sub_keys(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>);
-
-    /// Generate key description.
-    #[cfg(feature = "derive")]
-    fn add_key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
-        &'a self,
-        key: &mut Key<'a>,
-        sub_key: K,
-        required: Option<bool>,
-        def: Option<&'a str>,
-        desc: Option<String>,
-        keys: &mut Vec<KeyDesc>,
-    );
-}
+#[allow(missing_debug_implementations)]
+pub struct SalakContext<'a>(&'a PropertyRegistry<'a>);
 
 /// Convert from [`PropertyRegistry`].
 pub trait FromEnvironment: Sized {
@@ -244,7 +216,7 @@ pub trait FromEnvironment: Sized {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError>;
 
     /// Generate key description.
@@ -258,6 +230,6 @@ pub trait FromEnvironment: Sized {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     );
 }

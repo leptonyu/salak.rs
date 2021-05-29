@@ -201,7 +201,7 @@ impl<T: IsProperty> FromEnvironment for T {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        _: &'a impl SalakContext<'a>,
+        _: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         if let Some(v) = val {
             if !Self::is_empty(&v) {
@@ -217,7 +217,7 @@ impl<T: IsProperty> FromEnvironment for T {
         _: &mut Key<'a>,
         desc: &mut KeyDesc,
         _: &mut Vec<KeyDesc>,
-        _: &'a impl SalakContext<'a>,
+        _: &'a SalakContext<'a>,
     ) {
         desc.ignore = false;
         desc.set_required(true);
@@ -246,7 +246,7 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         let v = <Vec<T>>::from_env(key, val, env)?;
         if v.is_empty() {
@@ -261,7 +261,7 @@ impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         desc.set_required(true);
         <Vec<T>>::key_desc(key, desc, keys, env);
@@ -272,10 +272,10 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
-        env.sub_keys(key, &mut sub_keys);
+        env.0.get_sub_keys(key, &mut sub_keys);
         let mut vs = vec![];
         if let Some(max) = sub_keys.upper {
             let mut i = 0;
@@ -296,7 +296,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         desc.ignore = true;
         desc.set_required(false);
@@ -308,10 +308,10 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
     fn from_env<'a>(
         key: &mut Key<'a>,
         _: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         let mut sub_keys = SubKeys::new();
-        env.sub_keys(key, &mut sub_keys);
+        env.0.get_sub_keys(key, &mut sub_keys);
         let mut v = HashMap::new();
         for k in sub_keys.str_keys() {
             if let Some(val) = env.require_def::<Option<T>, &str>(key, k, None)? {
@@ -327,7 +327,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         desc.set_required(false);
         env.add_key_desc::<T, &str>(key, "*", None, None, desc.desc.clone(), keys);
@@ -341,7 +341,7 @@ where
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         Ok(<Vec<T>>::from_env(key, val, env)?.into_iter().collect())
     }
@@ -352,7 +352,7 @@ where
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         <Vec<T>>::key_desc(key, desc, keys, env);
     }
@@ -407,10 +407,10 @@ where
     fn from_env<'a>(
         key: &mut Key<'a>,
         val: Option<Property<'_>>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) -> Result<Self, PropertyError> {
         let v = IORef::new(key.as_str().to_string(), T::from_env(key, val, env)?);
-        env.register_ioref(&v);
+        env.0.register_ioref(&v);
         Ok(v)
     }
 
@@ -420,7 +420,7 @@ where
         key: &mut Key<'a>,
         desc: &mut KeyDesc,
         keys: &mut Vec<KeyDesc>,
-        env: &'a impl SalakContext<'a>,
+        env: &'a SalakContext<'a>,
     ) {
         T::key_desc(key, desc, keys, env);
     }
