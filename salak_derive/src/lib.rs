@@ -152,10 +152,10 @@ fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__privat
     let (def, def_desc) = parse_field_attribute(field.attrs, &mut rename);
     (
         quote! {
-            #name: env.require_def::<#ty, &str>(key, stringify!(#rename), #def)?
+            #name: env.require_def::<#ty, &str>(stringify!(#rename), #def)?
         },
         quote! {
-            env.add_key_desc::<#ty, &str>(key, stringify!(#rename), #def_desc, keys);
+            env.add_key_desc::<#ty, &str>(stringify!(#rename), #def_desc);
         },
     )
 }
@@ -183,22 +183,16 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
     let (field, field_desc) = derive_fields(data.fields);
     quote! {
         impl FromEnvironment for #name {
-            fn from_env<'a>(
-                key: &mut Key<'a>,
+            fn from_env(
                 val: Option<Property<'_>>,
-                env: &'a SalakContext<'a>,
+                env: &mut SalakContext<'_>,
             ) -> Result<Self, PropertyError> {
                 Ok(Self {
                    #(#field),*
                 })
             }
 
-            fn key_desc<'a>(
-                key: &mut Key<'a>,
-                _: &mut KeyDesc,
-                keys: &mut Vec<KeyDesc>,
-                env: &'a SalakContext<'a>,
-            ) {
+            fn key_desc(env: &mut SalakDescContext<'_>) {
                 #(#field_desc)*
             }
         }

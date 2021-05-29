@@ -593,25 +593,19 @@ mod tests {
     }
 
     impl FromEnvironment for Config {
-        fn from_env<'a>(
-            key: &mut Key<'a>,
+        fn from_env(
             _: Option<Property<'_>>,
-            env: &'a SalakContext<'a>,
+            env: &mut SalakContext<'_>,
         ) -> Result<Self, PropertyError> {
             Ok(Config {
-                i8: env.require_def(key, SubKey::S("i8"), None)?,
+                i8: env.require_def(SubKey::S("i8"), None)?,
             })
         }
 
         #[cfg(feature = "derive")]
         #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-        fn key_desc<'a>(
-            key: &mut Key<'a>,
-            _: &mut KeyDesc,
-            keys: &mut Vec<KeyDesc>,
-            env: &'a SalakContext<'a>,
-        ) {
-            env.add_key_desc::<i8, &str>(key, "i8", None, None, None, keys);
+        fn key_desc(env: &mut SalakDescContext<'_>) {
+            env.add_key_desc::<i8, &str>("i8", None, None, None);
         }
     }
     #[test]

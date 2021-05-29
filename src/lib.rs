@@ -41,7 +41,7 @@
 //! ## Features
 //!
 //! #### Predefined Sources
-//! Predefined sources has the following order, [`PropertyRegistry`] will find by sequence of these orders,
+//! Predefined sources has the following order, [`Salak`] will find by sequence of these orders,
 //! if the property with specified key is found at the current source, than return immediately. Otherwise,
 //! it will search the next source.
 //!
@@ -119,6 +119,8 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 mod derive;
 
+use std::sync::Mutex;
+
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironment};
@@ -126,6 +128,7 @@ pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironm
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use salak_derive::FromEnvironment;
+use source::PropertyRegistryInternal;
 
 #[cfg(feature = "args")]
 #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
@@ -143,9 +146,10 @@ mod env;
 
 pub use crate::enums::EnumProperty;
 pub use crate::err::{PropertyError, SalakParseError};
-pub use crate::source::{system_environment, HashMapSource, PropertyRegistry};
+pub use crate::source_map::{system_environment, HashMapSource};
 
 mod source;
+mod source_map;
 #[cfg(feature = "toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "toml")))]
 mod source_toml;
@@ -202,34 +206,37 @@ pub trait Environment {
     }
 }
 
-/// Context for [`FromEnvironment`].
-/// It has all functions needed for implementing [`FromEnvironment`].
+/// Context for implementing [`FromEnvironment`].
 #[allow(missing_debug_implementations)]
-pub struct SalakContext<'a>(&'a PropertyRegistry<'a>);
+pub struct SalakContext<'a> {
+    registry: &'a PropertyRegistryInternal<'a>,
+    iorefs: &'a Mutex<Vec<Box<dyn IORefT + Send>>>,
+    key: &'a mut Key<'a>,
+}
 
-/// Convert from [`PropertyRegistry`].
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+/// Context for implementing [`KeyDesc`].
+#[allow(missing_debug_implementations)]
+pub struct SalakDescContext<'a> {
+    key: &'a mut Key<'a>,
+    descs: &'a mut Vec<KeyDesc>,
+    current: KeyDesc,
+}
+
+/// Convert from [`SalakContext`].
 pub trait FromEnvironment: Sized {
-    /// Generate object from [`PropertyRegistry`].
-    /// * `key` - Property key.
-    /// * `property` - Property value with key is `key`.
+    /// Generate object from [`SalakContext`].
+    /// * `val` - Property value can be parsed from.
     /// * `env` - Context.
-    fn from_env<'a>(
-        key: &mut Key<'a>,
+    fn from_env(
         val: Option<Property<'_>>,
-        env: &'a SalakContext<'a>,
+        env: &mut SalakContext<'_>,
     ) -> Result<Self, PropertyError>;
 
-    /// Generate key description.
-    /// * `key` - Current property key.
-    /// * `desc` - Current key description.
-    /// * `keys` - Key description registry.
-    /// * `env` - Context.
+    /// Generate key description from [`SalakDescContext`].
+    /// * `env` - Describable context.
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn key_desc<'a>(
-        key: &mut Key<'a>,
-        desc: &mut KeyDesc,
-        keys: &mut Vec<KeyDesc>,
-        env: &'a SalakContext<'a>,
-    );
+    fn key_desc(env: &mut SalakDescContext<'_>);
 }
