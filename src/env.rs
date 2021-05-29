@@ -1,23 +1,21 @@
 use std::collections::HashSet;
-use std::sync::Arc;
 use std::sync::Mutex;
 use std::{collections::HashMap, ops::DerefMut};
 
-use crate::HashMapSource;
+#[cfg(feature = "args")]
+use crate::AppInfo;
 #[allow(unused_imports)]
 use crate::Key;
 
-use crate::system_environment;
+use crate::raw_ioref::IORefT;
+use crate::wrapper::NonEmptyVec;
 use crate::{
     source::PropertyRegistryInternal, Environment, FromEnvironment, IsProperty, Property,
-    PropertyError, PropertySource, SalakContext, SubKeys,
+    PropertyError, PropertySource, SalakContext,
 };
 
 #[cfg(feature = "derive")]
 use crate::{KeyDesc, PrefixedFromEnvironment, SalakDescContext};
-
-#[cfg(feature = "args")]
-use crate::{from_args, AppInfo};
 
 #[allow(unused_imports)]
 use crate::source::FileConfig;
@@ -133,13 +131,13 @@ impl SalakBuilder {
                 }
             }
 
-            self.args.extend(from_args(_desc, app)?);
+            self.args.extend(crate::sources::from_args(_desc, app)?);
         }
 
         salak.0 = salak
             .0
-            .register(HashMapSource::new("Arguments").set_all(self.args))
-            .register(system_environment());
+            .register(crate::sources::HashMapSource::new("Arguments").set_all(self.args))
+            .register(crate::sources::system_environment());
 
         #[cfg(any(feature = "toml", feature = "yaml"))]
         if !self.disable_file {
@@ -201,11 +199,11 @@ impl Salak {
     /// Get key description.
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    pub fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
+    pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
         let mut key = Key::new();
         let mut key_descs = vec![];
         let mut context = SalakDescContext::new(&mut key, &mut key_descs);
-        context.add_key_desc::<T, &str>(T::prefix(), None, None, None);
+        context.add_key_desc::<T>(T::prefix(), None, None, None);
         key_descs
     }
 }
@@ -240,10 +238,6 @@ impl<T: IsProperty> FromEnvironment for T {
         env.current.set_required(true);
     }
 }
-
-/// A wrapper of [`Vec<T>`], but require having at least one value when parsing configuration.
-#[derive(Debug)]
-pub struct NonEmptyVec<T>(pub Vec<T>);
 
 impl<T> std::ops::Deref for NonEmptyVec<T> {
     type Target = Vec<T>;
@@ -287,7 +281,7 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         let mut vs = vec![];
         if let Some(max) = env.get_sub_keys().upper {
             let mut i = 0;
-            while let Some(v) = env.require_def::<Option<T>, usize>(i, None)? {
+            while let Some(v) = env.require_def_internal::<Option<T>, usize>(i, None)? {
                 vs.push(v);
                 i += 1;
                 if i > max {
@@ -303,7 +297,12 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.ignore = true;
         env.current.set_required(false);
-        env.add_key_desc::<T, usize>(0, env.current.required, None, env.current.desc.clone());
+        env.add_key_desc_internal::<T, usize>(
+            0,
+            env.current.required,
+            None,
+            env.current.desc.clone(),
+        );
     }
 }
 
@@ -314,7 +313,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
     ) -> Result<Self, PropertyError> {
         let mut v = HashMap::new();
         for k in env.get_sub_keys().str_keys() {
-            if let Some(val) = env.require_def::<Option<T>, &str>(k, None)? {
+            if let Some(val) = env.require_def_internal::<Option<T>, &str>(k, None)? {
                 v.insert(k.to_owned(), val);
             }
         }
@@ -325,7 +324,7 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.set_required(false);
-        env.add_key_desc::<T, &str>("*", None, None, env.current.desc.clone());
+        env.add_key_desc::<T>("*", None, None, env.current.desc.clone());
     }
 }
 
@@ -344,96 +343,5 @@ where
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn key_desc(env: &mut SalakDescContext<'_>) {
         <Vec<T>>::key_desc(env);
-    }
-}
-
-pub(crate) trait IORefT: Send {
-    fn reload_ref(
-        &self,
-        env: &PropertyRegistryInternal<'_>,
-        ioref: &Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<(), PropertyError>;
-}
-
-/// A reference that can be changed when reloading configurations.
-#[allow(missing_debug_implementations)]
-#[derive(Clone)]
-pub struct IORef<T>(Arc<Mutex<T>>, String);
-
-impl<T: Send + Clone + FromEnvironment> IORefT for IORef<T> {
-    fn reload_ref(
-        &self,
-        env: &PropertyRegistryInternal<'_>,
-        ioref: &Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<(), PropertyError> {
-        self.set(env.require::<T>(&self.1, ioref)?)
-    }
-}
-
-impl<T: Clone> IORef<T> {
-    pub(crate) fn new(key: &str, val: T) -> Self {
-        Self(Arc::new(Mutex::new(val)), key.to_string())
-    }
-
-    fn set(&self, val: T) -> Result<(), PropertyError> {
-        let mut guard = self
-            .0
-            .lock()
-            .map_err(|_| PropertyError::parse_fail("IORef get fail"))?;
-        *guard = val;
-        Ok(())
-    }
-
-    /// Get value from reference.
-    pub fn get_val(&self) -> Result<T, PropertyError> {
-        let guard = self
-            .0
-            .lock()
-            .map_err(|_| PropertyError::parse_fail("IORef get fail"))?;
-        Ok(T::clone(&*guard))
-    }
-}
-
-impl<T> FromEnvironment for IORef<T>
-where
-    T: Clone + FromEnvironment + Send + 'static,
-{
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
-        let t = T::from_env(val, env)?;
-        let v = IORef::new(env.current_key(), t);
-        env.register_ioref(&v);
-        Ok(v)
-    }
-
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn key_desc(env: &mut SalakDescContext<'_>) {
-        T::key_desc(env);
-    }
-}
-
-impl<'a> SubKeys<'a> {
-    pub(crate) fn str_keys(&self) -> Vec<&'a str> {
-        self.keys
-            .iter()
-            .filter(|a| {
-                if let Some(c) = a.chars().next() {
-                    c < '0' && c > '9'
-                } else {
-                    false
-                }
-            })
-            .copied()
-            .collect()
-    }
-
-    pub(crate) fn new() -> Self {
-        Self {
-            keys: HashSet::new(),
-            upper: None,
-        }
     }
 }

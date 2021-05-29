@@ -60,7 +60,7 @@
 //!    * `random.isize`
 //! 2. Custom arguments source. [`SalakBuilder::set()`] can set a single kv,
 //! and [`SalakBuilder::set_args()`] can set a group of kvs.
-//! 3. System environment source. Implemented by [`system_environment`].
+//! 3. System environment source. Implemented by [`sources::system_environment`].
 //! 4. Profile specified file source, eg. `app-dev.toml`
 //! 5. Not profile file source, eg. `app.toml`
 //! 6. Custom sources, which can register by [`Salak::register()`].
@@ -115,15 +115,16 @@
     variant_size_differences
 )]
 
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-mod derive;
-
 use std::sync::Mutex;
 
 #[cfg(feature = "derive")]
+use crate::derive::KeyDesc;
+#[cfg(feature = "derive")]
+mod derive;
+#[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use crate::derive::{AutoDeriveFromEnvironment, KeyDesc, PrefixedFromEnvironment};
+pub use crate::derive::{AutoDeriveFromEnvironment, PrefixedFromEnvironment};
+use raw_ioref::IORefT;
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -135,18 +136,18 @@ use source::PropertyRegistryInternal;
 mod args;
 #[cfg(feature = "args")]
 #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
-pub use crate::args::*;
+pub use crate::args::AppInfo;
 
 mod err;
-pub use crate::raw::*;
 mod raw;
+pub use crate::raw::*;
+mod raw_ioref;
 pub use crate::env::*;
 mod enums;
 mod env;
 
 pub use crate::enums::EnumProperty;
-pub use crate::err::{PropertyError, SalakParseError};
-pub use crate::source_map::{system_environment, HashMapSource};
+pub use crate::err::PropertyError;
 
 mod source;
 mod source_map;
@@ -163,9 +164,52 @@ mod source_rand;
 #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
 mod source_yaml;
 
+use crate::sources::Key;
+use crate::sources::SubKeys;
+
 #[cfg(test)]
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
+
+/// Salak wrapper for configuration parsing.
+pub mod wrapper {
+    use std::sync::{Arc, Mutex};
+
+    /// A wrapper of [`Vec<T>`], but require having at least one value when parsing configuration.
+    #[derive(Debug)]
+    pub struct NonEmptyVec<T>(pub Vec<T>);
+
+    /// A wrapper of `T` that can be updated when reloading configurations.
+    #[allow(missing_debug_implementations)]
+    #[derive(Clone)]
+    pub struct IORef<T>(pub(crate) Arc<Mutex<T>>, pub(crate) String);
+}
+
+/// Salak property sources.
+pub mod sources {
+    use std::collections::HashSet;
+
+    #[cfg(feature = "args")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
+    pub(crate) use crate::args::from_args;
+    pub use crate::source_map::system_environment;
+    pub use crate::source_map::HashMapSource;
+    use crate::SubKey;
+
+    /// Key with a string buffer, can be avoid allocating memory when parsing configuration.
+    #[derive(Debug)]
+    pub struct Key<'a> {
+        pub(crate) buf: String,
+        pub(crate) key: Vec<SubKey<'a>>,
+    }
+
+    /// Sub key collection, which stands for lists of sub keys with same prefix.
+    #[derive(Debug)]
+    pub struct SubKeys<'a> {
+        pub(crate) keys: HashSet<&'a str>,
+        pub(crate) upper: Option<usize>,
+    }
+}
 
 /// An abstract source loader from various sources,
 /// such as command line arguments, system environment, files, etc.
@@ -216,7 +260,7 @@ pub struct SalakContext<'a> {
 
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-/// Context for implementing [`KeyDesc`].
+/// Context for implementing description.
 #[allow(missing_debug_implementations)]
 pub struct SalakDescContext<'a> {
     key: &'a mut Key<'a>,

@@ -152,10 +152,10 @@ fn derive_field(field: Field) -> (quote::__private::TokenStream, quote::__privat
     let (def, def_desc) = parse_field_attribute(field.attrs, &mut rename);
     (
         quote! {
-            #name: env.require_def::<#ty, &str>(stringify!(#rename), #def)?
+            #name: env.require_def::<#ty>(stringify!(#rename), #def)?
         },
         quote! {
-            env.add_key_desc::<#ty, &str>(stringify!(#rename), #def_desc);
+            env.add_key_desc::<#ty>(stringify!(#rename), #def_desc);
         },
     )
 }

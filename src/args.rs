@@ -39,7 +39,7 @@ fn parse(s: String) -> Result<(String, String), PropertyError> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
 /// Generate source from args.
-pub fn from_args(
+pub(crate) fn from_args(
     desc: Vec<KeyDesc>,
     info: AppInfo<'_>,
 ) -> Result<HashMap<String, String>, PropertyError> {

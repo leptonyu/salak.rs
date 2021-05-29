@@ -32,7 +32,7 @@ use std::{str::FromStr, time::Duration};
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "redis_cluster")]
 pub struct RedisClusterConfig {
-    url: NonEmptyVec<String>,
+    url: wrapper::NonEmptyVec<String>,
     password: Option<String>,
     readonly: Option<bool>,
     read_timeout: Option<Duration>,

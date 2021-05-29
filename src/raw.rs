@@ -1,4 +1,7 @@
-use crate::PropertyError;
+use crate::{
+    sources::{Key, SubKeys},
+    PropertyError,
+};
 use std::{collections::HashSet, time::Duration};
 
 /// Raw property, it is a temprory representation of property, which can be either [`&str`] or [`String`], or other values.
@@ -166,18 +169,11 @@ impl IsProperty for Duration {
 
 /// Sub key is partial [`Key`] having values with either `[a-z][_a-z0-9]*` or [`usize`].
 #[derive(Debug)]
-pub enum SubKey<'a> {
+pub(crate) enum SubKey<'a> {
     /// Str sub key.
     S(&'a str),
     /// Index sub key.
     I(usize),
-}
-
-/// Key with a string buffer, can be avoid allocating memory when parsing configuration.
-#[derive(Debug)]
-pub struct Key<'a> {
-    buf: String,
-    key: Vec<SubKey<'a>>,
 }
 
 lazy_static::lazy_static! {
@@ -250,13 +246,6 @@ impl<'a> Key<'a> {
     }
 }
 
-/// Sub key collection, which stands for lists of sub keys with same prefix.
-#[derive(Debug)]
-pub struct SubKeys<'a> {
-    pub(crate) keys: HashSet<&'a str>,
-    pub(crate) upper: Option<usize>,
-}
-
 impl<'a> From<&'a str> for SubKey<'a> {
     fn from(mut u: &'a str) -> Self {
         if u.starts_with('[') {
@@ -283,7 +272,7 @@ impl From<usize> for SubKey<'_> {
 
 impl<'a> SubKeys<'a> {
     /// Insert a sub key.
-    pub fn insert<K: Into<SubKey<'a>>>(&mut self, key: K) {
+    pub(crate) fn insert<K: Into<SubKey<'a>>>(&mut self, key: K) {
         match key.into() {
             SubKey::S(s) => {
                 self.keys.insert(s);
@@ -296,6 +285,27 @@ impl<'a> SubKeys<'a> {
                 }
                 self.upper = Some(i);
             }
+        }
+    }
+
+    pub(crate) fn str_keys(&self) -> Vec<&'a str> {
+        self.keys
+            .iter()
+            .filter(|a| {
+                if let Some(c) = a.chars().next() {
+                    c < '0' && c > '9'
+                } else {
+                    false
+                }
+            })
+            .copied()
+            .collect()
+    }
+
+    pub(crate) fn new() -> Self {
+        Self {
+            keys: HashSet::new(),
+            upper: None,
         }
     }
 }
@@ -598,14 +608,14 @@ mod tests {
             env: &mut SalakContext<'_>,
         ) -> Result<Self, PropertyError> {
             Ok(Config {
-                i8: env.require_def(SubKey::S("i8"), None)?,
+                i8: env.require_def("i8", None)?,
             })
         }
 
         #[cfg(feature = "derive")]
         #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
         fn key_desc(env: &mut SalakDescContext<'_>) {
-            env.add_key_desc::<i8, &str>("i8", None, None, None);
+            env.add_key_desc::<i8>("i8", None, None, None);
         }
     }
     #[test]

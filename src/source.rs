@@ -2,8 +2,9 @@ use core::ops::Deref;
 use std::sync::Mutex;
 use std::{collections::HashSet, path::PathBuf, vec};
 
+use crate::wrapper::IORef;
 use crate::{
-    FromEnvironment, IORef, IORefT, IsProperty, Key, Property, PropertyError, PropertySource,
+    FromEnvironment, IORefT, IsProperty, Key, Property, PropertyError, PropertySource,
     SalakContext, SubKey, SubKeys, PREFIX,
 };
 #[cfg(feature = "derive")]
@@ -205,8 +206,7 @@ impl<'a> PropertyRegistryInternal<'a> {
         iorefs: &'a Mutex<Vec<Box<dyn IORefT + Send>>>,
     ) -> Result<T, PropertyError> {
         let mut key = Key::new();
-        let mut env = SalakContext::new(&self, iorefs, &mut key);
-        env.require_def(SubKey::S(sub_key), None)
+        SalakContext::new(&self, iorefs, &mut key).require_def(sub_key, None)
     }
 }
 #[cfg(feature = "derive")]
@@ -222,7 +222,17 @@ impl<'a> SalakDescContext<'a> {
     }
 
     /// Add key description.
-    pub fn add_key_desc<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    pub fn add_key_desc<T: FromEnvironment>(
+        &mut self,
+        sub_key: &'a str,
+        required: Option<bool>,
+        def: Option<&'a str>,
+        desc: Option<String>,
+    ) {
+        self.add_key_desc_internal::<T, &str>(sub_key, required, def, desc)
+    }
+
+    pub(crate) fn add_key_desc_internal<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &mut self,
         sub_key: K,
         required: Option<bool>,
@@ -249,7 +259,15 @@ impl<'a> SalakDescContext<'a> {
 
 impl<'a> SalakContext<'a> {
     /// Parse property from env.
-    pub fn require_def<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    pub fn require_def<T: FromEnvironment>(
+        &mut self,
+        sub_key: &'a str,
+        def: Option<Property<'_>>,
+    ) -> Result<T, PropertyError> {
+        self.require_def_internal(sub_key, def)
+    }
+
+    pub(crate) fn require_def_internal<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &mut self,
         sub_key: K,
         def: Option<Property<'_>>,
@@ -338,9 +356,9 @@ impl FromEnvironment for FileConfig {
         env: &mut SalakContext<'_>,
     ) -> Result<Self, PropertyError> {
         Ok(FileConfig {
-            dir: env.require_def(SubKey::S("dir"), None)?,
-            name: env.require_def(SubKey::S("filename"), Some(Property::S("app")))?,
-            profile: env.require_def(SubKey::S("profile"), Some(Property::S("default")))?,
+            dir: env.require_def("dir", None)?,
+            name: env.require_def("filename", Some(Property::S("app")))?,
+            profile: env.require_def("profile", Some(Property::S("default")))?,
             env_profile: PropertyRegistryInternal::new("profile-files"),
             env_default: PropertyRegistryInternal::new("default-files"),
         })
@@ -349,9 +367,9 @@ impl FromEnvironment for FileConfig {
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn key_desc(env: &mut SalakDescContext<'_>) {
-        env.add_key_desc::<Option<String>, &str>("dir", None, None, None);
-        env.add_key_desc::<String, &str>("filename", Some(false), Some("app"), None);
-        env.add_key_desc::<String, &str>("profile", Some(false), Some("default"), None);
+        env.add_key_desc::<Option<String>>("dir", None, None, None);
+        env.add_key_desc::<String>("filename", Some(false), Some("app"), None);
+        env.add_key_desc::<String>("profile", Some(false), Some("default"), None);
     }
 }
 

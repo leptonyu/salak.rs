@@ -20,7 +20,7 @@ pub enum PropertyError {
 
 #[derive(Debug)]
 /// Salak parse error.
-pub struct SalakParseError(String);
+pub(crate) struct SalakParseError(String);
 
 impl Display for SalakParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

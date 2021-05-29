@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use salak::wrapper::NonEmptyVec;
 use salak::*;
 
 #[derive(FromEnvironment, Debug)]

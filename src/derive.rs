@@ -23,7 +23,7 @@ impl<P: PrefixedFromEnvironment> PrefixedFromEnvironment for Option<P> {
 /// Key Description
 #[derive(Debug)]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub struct KeyDesc {
+pub(crate) struct KeyDesc {
     key: String,
     tp: &'static str,
     pub(crate) required: Option<bool>,
@@ -123,6 +123,7 @@ mod tests {
 
     use std::collections::HashMap;
 
+    use crate::wrapper::NonEmptyVec;
     use crate::*;
 
     #[derive(FromEnvironment, Debug)]
