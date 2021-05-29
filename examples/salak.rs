@@ -22,8 +22,8 @@ struct Config {
 
 fn main() -> Result<(), PropertyError> {
     let _ = Salak::builder()
-        .add_config_desc::<Config>()
-        .enable_args(app_info!())
+        .configure_description::<Config>()
+        .configure_args(app_info!())
         .build()?;
     Ok(())
 }

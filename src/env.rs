@@ -55,23 +55,23 @@ impl SalakBuilder {
     #[cfg(any(feature = "toml", feature = "yaml"))]
     #[cfg_attr(docsrs, doc(cfg(any(feature = "toml", feature = "yaml"))))]
     /// Not add file source to environment.
-    pub fn disable_load_file(mut self) -> Self {
-        self.disable_file = true;
+    pub fn configure_files(mut self, enabled: bool) -> Self {
+        self.disable_file = !enabled;
         self
     }
 
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
     /// Disable random support.
-    pub fn disable_random(mut self) -> Self {
-        self.disable_random = true;
+    pub fn configure_random(mut self, enabled: bool) -> Self {
+        self.disable_random = !enabled;
         self
     }
 
     #[cfg(feature = "args")]
     #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
     /// Enable arguments.
-    pub fn enable_args(mut self, info: AppInfo<'static>) -> Self {
+    pub fn configure_args(mut self, info: AppInfo<'static>) -> Self {
         self.app_info = Some(info);
         self
     }
@@ -79,7 +79,7 @@ impl SalakBuilder {
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Enable arguments.
-    pub fn add_config_desc<T: PrefixedFromEnvironment>(mut self) -> Self {
+    pub fn configure_description<T: PrefixedFromEnvironment>(mut self) -> Self {
         self.app_desc.push(Box::new(|env| env.get_desc::<T>()));
         self
     }
@@ -92,7 +92,7 @@ impl SalakBuilder {
         #[cfg(feature = "derive")]
         #[cfg(any(feature = "toml", feature = "yaml"))]
         {
-            self = self.add_config_desc::<FileConfig>();
+            self = self.configure_description::<FileConfig>();
         }
         let mut env = self.registry;
 
@@ -192,7 +192,7 @@ impl Salak {
 
     /// Register source to registry, source that register earlier that higher priority for
     /// configuration.
-    pub fn register<P: PropertySource + Send + Sync + 'static>(&mut self, provider: P) {
+    pub fn register<P: PropertySource + 'static>(&mut self, provider: P) {
         self.0.register_by_ref(Box::new(provider))
     }
 
