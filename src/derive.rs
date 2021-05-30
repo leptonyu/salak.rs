@@ -8,6 +8,15 @@ pub trait AutoDeriveFromEnvironment: FromEnvironment {}
 impl<P: AutoDeriveFromEnvironment> AutoDeriveFromEnvironment for Option<P> {}
 
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+/// Context for implementing description.
+#[allow(missing_debug_implementations)]
+pub struct SalakDescContext<'a> {
+    pub(crate) key: &'a mut Key<'a>,
+    pub(crate) descs: &'a mut Vec<KeyDesc>,
+    pub(crate) current: KeyDesc,
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 /// Generate description for this object.
 pub trait DescFromEnvironment: FromEnvironment {
     /// Generate key description from [`SalakDescContext`].

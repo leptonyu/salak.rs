@@ -123,7 +123,9 @@ use crate::derive::KeyDesc;
 mod derive;
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use crate::derive::{AutoDeriveFromEnvironment, DescFromEnvironment, PrefixedFromEnvironment};
+pub use crate::derive::{
+    AutoDeriveFromEnvironment, DescFromEnvironment, PrefixedFromEnvironment, SalakDescContext,
+};
 use raw_ioref::IORefT;
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "derive")]
@@ -234,16 +236,6 @@ pub struct SalakContext<'a> {
     registry: &'a PropertyRegistryInternal<'a>,
     iorefs: &'a Mutex<Vec<Box<dyn IORefT + Send>>>,
     key: &'a mut Key<'a>,
-}
-
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-/// Context for implementing description.
-#[allow(missing_debug_implementations)]
-pub struct SalakDescContext<'a> {
-    key: &'a mut Key<'a>,
-    descs: &'a mut Vec<KeyDesc>,
-    current: KeyDesc,
 }
 
 /// Generate config from environment by [`SalakContext`].
