@@ -3,7 +3,7 @@ use log::*;
 
 use crate::*;
 
-/// Any enum implement this trait is automatically implement [`IsProperty`].
+/// Any enum implements this trait is automatically implementing [`IsProperty`].
 pub trait EnumProperty: Sized {
     /// Convert str to enum.
     fn str_to_enum(val: &str) -> Result<Self, PropertyError>;

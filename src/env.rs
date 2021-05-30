@@ -7,14 +7,13 @@ use crate::AppInfo;
 #[allow(unused_imports)]
 use crate::Key;
 
-use crate::raw_ioref::IORefT;
 use crate::{
-    source_raw::PropertyRegistryInternal, Environment, FromEnvironment, IsProperty, Property,
-    PropertyError, PropertySource, SalakContext,
+    raw_ioref::IORefT, source_raw::PropertyRegistryInternal, Environment, FromEnvironment,
+    IsProperty, Property, PropertyError, PropertySource, SalakContext,
 };
 
 #[cfg(feature = "derive")]
-use crate::{KeyDesc, PrefixedFromEnvironment, SalakDescContext};
+use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
 
 #[allow(unused_imports)]
 use crate::source_raw::FileConfig;
@@ -39,13 +38,13 @@ pub struct SalakBuilder {
 pub(crate) const PREFIX: &str = "salak.app";
 
 impl SalakBuilder {
-    /// Set argument properties.
+    /// Set custom arguments properties.
     pub fn set_args(mut self, args: HashMap<String, String>) -> Self {
         self.args.extend(args);
         self
     }
 
-    /// Set property by coding.
+    /// Set custom property.
     pub fn set<K: Into<String>, V: Into<String>>(mut self, k: K, v: V) -> Self {
         self.args.insert(k.into(), v.into());
         self
@@ -53,7 +52,7 @@ impl SalakBuilder {
 
     #[cfg(any(feature = "toml", feature = "yaml"))]
     #[cfg_attr(docsrs, doc(cfg(any(feature = "toml", feature = "yaml"))))]
-    /// Not add file source to environment.
+    /// Configure file source.
     pub fn configure_files(mut self, enabled: bool) -> Self {
         self.disable_file = !enabled;
         self
@@ -61,7 +60,7 @@ impl SalakBuilder {
 
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    /// Disable random support.
+    /// Configure random source.
     pub fn configure_random(mut self, enabled: bool) -> Self {
         self.disable_random = !enabled;
         self
@@ -69,7 +68,7 @@ impl SalakBuilder {
 
     #[cfg(feature = "args")]
     #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
-    /// Enable arguments.
+    /// Configure predefined arguments.
     pub fn configure_args(mut self, info: AppInfo<'static>) -> Self {
         self.app_info = Some(info);
         self
@@ -77,13 +76,13 @@ impl SalakBuilder {
 
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Enable arguments.
+    /// Configure description parsing.
     pub fn configure_description<T: PrefixedFromEnvironment>(mut self) -> Self {
         self.app_desc.push(Box::new(|env| env.get_desc::<T>()));
         self
     }
 
-    /// Build salak env.
+    /// Build salak.
     #[allow(unused_mut)]
     pub fn build(mut self) -> Result<Salak, PropertyError> {
         #[cfg(feature = "derive")]
@@ -229,9 +228,11 @@ impl<T: IsProperty> FromEnvironment for T {
         }
         Err(PropertyError::NotFound(env.current_key().to_string()))
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T: IsProperty> DescFromEnvironment for T {
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.ignore = false;
         env.current.set_required(true);
@@ -256,9 +257,11 @@ impl<T: FromEnvironment> FromEnvironment for Vec<T> {
         }
         Ok(vs)
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T: DescFromEnvironment> DescFromEnvironment for Vec<T> {
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.ignore = true;
         env.current.set_required(false);
@@ -284,9 +287,11 @@ impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
         }
         Ok(v)
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T: DescFromEnvironment> DescFromEnvironment for HashMap<String, T> {
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.set_required(false);
         env.add_key_desc::<T>("*", None, None, env.current.desc.clone());
@@ -303,9 +308,14 @@ where
     ) -> Result<Self, PropertyError> {
         Ok(<Vec<T>>::from_env(val, env)?.into_iter().collect())
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T> DescFromEnvironment for HashSet<T>
+where
+    T: Eq + DescFromEnvironment + std::hash::Hash,
+{
     fn key_desc(env: &mut SalakDescContext<'_>) {
         <Vec<T>>::key_desc(env);
     }

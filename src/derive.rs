@@ -1,15 +1,24 @@
 use crate::*;
 use pad::{Alignment, PadStr};
 
-#[doc(hidden)]
+/// This trait is automatically derived.
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub trait AutoDeriveFromEnvironment: FromEnvironment {}
 
 impl<P: AutoDeriveFromEnvironment> AutoDeriveFromEnvironment for Option<P> {}
 
+/// Generate description for this object.
+pub trait DescFromEnvironment: FromEnvironment {
+    /// Generate key description from [`SalakDescContext`].
+    /// * `env` - Describable context.
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    fn key_desc(env: &mut SalakDescContext<'_>);
+}
+
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-/// This trait is automatically derived, which is required by [`Environment::get()`].
-pub trait PrefixedFromEnvironment: FromEnvironment {
+/// [`FromEnvironment`] with a configuration prefix, which is required by [`Environment::get()`].
+/// Attribute `#[salak(prefix = "salak.app")]` will implement this trait.
+pub trait PrefixedFromEnvironment: DescFromEnvironment {
     /// Set configuration prefix.
     fn prefix() -> &'static str;
 }
@@ -19,7 +28,6 @@ impl<P: PrefixedFromEnvironment> PrefixedFromEnvironment for Option<P> {
         P::prefix()
     }
 }
-
 /// Key Description
 #[derive(Debug)]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -123,6 +131,8 @@ mod tests {
 
     use std::collections::HashMap;
 
+    use lazy_static::__Deref;
+
     use crate::wrapper::NonEmptyVec;
     use crate::*;
 
@@ -155,7 +165,7 @@ mod tests {
         assert_eq!(123, config.num);
         let arr: Vec<u8> = vec![];
         assert_eq!(arr, config.arr);
-        assert_eq!(vec![1], config.brr.0);
+        assert_eq!(&vec![1], config.brr.deref());
 
         println!("{:?}", config);
 

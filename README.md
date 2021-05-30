@@ -36,6 +36,8 @@ assert_eq!(None, config.optional);
 assert_eq!(false, config.verbose);
 ```
 
+## FromEnvironment Design
+![](/from_environment.svg)
 
 ## Salak Factory
 [salak_factory](https://crates.io/crates/salak_factory) can initialize resource based on `salak`, such as redis, postgresql, etc.

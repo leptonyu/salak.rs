@@ -191,7 +191,9 @@ fn derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStrea
                    #(#field),*
                 })
             }
+        }
 
+        impl DescFromEnvironment for #name {
             fn key_desc(env: &mut SalakDescContext<'_>) {
                 #(#field_desc)*
             }

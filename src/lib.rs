@@ -123,7 +123,7 @@ use crate::derive::KeyDesc;
 mod derive;
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use crate::derive::{AutoDeriveFromEnvironment, PrefixedFromEnvironment};
+pub use crate::derive::{AutoDeriveFromEnvironment, DescFromEnvironment, PrefixedFromEnvironment};
 use raw_ioref::IORefT;
 /// Auto derive [`FromEnvironment`] for struct.
 #[cfg(feature = "derive")]
@@ -249,19 +249,31 @@ pub struct SalakDescContext<'a> {
     current: KeyDesc,
 }
 
-/// Convert from [`SalakContext`].
+/// Generate config from environment by [`SalakContext`].
 pub trait FromEnvironment: Sized {
     /// Generate object from [`SalakContext`].
     /// * `val` - Property value can be parsed from.
     /// * `env` - Context.
+    ///
+    /// ```no_run
+    /// use salak::*;
+    /// pub struct Config {
+    ///   key: String
+    /// }
+    /// impl FromEnvironment for Config {
+    ///   fn from_env(
+    ///       val: Option<Property<'_>>,
+    ///       env: &mut SalakContext<'_>,
+    ///   ) -> Result<Self, PropertyError> {
+    ///     Ok(Self{
+    ///       key: env.require_def("key", None)?,
+    ///     })
+    ///   }
+    /// }
+    ///
+    /// ```
     fn from_env(
         val: Option<Property<'_>>,
         env: &mut SalakContext<'_>,
     ) -> Result<Self, PropertyError>;
-
-    /// Generate key description from [`SalakDescContext`].
-    /// * `env` - Describable context.
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn key_desc(env: &mut SalakDescContext<'_>);
 }

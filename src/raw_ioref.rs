@@ -5,7 +5,7 @@ use crate::{
 };
 
 #[cfg(feature = "derive")]
-use crate::SalakDescContext;
+use crate::{DescFromEnvironment, SalakDescContext};
 /// A wrapper of `T` that can be updated when reloading configurations.
 #[allow(missing_debug_implementations)]
 #[derive(Clone)]
@@ -66,9 +66,14 @@ where
         env.register_ioref(&v);
         Ok(v)
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T> DescFromEnvironment for IORef<T>
+where
+    T: Clone + DescFromEnvironment + Send + 'static,
+{
     fn key_desc(env: &mut SalakDescContext<'_>) {
         T::key_desc(env);
     }

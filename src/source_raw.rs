@@ -2,14 +2,13 @@ use core::ops::Deref;
 use std::sync::Mutex;
 use std::{collections::HashSet, path::PathBuf, vec};
 
-use crate::wrapper::IORef;
 use crate::{
-    FromEnvironment, IORefT, IsProperty, Key, Property, PropertyError, PropertySource,
-    SalakContext, SubKey, SubKeys, PREFIX,
+    wrapper::IORef, FromEnvironment, IORefT, IsProperty, Key, Property, PropertyError,
+    PropertySource, SalakContext, SubKey, SubKeys, PREFIX,
 };
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-use crate::{KeyDesc, PrefixedFromEnvironment, SalakDescContext};
+use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
 
 enum PS<'a> {
     Ref(&'a Box<dyn PropertySource>),
@@ -222,7 +221,7 @@ impl<'a> SalakDescContext<'a> {
     }
 
     /// Add key description.
-    pub fn add_key_desc<T: FromEnvironment>(
+    pub fn add_key_desc<T: DescFromEnvironment>(
         &mut self,
         sub_key: &'a str,
         required: Option<bool>,
@@ -232,7 +231,7 @@ impl<'a> SalakDescContext<'a> {
         self.add_key_desc_internal::<T, &str>(sub_key, required, def, desc)
     }
 
-    pub(crate) fn add_key_desc_internal<T: FromEnvironment, K: Into<SubKey<'a>>>(
+    pub(crate) fn add_key_desc_internal<T: DescFromEnvironment, K: Into<SubKey<'a>>>(
         &mut self,
         sub_key: K,
         required: Option<bool>,
@@ -333,9 +332,11 @@ impl<T: FromEnvironment> FromEnvironment for Option<T> {
             Err(err) => Err(err),
         }
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T: DescFromEnvironment> DescFromEnvironment for Option<T> {
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.set_required(false);
         T::key_desc(env);
@@ -363,9 +364,11 @@ impl FromEnvironment for FileConfig {
             env_default: PropertyRegistryInternal::new("default-files"),
         })
     }
+}
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl DescFromEnvironment for FileConfig {
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.add_key_desc::<Option<String>>("dir", None, None, None);
         env.add_key_desc::<String>("filename", Some(false), Some("app"), None);

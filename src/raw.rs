@@ -16,6 +16,8 @@ pub enum Property<'a> {
     B(bool),
 }
 
+/// Any object implements this trait is automatically implmenting [`crate::FromEnvironment`].
+///
 /// This trait defines how to parse value from property, and defines specific behaviors such as
 /// how empty string being parsed.
 pub trait IsProperty: Sized {
@@ -624,9 +626,11 @@ mod tests {
                 i8: env.require_def("i8", None)?,
             })
         }
+    }
 
-        #[cfg(feature = "derive")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    impl DescFromEnvironment for Config {
         fn key_desc(env: &mut SalakDescContext<'_>) {
             env.add_key_desc::<i8>("i8", None, None, None);
         }

@@ -83,7 +83,7 @@ impl Buildable for RedisClusterConfig {
         customizer: Self::Customizer,
     ) -> Result<Self::Resource, PropertyError> {
         let mut config = vec![];
-        for url in self.url.0 {
+        for url in self.url {
             config.push(ConnectionInfo::from_str(&url)?)
         }
         let mut builder = ClusterClientBuilder::new(config);
