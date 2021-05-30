@@ -39,6 +39,7 @@ pub(crate) const PREFIX: &str = "salak.app";
 
 impl SalakBuilder {
     /// Set custom arguments properties.
+    #[inline]
     pub fn set_args(mut self, args: HashMap<String, String>) -> Self {
         self.args.extend(args);
         self
@@ -207,16 +208,19 @@ impl Salak {
 }
 
 impl Environment for Salak {
+    #[inline]
     fn reload(&self) -> Result<bool, PropertyError> {
         self.0.reload(&self.1)
     }
 
+    #[inline]
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
         self.0.require(key, &self.1)
     }
 }
 
 impl<T: IsProperty> FromEnvironment for T {
+    #[inline]
     fn from_env(
         val: Option<Property<'_>>,
         env: &mut SalakContext<'_>,
@@ -233,6 +237,7 @@ impl<T: IsProperty> FromEnvironment for T {
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 impl<T: IsProperty> DescFromEnvironment for T {
+    #[inline]
     fn key_desc(env: &mut SalakDescContext<'_>) {
         env.current.ignore = false;
         env.current.set_required(true);

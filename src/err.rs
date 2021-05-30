@@ -23,6 +23,7 @@ pub enum PropertyError {
 pub(crate) struct SalakParseError(String);
 
 impl Display for SalakParseError {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
@@ -32,12 +33,14 @@ impl Error for SalakParseError {}
 
 impl PropertyError {
     /// Create parse fail error.
+    #[inline]
     pub fn parse_fail(msg: &str) -> Self {
         PropertyError::ParseFail(None, Box::new(SalakParseError(msg.to_string())))
     }
 }
 
 impl<E: Error + 'static> From<E> for PropertyError {
+    #[inline]
     fn from(err: E) -> Self {
         PropertyError::ParseFail(None, Box::new(err))
     }

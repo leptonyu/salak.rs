@@ -20,6 +20,7 @@ pub(crate) trait IORefT: Send {
 }
 
 impl<T: Send + Clone + FromEnvironment> IORefT for IORef<T> {
+    #[inline]
     fn reload_ref(
         &self,
         env: &PropertyRegistryInternal<'_>,
@@ -30,10 +31,12 @@ impl<T: Send + Clone + FromEnvironment> IORefT for IORef<T> {
 }
 
 impl<T: Clone> IORef<T> {
-    pub(crate) fn new(key: &str, val: T) -> Self {
+    #[inline]
+    fn new(key: &str, val: T) -> Self {
         Self(Arc::new(Mutex::new(val)), key.to_string())
     }
 
+    #[inline]
     fn set(&self, val: T) -> Result<(), PropertyError> {
         let mut guard = self
             .0

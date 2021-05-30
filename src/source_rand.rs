@@ -6,6 +6,8 @@ impl PropertySource for Random {
     fn name(&self) -> &str {
         "Random"
     }
+
+    #[inline]
     fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
         match key.as_str() {
             "random.u8" => Some(Property::I(rand::random::<u8>() as i64)),

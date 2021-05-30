@@ -10,6 +10,7 @@ pub trait EnumProperty: Sized {
 }
 
 impl<T: EnumProperty> IsProperty for T {
+    #[inline]
     fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
         match p {
             Property::S(v) => T::str_to_enum(v),

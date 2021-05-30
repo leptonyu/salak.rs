@@ -23,6 +23,7 @@ pub enum Property<'a> {
 pub trait IsProperty: Sized {
     /// Check if empty string means property does not exist.
     /// In most case this is true, except String.
+    #[inline]
     fn is_empty(p: &Property<'_>) -> bool {
         match p {
             Property::S(s) => s.is_empty(),
@@ -35,6 +36,7 @@ pub trait IsProperty: Sized {
     fn from_property(_: Property<'_>) -> Result<Self, PropertyError>;
 }
 
+#[inline]
 fn check_f64(f: f64) -> Result<f64, PropertyError> {
     if f.is_finite() {
         Ok(f)
@@ -44,9 +46,11 @@ fn check_f64(f: f64) -> Result<f64, PropertyError> {
 }
 
 impl IsProperty for String {
+    #[inline]
     fn is_empty(_: &Property<'_>) -> bool {
         false
     }
+    #[inline]
     fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
         Ok(match p {
             Property::S(v) => v.to_string(),
@@ -58,6 +62,7 @@ impl IsProperty for String {
     }
 }
 impl IsProperty for bool {
+    #[inline]
     fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
         fn str_to_bool(v: &str) -> Result<bool, PropertyError> {
             match v {
@@ -78,6 +83,7 @@ impl IsProperty for bool {
 macro_rules! impl_property_num {
     ($($x:ident),+) => {$(
             impl IsProperty for $x {
+                #[inline]
                 fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
                     use std::convert::TryFrom;
                     Ok(match p {
@@ -100,6 +106,7 @@ macro_rules! impl_property_float {
     ($($x:ident),+) => {$(
             #[allow(trivial_numeric_casts)]
             impl IsProperty for $x {
+                #[inline]
                 fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
                     Ok(match p {
                     Property::S(s) => s.parse::<$x>()?,
@@ -117,6 +124,7 @@ macro_rules! impl_property_float {
 
 impl_property_float!(f32, f64);
 
+#[inline]
 fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
     let mut i = 0;
     let mut multi = 1;
@@ -186,6 +194,7 @@ pub struct Key<'a> {
 }
 
 impl<'a> Key<'a> {
+    #[inline]
     pub(crate) fn new() -> Self {
         Self {
             buf: String::new(),
@@ -226,7 +235,6 @@ impl<'a> Key<'a> {
         self.buf.as_str()
     }
 
-    #[doc(hidden)]
     pub(crate) fn push(&mut self, k: SubKey<'a>) {
         match &k {
             SubKey::S(v) => {
@@ -240,7 +248,6 @@ impl<'a> Key<'a> {
         self.key.push(k)
     }
 
-    #[doc(hidden)]
     pub(crate) fn pop(&mut self) {
         if let Some(v) = self.key.pop() {
             match v {
@@ -270,6 +277,7 @@ impl<'a> From<&'a str> for SubKey<'a> {
 }
 
 impl From<usize> for SubKey<'_> {
+    #[inline]
     fn from(u: usize) -> Self {
         SubKey::I(u)
     }
@@ -313,6 +321,7 @@ impl<'a> SubKeys<'a> {
             .collect()
     }
 
+    #[inline]
     pub(crate) fn new() -> Self {
         Self {
             keys: HashSet::new(),
@@ -320,6 +329,7 @@ impl<'a> SubKeys<'a> {
         }
     }
 
+    #[inline]
     pub(crate) fn max(&self) -> Option<usize> {
         self.upper
     }

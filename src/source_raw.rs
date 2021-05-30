@@ -36,6 +36,7 @@ impl PropertySource for PropertyRegistryInternal<'_> {
         self.name
     }
 
+    #[inline]
     fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
         self.providers.iter().find_map(|p| p.get_property(key))
     }
@@ -92,6 +93,7 @@ impl<'a> PropertyRegistryInternal<'a> {
         Ok(Some(self.resolve(key, v, &mut history)?))
     }
 
+    #[inline]
     fn merge(val: Option<String>, new: &str) -> String {
         match val {
             Some(mut v) => {
@@ -102,6 +104,7 @@ impl<'a> PropertyRegistryInternal<'a> {
         }
     }
 
+    #[inline]
     fn resolve(
         &self,
         key: &Key<'_>,
@@ -199,6 +202,7 @@ impl<'a> PropertyRegistryInternal<'a> {
         Ok(flag)
     }
 
+    #[inline]
     pub(crate) fn require<T: FromEnvironment>(
         &self,
         sub_key: &str,
@@ -221,6 +225,7 @@ impl<'a> SalakDescContext<'a> {
     }
 
     /// Add key description.
+    #[inline]
     pub fn add_key_desc<T: DescFromEnvironment>(
         &mut self,
         sub_key: &'a str,
@@ -258,6 +263,7 @@ impl<'a> SalakDescContext<'a> {
 
 impl<'a> SalakContext<'a> {
     /// Parse property from env.
+    #[inline]
     pub fn require_def<T: FromEnvironment>(
         &mut self,
         sub_key: &'a str,
@@ -266,6 +272,7 @@ impl<'a> SalakContext<'a> {
         self.require_def_internal(sub_key, def)
     }
 
+    #[inline]
     pub(crate) fn require_def_internal<T: FromEnvironment, K: Into<SubKey<'a>>>(
         &mut self,
         sub_key: K,
@@ -291,6 +298,7 @@ impl<'a> SalakContext<'a> {
         sub_keys
     }
 
+    #[inline]
     pub(crate) fn current_key(&self) -> &str {
         self.key.as_str()
     }
@@ -311,6 +319,7 @@ impl<'a> SalakContext<'a> {
         }
     }
 
+    #[inline]
     pub(crate) fn register_ioref<T: Clone + FromEnvironment + Send + 'static>(
         &self,
         ioref: &IORef<T>,

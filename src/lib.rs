@@ -209,6 +209,7 @@ pub trait PropertySource: Send + Sync {
 
     /// Reload property source.
     /// If nothing changes, then return none.
+    #[inline]
     fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
         Ok(None)
     }
@@ -225,6 +226,7 @@ pub trait Environment {
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Get config with predefined prefix.
+    #[inline]
     fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }

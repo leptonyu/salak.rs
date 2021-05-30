@@ -5,6 +5,7 @@ use pad::{Alignment, PadStr};
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub trait AutoDeriveFromEnvironment: FromEnvironment {}
 
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 impl<P: AutoDeriveFromEnvironment> AutoDeriveFromEnvironment for Option<P> {}
 
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -21,7 +22,6 @@ pub struct SalakDescContext<'a> {
 pub trait DescFromEnvironment: FromEnvironment {
     /// Generate key description from [`SalakDescContext`].
     /// * `env` - Describable context.
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     fn key_desc(env: &mut SalakDescContext<'_>);
 }
 
@@ -33,7 +33,9 @@ pub trait PrefixedFromEnvironment: DescFromEnvironment {
     fn prefix() -> &'static str;
 }
 
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 impl<P: PrefixedFromEnvironment> PrefixedFromEnvironment for Option<P> {
+    #[inline]
     fn prefix() -> &'static str {
         P::prefix()
     }

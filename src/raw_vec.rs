@@ -10,6 +10,7 @@ pub struct NonEmptyVec<T>(Vec<T>);
 
 impl<T> NonEmptyVec<T> {
     /// Get [`Vec<T>`].
+    #[inline]
     pub fn into_vec(self) -> Vec<T> {
         self.0
     }
@@ -20,6 +21,7 @@ impl<T> IntoIterator for NonEmptyVec<T> {
 
     type IntoIter = std::vec::IntoIter<T>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
@@ -28,24 +30,28 @@ impl<T> IntoIterator for NonEmptyVec<T> {
 impl<T> std::ops::Deref for NonEmptyVec<T> {
     type Target = Vec<T>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl<T> Into<Vec<T>> for NonEmptyVec<T> {
+    #[inline]
     fn into(self) -> Vec<T> {
         self.into_vec()
     }
 }
 
 impl<T> DerefMut for NonEmptyVec<T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
 impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
+    #[inline]
     fn from_env(
         val: Option<Property<'_>>,
         env: &mut SalakContext<'_>,

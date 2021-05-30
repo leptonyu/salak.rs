@@ -32,10 +32,12 @@ impl HashMapSource {
 }
 
 impl PropertySource for HashMapSource {
+    #[inline]
     fn name(&self) -> &str {
         &self.name
     }
 
+    #[inline]
     fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>> {
         self.map.get(key.as_str()).map(|s| Property::S(s))
     }
