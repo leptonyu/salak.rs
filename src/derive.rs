@@ -7,6 +7,7 @@ pub trait AutoDeriveFromEnvironment: FromEnvironment {}
 
 impl<P: AutoDeriveFromEnvironment> AutoDeriveFromEnvironment for Option<P> {}
 
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 /// Generate description for this object.
 pub trait DescFromEnvironment: FromEnvironment {
     /// Generate key description from [`SalakDescContext`].
