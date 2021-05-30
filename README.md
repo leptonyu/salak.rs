@@ -36,7 +36,7 @@ assert_eq!(None, config.optional);
 assert_eq!(false, config.verbose);
 ```
 
-## FromEnvironment Design
+## Trait FromEnvironment
 ![](/from_environment.svg)
 
 ## Salak Factory
