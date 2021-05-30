@@ -400,17 +400,14 @@ impl FileConfig {
 
     #[allow(dead_code)]
     pub(crate) fn build<
-        F: Fn(String, &str) -> Result<S, PropertyError>,
-        S: PropertySource + Send + Sync + 'static,
+        F: Fn(FileItem) -> Result<S, PropertyError>,
+        S: PropertySource + 'static,
     >(
         &mut self,
         ext: &str,
         f: F,
     ) -> Result<(), PropertyError> {
-        fn make<
-            F: Fn(String, &str) -> Result<S, PropertyError>,
-            S: PropertySource + Send + Sync + 'static,
-        >(
+        fn make<F: Fn(FileItem) -> Result<S, PropertyError>, S: PropertySource + 'static>(
             f: F,
             file: String,
             dir: &Option<String>,
@@ -422,10 +419,7 @@ impl FileConfig {
             }
             path.push(file);
             if path.exists() {
-                env.register_by_ref(Box::new((f)(
-                    path.as_path().display().to_string(),
-                    &std::fs::read_to_string(path)?,
-                )?));
+                env.register_by_ref(Box::new((f)(FileItem(path))?));
             }
             Ok(())
         }
@@ -442,5 +436,62 @@ impl FileConfig {
             &self.dir,
             &mut self.env_default,
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FileItem(PathBuf);
+
+#[allow(dead_code)]
+impl FileItem {
+    pub(crate) fn load(&self) -> Result<String, PropertyError> {
+        Ok(std::fs::read_to_string(self.0.clone())?)
+    }
+
+    pub(crate) fn name(&self) -> String {
+        self.0.as_path().display().to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use raw_ioref::IORef;
+
+    use crate::{
+        source::{Key, SubKeys},
+        *,
+    };
+
+    struct Reload(u64);
+
+    impl PropertySource for Reload {
+        fn name(&self) -> &str {
+            "reload"
+        }
+
+        fn get_property(&self, _: &Key<'_>) -> Option<Property<'_>> {
+            Some(Property::I(self.0 as i64))
+        }
+
+        fn get_sub_keys<'a>(&'a self, _: &Key<'_>, _: &mut SubKeys<'a>) {}
+
+        fn is_empty(&self) -> bool {
+            false
+        }
+        fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+            Ok(Some(Box::new(Reload(self.0 + 1))))
+        }
+    }
+
+    #[test]
+    fn reload_test() {
+        let mut env = Salak::new().unwrap();
+        env.register(Reload(0));
+        let u8ref = env.require::<IORef<u8>>("").unwrap();
+        assert_eq!(0, u8ref.get_val().unwrap());
+        env.reload().unwrap();
+        assert_eq!(1, u8ref.get_val().unwrap());
+        env.reload().unwrap();
+        assert_eq!(1, u8ref.get_val().unwrap());
     }
 }

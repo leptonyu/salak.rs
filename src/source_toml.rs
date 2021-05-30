@@ -1,20 +1,20 @@
 use toml::Value;
 
-use crate::{Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
+use crate::{source_raw::FileItem, Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct Toml {
+pub(crate) struct Toml {
+    item: FileItem,
     name: String,
     value: Value,
 }
 
 impl Toml {
-    #[doc(hidden)]
-    pub fn new(name: String, content: &str) -> Result<Self, PropertyError> {
+    pub(crate) fn new(item: FileItem) -> Result<Self, PropertyError> {
         Ok(Toml {
-            name,
-            value: toml::from_str(content)?,
+            name: item.name(),
+            value: toml::from_str(&item.load()?)?,
+            item,
         })
     }
 }
@@ -65,6 +65,10 @@ impl PropertySource for Toml {
             Value::Table(t) => t.is_empty(),
             _ => false,
         }
+    }
+
+    fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Ok(Some(Box::new(Toml::new(self.item.clone())?)))
     }
 }
 

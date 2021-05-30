@@ -153,16 +153,13 @@ pub use crate::enums::EnumProperty;
 pub use crate::err::PropertyError;
 
 mod source_map;
+#[cfg(feature = "rand")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+mod source_rand;
 mod source_raw;
 #[cfg(feature = "toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "toml")))]
 mod source_toml;
-#[cfg(feature = "toml")]
-#[cfg_attr(docsrs, doc(cfg(feature = "toml")))]
-pub use source_toml::Toml;
-#[cfg(feature = "rand")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-mod source_rand;
 #[cfg(feature = "yaml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
 mod source_yaml;

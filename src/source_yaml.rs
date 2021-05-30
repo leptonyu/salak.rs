@@ -1,17 +1,19 @@
 use yaml_rust::Yaml;
 
-use crate::{Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
+use crate::{source_raw::FileItem, Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
 
 pub(crate) struct YamlValue {
+    item: FileItem,
     name: String,
     value: Vec<Yaml>,
 }
 
 impl YamlValue {
-    pub(crate) fn new(name: String, content: &str) -> Result<Self, PropertyError> {
+    pub(crate) fn new(item: FileItem) -> Result<Self, PropertyError> {
         Ok(Self {
-            name,
-            value: yaml_rust::YamlLoader::load_from_str(content)?,
+            name: item.name(),
+            value: yaml_rust::YamlLoader::load_from_str(&item.load()?)?,
+            item,
         })
     }
 }
@@ -76,5 +78,9 @@ impl PropertySource for YamlValue {
             };
         }
         false
+    }
+
+    fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+        Ok(Some(Box::new(YamlValue::new(self.item.clone())?)))
     }
 }
