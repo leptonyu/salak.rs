@@ -1031,7 +1031,7 @@ dependencies = [
 
 [[package]]
 name = "salak_factory"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "postgres",
  "r2d2",
