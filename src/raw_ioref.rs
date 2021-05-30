@@ -1,12 +1,15 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    source::PropertyRegistryInternal, wrapper::IORef, FromEnvironment, Property, PropertyError,
-    SalakContext,
+    source_raw::PropertyRegistryInternal, FromEnvironment, Property, PropertyError, SalakContext,
 };
 
 #[cfg(feature = "derive")]
 use crate::SalakDescContext;
+/// A wrapper of `T` that can be updated when reloading configurations.
+#[allow(missing_debug_implementations)]
+#[derive(Clone)]
+pub struct IORef<T>(pub(crate) Arc<Mutex<T>>, pub(crate) String);
 
 pub(crate) trait IORefT: Send {
     fn reload_ref(

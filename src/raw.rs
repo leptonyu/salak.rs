@@ -1,7 +1,4 @@
-use crate::{
-    sources::{Key, SubKeys},
-    PropertyError,
-};
+use crate::PropertyError;
 use std::{collections::HashSet, time::Duration};
 
 /// Raw property, it is a temprory representation of property, which can be either [`&str`] or [`String`], or other values.
@@ -179,6 +176,12 @@ pub(crate) enum SubKey<'a> {
 lazy_static::lazy_static! {
     static ref P: &'static [char] = &['.', '[', ']'];
 }
+/// Key with a string buffer, can be avoid allocating memory when parsing configuration.
+#[derive(Debug)]
+pub struct Key<'a> {
+    buf: String,
+    key: Vec<SubKey<'a>>,
+}
 
 impl<'a> Key<'a> {
     pub(crate) fn new() -> Self {
@@ -269,6 +272,12 @@ impl From<usize> for SubKey<'_> {
         SubKey::I(u)
     }
 }
+/// Sub key collection, which stands for lists of sub keys with same prefix.
+#[derive(Debug)]
+pub struct SubKeys<'a> {
+    keys: HashSet<&'a str>,
+    upper: Option<usize>,
+}
 
 impl<'a> SubKeys<'a> {
     /// Insert a sub key.
@@ -307,6 +316,10 @@ impl<'a> SubKeys<'a> {
             keys: HashSet::new(),
             upper: None,
         }
+    }
+
+    pub(crate) fn max(&self) -> Option<usize> {
+        self.upper
     }
 }
 

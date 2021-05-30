@@ -60,7 +60,7 @@
 //!    * `random.isize`
 //! 2. Custom arguments source. [`SalakBuilder::set()`] can set a single kv,
 //! and [`SalakBuilder::set_args()`] can set a group of kvs.
-//! 3. System environment source. Implemented by [`sources::system_environment`].
+//! 3. System environment source. Implemented by [`source::system_environment`].
 //! 4. Profile specified file source, eg. `app-dev.toml`
 //! 5. Not profile file source, eg. `app.toml`
 //! 6. Custom sources, which can register by [`Salak::register()`].
@@ -129,7 +129,7 @@ use raw_ioref::IORefT;
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use salak_derive::FromEnvironment;
-use source::PropertyRegistryInternal;
+use source_raw::PropertyRegistryInternal;
 
 #[cfg(feature = "args")]
 #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
@@ -140,17 +140,20 @@ pub use crate::args::AppInfo;
 
 mod err;
 mod raw;
-pub use crate::raw::*;
+use crate::raw::SubKey;
+pub use crate::raw::{IsProperty, Property};
 mod raw_ioref;
-pub use crate::env::*;
+mod raw_vec;
+use crate::env::PREFIX;
+pub use crate::env::{Salak, SalakBuilder};
 mod enums;
 mod env;
 
 pub use crate::enums::EnumProperty;
 pub use crate::err::PropertyError;
 
-mod source;
 mod source_map;
+mod source_raw;
 #[cfg(feature = "toml")]
 #[cfg_attr(docsrs, doc(cfg(feature = "toml")))]
 mod source_toml;
@@ -164,8 +167,8 @@ mod source_rand;
 #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
 mod source_yaml;
 
-use crate::sources::Key;
-use crate::sources::SubKeys;
+use crate::source::Key;
+use crate::source::SubKeys;
 
 #[cfg(test)]
 #[macro_use(quickcheck)]
@@ -173,42 +176,20 @@ extern crate quickcheck_macros;
 
 /// Salak wrapper for configuration parsing.
 pub mod wrapper {
-    use std::sync::{Arc, Mutex};
-
-    /// A wrapper of [`Vec<T>`], but require having at least one value when parsing configuration.
-    #[derive(Debug)]
-    pub struct NonEmptyVec<T>(pub Vec<T>);
-
-    /// A wrapper of `T` that can be updated when reloading configurations.
-    #[allow(missing_debug_implementations)]
-    #[derive(Clone)]
-    pub struct IORef<T>(pub(crate) Arc<Mutex<T>>, pub(crate) String);
+    pub use crate::raw_ioref::IORef;
+    pub use crate::raw_vec::NonEmptyVec;
 }
 
 /// Salak property sources.
-pub mod sources {
-    use std::collections::HashSet;
+pub mod source {
 
     #[cfg(feature = "args")]
     #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
     pub(crate) use crate::args::from_args;
+    pub use crate::raw::Key;
+    pub use crate::raw::SubKeys;
     pub use crate::source_map::system_environment;
     pub use crate::source_map::HashMapSource;
-    use crate::SubKey;
-
-    /// Key with a string buffer, can be avoid allocating memory when parsing configuration.
-    #[derive(Debug)]
-    pub struct Key<'a> {
-        pub(crate) buf: String,
-        pub(crate) key: Vec<SubKey<'a>>,
-    }
-
-    /// Sub key collection, which stands for lists of sub keys with same prefix.
-    #[derive(Debug)]
-    pub struct SubKeys<'a> {
-        pub(crate) keys: HashSet<&'a str>,
-        pub(crate) upper: Option<usize>,
-    }
 }
 
 /// An abstract source loader from various sources,

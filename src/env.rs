@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Mutex;
-use std::{collections::HashMap, ops::DerefMut};
 
 #[cfg(feature = "args")]
 use crate::AppInfo;
@@ -8,9 +8,8 @@ use crate::AppInfo;
 use crate::Key;
 
 use crate::raw_ioref::IORefT;
-use crate::wrapper::NonEmptyVec;
 use crate::{
-    source::PropertyRegistryInternal, Environment, FromEnvironment, IsProperty, Property,
+    source_raw::PropertyRegistryInternal, Environment, FromEnvironment, IsProperty, Property,
     PropertyError, PropertySource, SalakContext,
 };
 
@@ -18,7 +17,7 @@ use crate::{
 use crate::{KeyDesc, PrefixedFromEnvironment, SalakDescContext};
 
 #[allow(unused_imports)]
-use crate::source::FileConfig;
+use crate::source_raw::FileConfig;
 
 /// A builder which can configure for how to build a salak env.
 #[allow(missing_debug_implementations)]
@@ -131,13 +130,13 @@ impl SalakBuilder {
                 }
             }
 
-            self.args.extend(crate::sources::from_args(_desc, app)?);
+            self.args.extend(crate::source::from_args(_desc, app)?);
         }
 
         salak.0 = salak
             .0
-            .register(crate::sources::HashMapSource::new("Arguments").set_all(self.args))
-            .register(crate::sources::system_environment());
+            .register(crate::source::HashMapSource::new("Arguments").set_all(self.args))
+            .register(crate::source::system_environment());
 
         #[cfg(any(feature = "toml", feature = "yaml"))]
         if !self.disable_file {
@@ -239,47 +238,13 @@ impl<T: IsProperty> FromEnvironment for T {
     }
 }
 
-impl<T> std::ops::Deref for NonEmptyVec<T> {
-    type Target = Vec<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> DerefMut for NonEmptyVec<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
-        let v = <Vec<T>>::from_env(val, env)?;
-        if v.is_empty() {
-            return Err(PropertyError::NotFound(env.current_key().to_string()));
-        }
-        Ok(NonEmptyVec(v))
-    }
-
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    fn key_desc(env: &mut SalakDescContext<'_>) {
-        env.current.set_required(true);
-        <Vec<T>>::key_desc(env);
-    }
-}
-
 impl<T: FromEnvironment> FromEnvironment for Vec<T> {
     fn from_env(
         _: Option<Property<'_>>,
         env: &mut SalakContext<'_>,
     ) -> Result<Self, PropertyError> {
         let mut vs = vec![];
-        if let Some(max) = env.get_sub_keys().upper {
+        if let Some(max) = env.get_sub_keys().max() {
             let mut i = 0;
             while let Some(v) = env.require_def_internal::<Option<T>, usize>(i, None)? {
                 vs.push(v);
