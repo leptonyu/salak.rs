@@ -1,3 +1,5 @@
+use std::net::Shutdown;
+
 #[cfg(feature = "log")]
 use log::*;
 
@@ -52,4 +54,10 @@ impl_enum_property!(Level {
   "info"  => Level::Info
   "debug" => Level::Debug
   "trace" => Level::Trace
+});
+
+impl_enum_property!(Shutdown{
+    "read" => Shutdown::Read
+    "write" => Shutdown::Write
+    "both" => Shutdown::Both
 });

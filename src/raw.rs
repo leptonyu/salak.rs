@@ -1,5 +1,9 @@
 use crate::PropertyError;
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::HashSet,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    time::Duration,
+};
 
 /// Raw property, it is a temprory representation of property, which can be either [`&str`] or [`String`], or other values.
 #[derive(Clone, Debug)]
@@ -334,6 +338,33 @@ impl<'a> SubKeys<'a> {
         self.upper
     }
 }
+
+macro_rules! impl_property_from_str {
+    ($($x:ident),+) => {$(
+            impl IsProperty for $x {
+                #[inline]
+                fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+                    use std::str::FromStr;
+                    Ok(match p {
+                    Property::S(s) => <$x>::from_str(s)?,
+                    Property::O(s) => <$x>::from_str(&s)?,
+                    _ => return Err(PropertyError::parse_fail("can not convert")),
+                    })
+                }
+
+            }
+
+            )+}
+}
+
+impl_property_from_str!(
+    Ipv4Addr,
+    Ipv6Addr,
+    IpAddr,
+    SocketAddrV4,
+    SocketAddrV6,
+    SocketAddr
+);
 
 #[cfg(test)]
 mod tests {
