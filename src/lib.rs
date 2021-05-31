@@ -7,6 +7,7 @@
 //!    * [Key Convention](#key-convention)
 //!    * [Value Placeholder Parsing](#value-placeholder-parsing)
 //!    * [Attributes For Derive](#attributes-for-derive)
+//!    * [Reload Configuration](#reload-configuration)
 //!
 //! ## About
 //! `salak` is a multi layered configuration loader with many predefined sources. Also it
@@ -98,6 +99,11 @@
 //!    * `#[salak(name = "key")]`, this attr can specify property key, default convension is use field name.
 //!    * `#[salak(desc = "Field Description")]`, this attr can be describe this property.
 //!
+//! #### Reload Configuration
+//! `salak` supports reload configurations. Since in rust mutable
+//! and alias can't be used together, here we introduce a wrapper
+//! [`wrapper::IORef`] for updating values when reloading.
+//!
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(
     anonymous_parameters,
@@ -174,12 +180,17 @@ use crate::source::SubKeys;
 extern crate quickcheck_macros;
 
 /// Salak wrapper for configuration parsing.
+///
+/// Wrapper can determine extra behavior for parsing.
+/// Such as check empty of vec or update when reloading.
 pub mod wrapper {
     pub use crate::raw_ioref::IORef;
     pub use crate::raw_vec::NonEmptyVec;
 }
 
-/// Salak property sources.
+/// Salak sources.
+///
+/// This mod exports all pub sources.
 pub mod source {
 
     #[cfg(feature = "args")]
@@ -191,42 +202,69 @@ pub mod source {
     pub use crate::source_map::HashMapSource;
 }
 
-/// An abstract source loader from various sources,
-/// such as command line arguments, system environment, files, etc.
+/// A property source defines how to load properties.
+/// `salak` has some predefined sources, user can
+/// provide custom source by implementing this trait.
+///
+/// Sources provided by `salak`.
+///
+/// * hashmap source
+/// * std::env source
+/// * toml source
+/// * yaml source
 pub trait PropertySource: Send + Sync {
     /// [`PropertySource`] name.
     fn name(&self) -> &str;
 
-    /// Get property by name.
+    /// Get property by key.
     fn get_property(&self, key: &Key<'_>) -> Option<Property<'_>>;
 
-    /// Return next sub keys with prefix, sub keys are seperated by dot(.) in a key.
+    /// Get all subkeys with given key.
+    ///
+    /// Subkeys are keys without dot('.').
+    /// This method is unstable, and will be simplified by hidding
+    /// Key and SubKeys.
     fn get_sub_keys<'a>(&'a self, key: &Key<'_>, sub_keys: &mut SubKeys<'a>);
 
     /// Check whether the [`PropertySource`] is empty.
-    /// Empty source will not be ignored when register to registry.
+    /// Empty source will be ignored when registering to `salak`.
     fn is_empty(&self) -> bool;
 
-    /// Reload property source.
-    /// If nothing changes, then return none.
+    /// Reload source, if nothing changes, then return none.
     #[inline]
     fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
         Ok(None)
     }
 }
 
-/// An environment for getting properties with mutiple [`PropertySource`]s, placeholder resolve and other features.
+/// Environment defines interface for getting values, and reloading
+/// configurations.
+///
+/// The implementor of this trait is [`Salak`].
 pub trait Environment {
-    /// Get config with specific type.
+    /// Get value by key.
+    /// * `key` - Configuration key.
+    ///
+    /// Require means is if the value `T` is not found,
+    /// then error will be returned. But if you try to get
+    /// `Option<T>`, then not found will return `None`.
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError>;
 
-    /// Reload configuration.
+    /// Reload configuration. If reloading is completed,
+    /// all values wrapped by [`wrapper::IORef`] will be updated.
+    ///
+    /// Currently, this feature is unstable, the returned bool
+    /// value means reloading is completed without error.
     fn reload(&self) -> Result<bool, PropertyError>;
 
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Get config with predefined prefix.
     #[inline]
+    /// Get value with predefined key.
+    ///
+    /// [`PrefixedFromEnvironment`] can be auto derives by
+    /// [`salak_derive::FromEnvironment`] macro. It provides
+    /// a standard key for getting value `T`.
     fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
         self.require::<T>(T::prefix())
     }
@@ -240,7 +278,7 @@ pub struct SalakContext<'a> {
     key: &'a mut Key<'a>,
 }
 
-/// Generate config from environment by [`SalakContext`].
+/// Parsing value from environment by [`SalakContext`].
 pub trait FromEnvironment: Sized {
     /// Generate object from [`SalakContext`].
     /// * `val` - Property value can be parsed from.
