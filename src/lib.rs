@@ -62,8 +62,8 @@
 //! 2. Custom arguments source. [`SalakBuilder::set()`] can set a single kv,
 //! and [`SalakBuilder::set_args()`] can set a group of kvs.
 //! 3. System environment source. Implemented by [`source::system_environment`].
-//! 4. Profile specified file source, eg. `app-dev.toml`
-//! 5. Not profile file source, eg. `app.toml`
+//! 4. Profile specified file source, eg. `app-dev.toml`, supports reloading.
+//! 5. No profile file source, eg. `app.toml`, supports reloading.
 //! 6. Custom sources, which can register by [`Salak::register()`].
 //!
 //! #### Key Convention
