@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::Mutex;
 
 #[cfg(feature = "args")]
@@ -9,11 +8,11 @@ use crate::Key;
 
 use crate::{
     raw_ioref::IORefT, source_raw::PropertyRegistryInternal, Environment, FromEnvironment,
-    IsProperty, Property, PropertyError, PropertySource, SalakContext,
+    PropertyError, PropertySource,
 };
 
 #[cfg(feature = "derive")]
-use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
+use crate::{KeyDesc, PrefixedFromEnvironment, SalakDescContext};
 
 #[allow(unused_imports)]
 use crate::source_raw::FileConfig;
@@ -91,7 +90,8 @@ impl SalakBuilder {
         #[cfg(feature = "derive")]
         #[cfg(any(feature = "toml", feature = "yaml"))]
         {
-            self = self.configure_description::<FileConfig>();
+            self.app_desc
+                .insert(0, Box::new(|env| env.get_desc::<FileConfig>()));
         }
         let mut env = self.registry;
 
@@ -216,112 +216,5 @@ impl Environment for Salak {
     #[inline]
     fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
         self.0.require(key, &self.1)
-    }
-}
-
-impl<T: IsProperty> FromEnvironment for T {
-    #[inline]
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
-        if let Some(v) = val {
-            if !Self::is_empty(&v) {
-                return Self::from_property(v);
-            }
-        }
-        Err(PropertyError::NotFound(env.current_key().to_string()))
-    }
-}
-
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-impl<T: IsProperty> DescFromEnvironment for T {
-    #[inline]
-    fn key_desc(env: &mut SalakDescContext<'_>) {
-        env.current.ignore = false;
-        env.current.set_required(true);
-    }
-}
-
-impl<T: FromEnvironment> FromEnvironment for Vec<T> {
-    fn from_env(
-        _: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
-        let mut vs = vec![];
-        if let Some(max) = env.get_sub_keys().max() {
-            let mut i = 0;
-            while let Some(v) = env.require_def_internal::<Option<T>, usize>(i, None)? {
-                vs.push(v);
-                i += 1;
-                if i > max {
-                    break;
-                }
-            }
-        }
-        Ok(vs)
-    }
-}
-
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-impl<T: DescFromEnvironment> DescFromEnvironment for Vec<T> {
-    fn key_desc(env: &mut SalakDescContext<'_>) {
-        env.current.ignore = true;
-        env.current.set_required(false);
-        env.add_key_desc_internal::<T, usize>(
-            0,
-            env.current.required,
-            None,
-            env.current.desc.clone(),
-        );
-    }
-}
-
-impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
-    fn from_env(
-        _: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
-        let mut v = HashMap::new();
-        for k in env.get_sub_keys().str_keys() {
-            if let Some(val) = env.require_def_internal::<Option<T>, &str>(k, None)? {
-                v.insert(k.to_owned(), val);
-            }
-        }
-        Ok(v)
-    }
-}
-
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-impl<T: DescFromEnvironment> DescFromEnvironment for HashMap<String, T> {
-    fn key_desc(env: &mut SalakDescContext<'_>) {
-        env.current.set_required(false);
-        env.add_key_desc::<T>("*", None, None, env.current.desc.clone());
-    }
-}
-
-impl<T> FromEnvironment for HashSet<T>
-where
-    T: Eq + FromEnvironment + std::hash::Hash,
-{
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
-        Ok(<Vec<T>>::from_env(val, env)?.into_iter().collect())
-    }
-}
-
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-impl<T> DescFromEnvironment for HashSet<T>
-where
-    T: Eq + DescFromEnvironment + std::hash::Hash,
-{
-    fn key_desc(env: &mut SalakDescContext<'_>) {
-        <Vec<T>>::key_desc(env);
     }
 }

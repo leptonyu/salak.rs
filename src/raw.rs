@@ -1,4 +1,6 @@
-use crate::PropertyError;
+#[cfg(feature = "derive")]
+use crate::{DescFromEnvironment, SalakDescContext};
+use crate::{FromEnvironment, PropertyError, SalakContext};
 use std::{
     collections::HashSet,
     ffi::OsString,
@@ -40,6 +42,31 @@ pub trait IsProperty: Sized {
 
     /// Parse value from property.
     fn from_property(_: Property<'_>) -> Result<Self, PropertyError>;
+}
+
+impl<T: IsProperty> FromEnvironment for T {
+    #[inline]
+    fn from_env(
+        val: Option<Property<'_>>,
+        env: &mut SalakContext<'_>,
+    ) -> Result<Self, PropertyError> {
+        if let Some(v) = val {
+            if !Self::is_empty(&v) {
+                return Self::from_property(v);
+            }
+        }
+        Err(PropertyError::NotFound(env.current_key().to_string()))
+    }
+}
+
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl<T: IsProperty> DescFromEnvironment for T {
+    #[inline]
+    fn key_desc(env: &mut SalakDescContext<'_>) {
+        env.current.ignore = false;
+        env.current.set_required(true);
+    }
 }
 
 #[inline]
@@ -355,7 +382,6 @@ macro_rules! impl_property_from_str {
                 }
 
             }
-
             )+}
 }
 

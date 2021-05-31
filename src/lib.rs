@@ -154,11 +154,11 @@ mod raw_ioref;
 mod raw_vec;
 use crate::env::PREFIX;
 pub use crate::env::{Salak, SalakBuilder};
-mod enums;
 mod env;
+mod raw_enum;
 
-pub use crate::enums::EnumProperty;
 pub use crate::err::PropertyError;
+pub use crate::raw_enum::EnumProperty;
 
 mod source_map;
 #[cfg(feature = "rand")]
