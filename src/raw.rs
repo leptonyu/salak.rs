@@ -1,7 +1,9 @@
 use crate::PropertyError;
 use std::{
     collections::HashSet,
+    ffi::OsString,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -363,7 +365,9 @@ impl_property_from_str!(
     IpAddr,
     SocketAddrV4,
     SocketAddrV6,
-    SocketAddr
+    SocketAddr,
+    PathBuf,
+    OsString
 );
 
 #[cfg(test)]
