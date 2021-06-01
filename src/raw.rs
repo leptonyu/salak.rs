@@ -69,6 +69,12 @@ impl<T: IsProperty> DescFromEnvironment for T {
     }
 }
 
+impl IsProperty for () {
+    fn from_property(_: Property<'_>) -> Result<Self, PropertyError> {
+        Ok(())
+    }
+}
+
 #[inline]
 fn check_f64(f: f64) -> Result<f64, PropertyError> {
     if f.is_finite() {

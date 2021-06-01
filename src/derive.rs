@@ -28,7 +28,7 @@ pub trait DescFromEnvironment: FromEnvironment {
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 /// [`FromEnvironment`] with a configuration prefix, which is required by [`Environment::get()`].
 /// Attribute `#[salak(prefix = "salak.app")]` will implement this trait.
-pub trait PrefixedFromEnvironment: DescFromEnvironment {
+pub trait PrefixedFromEnvironment: FromEnvironment {
     /// Set configuration prefix.
     fn prefix() -> &'static str;
 }

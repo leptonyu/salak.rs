@@ -175,6 +175,13 @@ mod source_yaml;
 use crate::source::Key;
 use crate::source::SubKeys;
 
+#[cfg(feature = "app")]
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+mod app;
+#[cfg(feature = "app")]
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+pub use crate::app::*;
+
 #[cfg(test)]
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
@@ -305,28 +312,4 @@ pub trait FromEnvironment: Sized {
         val: Option<Property<'_>>,
         env: &mut SalakContext<'_>,
     ) -> Result<Self, PropertyError>;
-}
-
-/// Resource can be built from [`FromEnvironment`], and
-/// also be customized by customizer.
-pub trait Resource: Sized {
-    /// Configuration that current resource built from.
-    type Config: FromEnvironment;
-    /// Customize current resource, usually configure by coding.
-    type Customizer: Default;
-
-    /// Create resource by config and customizer.
-    fn create_with_customizer(
-        conifg: Self::Config,
-        customize: impl Fn(&mut Self::Customizer, &Self::Config),
-    ) -> Result<Self, PropertyError>;
-
-    /// Create resource by config.
-    fn create(config: Self::Config) -> Result<Self, PropertyError> {
-        Self::create_with_customizer(config, |_, _| {})
-    }
-}
-
-pub trait Application: Environment {
-    fn init<R: Resource>(&self) -> Result<R, PropertyError>;
 }

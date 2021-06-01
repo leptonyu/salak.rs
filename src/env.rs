@@ -3,6 +3,7 @@ use std::sync::Mutex;
 
 #[cfg(feature = "args")]
 use crate::AppInfo;
+use crate::DescFromEnvironment;
 #[allow(unused_imports)]
 use crate::Key;
 
@@ -77,7 +78,9 @@ impl SalakBuilder {
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Configure description parsing.
-    pub fn configure_description<T: PrefixedFromEnvironment>(mut self) -> Self {
+    pub fn configure_description<T: PrefixedFromEnvironment + DescFromEnvironment>(
+        mut self,
+    ) -> Self {
         self.app_desc.push(Box::new(|env| env.get_desc::<T>()));
         self
     }
@@ -198,7 +201,9 @@ impl Salak {
     /// Get key description.
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    pub(crate) fn get_desc<T: PrefixedFromEnvironment>(&self) -> Vec<KeyDesc> {
+    pub(crate) fn get_desc<T: PrefixedFromEnvironment + DescFromEnvironment>(
+        &self,
+    ) -> Vec<KeyDesc> {
         let mut key = Key::new();
         let mut key_descs = vec![];
         let mut context = SalakDescContext::new(&mut key, &mut key_descs);
