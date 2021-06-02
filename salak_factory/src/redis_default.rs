@@ -1,8 +1,5 @@
 //! Single node redis configuratino.
-use crate::{
-    pool::{PoolConfig, PoolCustomizer},
-    Buildable,
-};
+use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
@@ -88,44 +85,45 @@ impl ManageConnection for RedisConnectionManager {
     }
 }
 
-impl Buildable for RedisConfig {
-    type Resource = Pool<RedisConnectionManager>;
-    type Customizer = PoolCustomizer<RedisConnectionManager>;
+/// XXX
+#[allow(missing_debug_implementations)]
+pub struct RedisPool(Pool<RedisConnectionManager>);
 
-    fn build_with_customizer(
-        self,
-        customizer: Self::Customizer,
-    ) -> Result<Self::Resource, PropertyError> {
-        let config = if let Some(url) = self.url {
+impl Resource for RedisPool {
+    type Customizer = PoolCustomizer<RedisConnectionManager>;
+    type Config = RedisConfig;
+
+    fn create(conf: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
+        let config = if let Some(url) = conf.url {
             ConnectionInfo::from_str(&url)?
         } else {
-            let host = self.host;
-            let port = self.port;
-            let addr = if self.ssl {
+            let host = conf.host;
+            let port = conf.port;
+            let addr = if conf.ssl {
                 ConnectionAddr::TcpTls {
                     host,
                     port,
-                    insecure: self.ssl_insecure,
+                    insecure: conf.ssl_insecure,
                 }
             } else {
                 ConnectionAddr::Tcp(host, port)
             };
             ConnectionInfo {
                 addr: Box::new(addr),
-                db: self.db.unwrap_or(0),
-                username: self.user,
-                passwd: self.password,
+                db: conf.db.unwrap_or(0),
+                username: conf.user,
+                passwd: conf.password,
             }
         };
-        self.pool.build_pool(
+        Ok(RedisPool(conf.pool.build_pool(
             RedisConnectionManager {
                 config,
-                connect_timeout: self.connect_timeout,
-                read_timeout: self.read_timeout,
-                write_timeout: self.write_timeout,
+                connect_timeout: conf.connect_timeout,
+                read_timeout: conf.read_timeout,
+                write_timeout: conf.write_timeout,
             },
             customizer,
-        )
+        )?))
     }
 }
 

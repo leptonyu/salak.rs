@@ -75,6 +75,8 @@ impl IsProperty for () {
     }
 }
 
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 impl PrefixedFromEnvironment for () {
     fn prefix() -> &'static str {
         ""

@@ -7,11 +7,11 @@ use postgres::{
 };
 use r2d2::{ManageConnection, Pool};
 use salak::*;
-use std::time::Duration;
+use std::{ops::Deref, time::Duration};
 
 use crate::{
     pool::{PoolConfig, PoolCustomizer},
-    Buildable, WrapEnum,
+    WrapEnum,
 };
 
 /// Postgres Connection Pool Configuration.
@@ -139,38 +139,46 @@ impl Default for PostgresCustomizer {
     }
 }
 
-impl Buildable for PostgresConfig {
-    type Resource = Pool<PostgresConnectionManager<NoTls>>;
+/// xxx
+#[allow(missing_debug_implementations)]
+pub struct PostgresPool(Pool<PostgresConnectionManager<NoTls>>);
 
+impl Deref for PostgresPool {
+    type Target = Pool<PostgresConnectionManager<NoTls>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Resource for PostgresPool {
     type Customizer = PostgresCustomizer;
+    type Config = PostgresConfig;
 
-    fn build_with_customizer(
-        self,
-        customizer: Self::Customizer,
-    ) -> Result<Self::Resource, PropertyError> {
-        let mut config = match self.url {
+    fn create(c: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
+        let mut config = match c.url {
             Some(url) => std::str::FromStr::from_str(&url)?,
             None => postgres::Config::new(),
         };
-        set_option_field!(self, config, &, user);
-        set_option_field!(self, config, password);
-        set_option_field!(self, config, &, dbname);
-        set_option_field!(self, config, &, options);
-        set_option_field!(self, config, &, application_name);
-        set_option_field!(self, config, &, host);
-        set_option_field!(self, config, port);
-        set_option_field!(self, config, connect_timeout);
-        set_option_field!(self, config, keepalives);
-        set_option_field!(self, config, keepalives_idle);
+        set_option_field!(c, config, &, user);
+        set_option_field!(c, config, password);
+        set_option_field!(c, config, &, dbname);
+        set_option_field!(c, config, &, options);
+        set_option_field!(c, config, &, application_name);
+        set_option_field!(c, config, &, host);
+        set_option_field!(c, config, port);
+        set_option_field!(c, config, connect_timeout);
+        set_option_field!(c, config, keepalives);
+        set_option_field!(c, config, keepalives_idle);
         set_option_field!(customizer, config, notice_callback);
 
-        if self.must_allow_write {
+        if c.must_allow_write {
             config.target_session_attrs(TargetSessionAttrs::ReadWrite);
         } else {
             config.target_session_attrs(TargetSessionAttrs::Any);
         }
 
-        if let Some(channel_binding) = self.channel_binding {
+        if let Some(channel_binding) = c.channel_binding {
             config.channel_binding(channel_binding.0);
         }
 
@@ -178,7 +186,7 @@ impl Buildable for PostgresConfig {
             config,
             tls_connector: NoTls,
         };
-        self.pool.build_pool(m, customizer.pool)
+        Ok(PostgresPool(c.pool.build_pool(m, customizer.pool)?))
     }
 }
 
@@ -188,7 +196,7 @@ mod tests {
     #[test]
     fn postgres_tests() {
         let env = Salak::new().unwrap();
-        let pool = env.get::<PostgresConfig>();
+        let pool = env.init::<PostgresPool>();
         assert_eq!(true, pool.is_ok());
     }
 }

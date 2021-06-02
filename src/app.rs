@@ -89,7 +89,6 @@ impl<T> Lazy<'_, T> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -112,7 +111,6 @@ mod tests {
             Ok(A)
         }
     }
-
 
     #[test]
     fn resource_test() {

@@ -1,8 +1,5 @@
 //! Redis cluster configuration.
-use crate::{
-    pool::{PoolConfig, PoolCustomizer},
-    Buildable,
-};
+use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::cluster::*;
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
@@ -74,36 +71,38 @@ impl ManageConnection for RedisClusterConnectionManager {
     }
 }
 
-impl Buildable for RedisClusterConfig {
-    type Resource = Pool<RedisClusterConnectionManager>;
+/// XXX
+#[allow(missing_debug_implementations)]
+pub struct RedisPool(Pool<RedisClusterConnectionManager>);
+
+impl Resource for RedisPool {
     type Customizer = PoolCustomizer<RedisClusterConnectionManager>;
 
-    fn build_with_customizer(
-        self,
-        customizer: Self::Customizer,
-    ) -> Result<Self::Resource, PropertyError> {
+    type Config = RedisClusterConfig;
+
+    fn create(conf: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
         let mut config = vec![];
-        for url in self.url {
+        for url in conf.url {
             config.push(ConnectionInfo::from_str(&url)?)
         }
         let mut builder = ClusterClientBuilder::new(config);
-        if let Some(password) = self.password {
+        if let Some(password) = conf.password {
             builder = builder.password(password);
         }
-        if let Some(readonly) = self.readonly {
+        if let Some(readonly) = conf.readonly {
             builder = builder.readonly(readonly);
         }
         let client = builder.open()?;
 
-        self.pool.build_pool(
+        Ok(RedisPool(conf.pool.build_pool(
             RedisClusterConnectionManager {
                 client,
-                read_timeout: self.read_timeout,
-                write_timeout: self.write_timeout,
-                auto_reconnect: self.auto_reconnect,
+                read_timeout: conf.read_timeout,
+                write_timeout: conf.write_timeout,
+                auto_reconnect: conf.auto_reconnect,
             },
             customizer,
-        )
+        )?))
     }
 }
 

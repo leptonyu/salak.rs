@@ -3,7 +3,6 @@ use std::sync::Mutex;
 
 #[cfg(feature = "args")]
 use crate::AppInfo;
-use crate::DescFromEnvironment;
 #[allow(unused_imports)]
 use crate::Key;
 
@@ -13,7 +12,7 @@ use crate::{
 };
 
 #[cfg(feature = "derive")]
-use crate::{KeyDesc, PrefixedFromEnvironment, SalakDescContext};
+use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
 
 #[allow(unused_imports)]
 use crate::source_raw::FileConfig;
