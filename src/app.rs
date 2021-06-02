@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::{Environment, PrefixedFromEnvironment, PropertyError, Salak};
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -65,31 +63,32 @@ impl Application for Salak {
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Lazy resource.
 #[allow(missing_debug_implementations)]
-pub struct Lazy<T: Resource> {
-    config: T::Config,
-    customizer: T::Customizer,
-    _data: PhantomData<T>,
+pub struct Lazy<'a, T> {
+    val: Box<dyn FnOnce() -> Result<T, PropertyError> + 'a>,
 }
 
-impl<R: Resource> Resource for Lazy<R> {
+impl<'a, R: Resource> Resource for Lazy<'a, R>
+where
+    <R as Resource>::Customizer: 'a,
+    <R as Resource>::Config: 'a,
+{
     type Config = R::Config;
     type Customizer = R::Customizer;
 
     fn create(config: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
         Ok(Lazy {
-            config,
-            customizer,
-            _data: PhantomData,
+            val: Box::new(move || R::create(config, customizer)),
         })
     }
 }
 
-impl<T: Resource> Lazy<T> {
-    /// Initialize lazy resource.
-    pub fn finish(self) -> Result<T, PropertyError> {
-        T::create(self.config, self.customizer)
+impl<T> Lazy<'_, T> {
+    /// Apply lazy init.
+    pub fn apply(self) -> Result<T, PropertyError> {
+        (self.val)()
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -114,19 +113,6 @@ mod tests {
         }
     }
 
-    struct B {
-        lazy: Lazy<A>,
-        def: A,
-    }
-
-    impl B {
-        fn create(env: &impl Application) -> Result<Self, PropertyError> {
-            Ok(B {
-                lazy: env.init_with_namespace("lazy")?,
-                def: env.init()?,
-            })
-        }
-    }
 
     #[test]
     fn resource_test() {
@@ -135,12 +121,8 @@ mod tests {
             .set("config.lazy.name", "Second")
             .build()
             .unwrap();
-        let a = env.init_with_namespace::<Lazy<A>>("lazy").unwrap();
+        let a = env.init_with_namespace::<Lazy<'_, A>>("lazy").unwrap();
         let _ = env.init::<A>().unwrap();
-        let _ = a.finish().unwrap();
-
-        let c = B::create(&env).unwrap();
-        let _ = c.lazy.finish().unwrap();
-        let _ = c.def;
+        let _ = a.apply().unwrap();
     }
 }

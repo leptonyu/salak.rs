@@ -1,5 +1,5 @@
 #[cfg(feature = "derive")]
-use crate::{DescFromEnvironment, SalakDescContext};
+use crate::{DescFromEnvironment, PrefixedFromEnvironment, SalakDescContext};
 use crate::{FromEnvironment, PropertyError, SalakContext};
 use std::{
     collections::HashSet,
@@ -72,6 +72,12 @@ impl<T: IsProperty> DescFromEnvironment for T {
 impl IsProperty for () {
     fn from_property(_: Property<'_>) -> Result<Self, PropertyError> {
         Ok(())
+    }
+}
+
+impl PrefixedFromEnvironment for () {
+    fn prefix() -> &'static str {
+        ""
     }
 }
 
