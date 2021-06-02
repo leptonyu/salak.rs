@@ -7,12 +7,6 @@
 //! configuration properties, and provide a customizer to customize
 //! resource by coding.
 //!
-//! This is how [`Buildable`] works. It provides an interface to
-//! initialize target [`Buildable::Resource`] from config struct,
-//! which itself can be built by `salak`. Any resource that
-//! implements [`Buildable`] can be built by [`Factory`]. And also
-//! [`Salak`] is a factory instance.
-//!
 //!
 //! ### Provide Resources
 //! 1. redis
@@ -60,6 +54,7 @@
 #[allow(unused_imports)]
 use salak::*;
 
+#[macro_use]
 #[cfg(feature = "pool")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pool")))]
 pub mod pool;

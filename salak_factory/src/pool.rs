@@ -47,11 +47,11 @@ macro_rules! set_option_field_return {
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 pub struct PoolCustomizer<M: ManageConnection> {
     /// Error handler
-    pub error_handler: Option<Box<dyn HandleError<M::Error>>>,
+    pub(crate) error_handler: Option<Box<dyn HandleError<M::Error>>>,
     /// Event handler
-    pub event_handler: Option<Box<dyn HandleEvent>>,
+    pub(crate) event_handler: Option<Box<dyn HandleEvent>>,
     /// Connection customizer
-    pub connection_customizer: Option<Box<dyn CustomizeConnection<M::Connection, M::Error>>>,
+    pub(crate) connection_customizer: Option<Box<dyn CustomizeConnection<M::Connection, M::Error>>>,
 }
 
 impl<M: ManageConnection> Default for PoolCustomizer<M> {
@@ -61,6 +61,24 @@ impl<M: ManageConnection> Default for PoolCustomizer<M> {
             event_handler: None,
             connection_customizer: None,
         }
+    }
+}
+
+impl<M: ManageConnection> PoolCustomizer<M> {
+    /// Configure error handler.
+    pub fn configure_error_handler(&mut self, handler: impl HandleError<M::Error>) {
+        self.error_handler = Some(Box::new(handler));
+    }
+    /// Configure event handler.
+    pub fn configure_event_handler(&mut self, handler: impl HandleEvent + 'static) {
+        self.event_handler = Some(Box::new(handler));
+    }
+    /// Configure connection customizer.
+    pub fn configure_connection_customizer(
+        &mut self,
+        handler: impl CustomizeConnection<M::Connection, M::Error>,
+    ) {
+        self.connection_customizer = Some(Box::new(handler));
     }
 }
 
@@ -91,4 +109,22 @@ impl PoolConfig {
             Ok(build.build_unchecked(m))
         }
     }
+}
+
+macro_rules! impl_pool_ref {
+    ($x:ident.$f:ident = $y:ty) => {
+        impl Deref for $x {
+            type Target = PoolCustomizer<$y>;
+
+            fn deref(&self) -> &Self::Target {
+                &self.$f
+            }
+        }
+
+        impl DerefMut for $x {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.$f
+            }
+        }
+    };
 }

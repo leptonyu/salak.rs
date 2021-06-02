@@ -7,7 +7,10 @@ use postgres::{
 };
 use r2d2::{ManageConnection, Pool};
 use salak::*;
-use std::{ops::Deref, time::Duration};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 use crate::{
     pool::{PoolConfig, PoolCustomizer},
@@ -125,9 +128,9 @@ macro_rules! set_option_field {
 #[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
 pub struct PostgresCustomizer {
     /// Sets the notice callback.
-    pub notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
+    notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
     /// Set pool customizer.
-    pub pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
+    pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
 }
 
 impl Default for PostgresCustomizer {
@@ -136,6 +139,15 @@ impl Default for PostgresCustomizer {
             notice_callback: None,
             pool: PoolCustomizer::default(),
         }
+    }
+}
+
+impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager<NoTls>);
+
+impl PostgresCustomizer {
+    /// Configure notice callback
+    pub fn configure_notice_callback(&mut self, handler: impl Fn(DbError) + Sync + Send + 'static) {
+        self.notice_callback = Some(Box::new(handler))
     }
 }
 

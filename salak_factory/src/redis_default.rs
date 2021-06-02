@@ -3,7 +3,7 @@ use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
-use std::{str::FromStr, time::Duration};
+use std::{ops::Deref, str::FromStr, time::Duration};
 
 /// Redis Connection Pool Configuration.
 ///
@@ -88,6 +88,14 @@ impl ManageConnection for RedisConnectionManager {
 /// XXX
 #[allow(missing_debug_implementations)]
 pub struct RedisPool(Pool<RedisConnectionManager>);
+
+impl Deref for RedisPool {
+    type Target = Pool<RedisConnectionManager>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl Resource for RedisPool {
     type Customizer = PoolCustomizer<RedisConnectionManager>;

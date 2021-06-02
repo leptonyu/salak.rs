@@ -4,6 +4,7 @@ use ::redis::cluster::*;
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
+use std::ops::Deref;
 use std::{str::FromStr, time::Duration};
 
 /// Redis Connection Pool Configuration.
@@ -74,6 +75,14 @@ impl ManageConnection for RedisClusterConnectionManager {
 /// XXX
 #[allow(missing_debug_implementations)]
 pub struct RedisPool(Pool<RedisClusterConnectionManager>);
+
+impl Deref for RedisPool {
+    type Target = Pool<RedisClusterConnectionManager>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl Resource for RedisPool {
     type Customizer = PoolCustomizer<RedisClusterConnectionManager>;
