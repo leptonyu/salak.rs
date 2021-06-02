@@ -115,7 +115,7 @@ mod tests {
             .set("redis_cluster.url[0]", "redis://127.0.0.1/")
             .build()
             .unwrap();
-        let pool = env.get::<RedisClusterConfig>();
+        let pool = env.init::<RedisPool>();
         assert_eq!(true, pool.is_ok());
     }
 }

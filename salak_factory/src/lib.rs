@@ -21,7 +21,7 @@
 //! use salak_factory::*;
 //! use salak_factory::redis_default::*;
 //! let env = Salak::new().unwrap();
-//! let redis_pool = env.build::<RedisConfig>().unwrap();
+//! let redis_pool = env.init::<RedisPool>().unwrap();
 //! ```
 //! 2. redis_cluster
 //! ```no_run
@@ -29,7 +29,7 @@
 //! use salak_factory::*;
 //! use salak_factory::redis_cluster::*;
 //! let env = Salak::new().unwrap();
-//! let redis_cluster_pool = env.build::<RedisClusterConfig>().unwrap();
+//! let redis_cluster_pool = env.init::<RedisPool>().unwrap();
 //! ```
 //! 3. postgres
 //! ```no_run
@@ -37,7 +37,7 @@
 //! use salak_factory::*;
 //! use salak_factory::postgresql::*;
 //! let env = Salak::new().unwrap();
-//! let pg_pool = env.build::<PostgresConfig>().unwrap();
+//! let pg_pool = env.init::<PostgresPool>().unwrap();
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -57,6 +57,7 @@
     variant_size_differences
 )]
 
+#[allow(unused_imports)]
 use salak::*;
 
 #[cfg(feature = "pool")]
