@@ -43,11 +43,11 @@ assert_eq!(false, config.verbose);
 [salak_factory](https://crates.io/crates/salak_factory) can initialize resource based on `salak`, such as redis, postgresql, etc.
 ```rust
 use salak::*;
-use salak_factory::{redis_default::RedisConfig, Factory};
+use salak_factory::{redis_default::RedisPool, Factory};
 
 fn main() -> Result<(), PropertyError> {
     let env = Salak::new()?;
-    let redis_pool = env.build::<RedisConfig>()?;
+    let redis_pool = env.init::<RedisPool>()?;
     let redis_conn = redis_pool.get()?;
     let _: u64 = redis_conn.set("hello", 1u64)?;
     Ok(())

@@ -6,6 +6,7 @@ use crate::AppInfo;
 #[allow(unused_imports)]
 use crate::Key;
 
+use crate::raw::SubKey;
 use crate::{
     raw_ioref::IORefT, source_raw::PropertyRegistryInternal, Environment, FromEnvironment,
     PropertyError, PropertySource,
@@ -27,7 +28,7 @@ pub struct SalakBuilder {
     disable_random: bool,
     registry: PropertyRegistryInternal<'static>,
     #[cfg(any(feature = "args", feature = "derive"))]
-    app_desc: Vec<Box<dyn FnOnce(&mut Salak) -> Vec<KeyDesc>>>,
+    app_desc: Vec<Box<dyn Fn(&mut Salak) -> Vec<KeyDesc>>>,
     #[cfg(feature = "args")]
     app_info: Option<AppInfo<'static>>,
     iorefs: Mutex<Vec<Box<dyn IORefT + Send>>>,
@@ -77,10 +78,18 @@ impl SalakBuilder {
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     /// Configure description parsing.
-    pub fn configure_description<T: PrefixedFromEnvironment + DescFromEnvironment>(
+    pub fn configure_description<T: PrefixedFromEnvironment + DescFromEnvironment>(self) -> Self {
+        self.configure_description_by_namespace::<T>("")
+    }
+    #[cfg(feature = "derive")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    /// Configure description parsing.
+    pub fn configure_description_by_namespace<T: PrefixedFromEnvironment + DescFromEnvironment>(
         mut self,
+        namespace: &'static str,
     ) -> Self {
-        self.app_desc.push(Box::new(|env| env.get_desc::<T>()));
+        self.app_desc
+            .push(Box::new(move |env| env.get_desc::<T>(namespace)));
         self
     }
 
@@ -93,7 +102,7 @@ impl SalakBuilder {
         #[cfg(any(feature = "toml", feature = "yaml"))]
         {
             self.app_desc
-                .insert(0, Box::new(|env| env.get_desc::<FileConfig>()));
+                .insert(0, Box::new(|env| env.get_desc::<FileConfig>("")));
         }
         let mut env = self.registry;
 
@@ -202,11 +211,13 @@ impl Salak {
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
     pub(crate) fn get_desc<T: PrefixedFromEnvironment + DescFromEnvironment>(
         &self,
+        namespace: &'static str,
     ) -> Vec<KeyDesc> {
         let mut key = Key::new();
+        key.push(SubKey::S(T::prefix()));
         let mut key_descs = vec![];
         let mut context = SalakDescContext::new(&mut key, &mut key_descs);
-        context.add_key_desc::<T>(T::prefix(), None, None, None);
+        context.add_key_desc::<T>(namespace, None, None, None);
         key_descs
     }
 }

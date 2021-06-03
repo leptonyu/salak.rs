@@ -181,7 +181,7 @@ mod tests {
 
         println!("{:?}", config);
 
-        for desc in env.get_desc::<Config>() {
+        for desc in env.get_desc::<Config>("") {
             println!("{:?}", desc);
         }
     }

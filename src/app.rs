@@ -1,4 +1,12 @@
-use crate::{Environment, PrefixedFromEnvironment, PropertyError, Salak};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::{Arc, Mutex, RwLock},
+};
+
+use crate::{
+    DescFromEnvironment, Environment, PrefixedFromEnvironment, PropertyError, Salak, SalakBuilder,
+};
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Resource can be built from [`PrefixedFromEnvironment`], and
@@ -14,63 +22,14 @@ pub trait Resource: Sized {
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-/// Application provides standart ways for initializing [`Resource`].
-pub trait Application: Environment {
-    /// Initialize [`Resource`].
-    fn init<R: Resource>(&self) -> Result<R, PropertyError> {
-        self.init_with_namespace("")
-    }
-
-    /// Initialize [`Resource`] with customizer.
-    fn init_with_customizer<R: Resource, F>(&self, customize: F) -> Result<R, PropertyError>
-    where
-        F: Fn(&mut R::Customizer, &R::Config) -> Result<(), PropertyError>,
-    {
-        self.init_by_namespace_and_customizer("", customize)
-    }
-
-    /// Initialize [`Resource`] with customizer.
-    fn init_with_namespace<R: Resource>(&self, namespace: &str) -> Result<R, PropertyError> {
-        self.init_by_namespace_and_customizer(namespace, |_, _| Ok(()))
-    }
-
-    /// Initialize [`Resource`] with namespace and customizer.
-    fn init_by_namespace_and_customizer<R: Resource, F>(
-        &self,
-        namespace: &str,
-        customize: F,
-    ) -> Result<R, PropertyError>
-    where
-        F: Fn(&mut R::Customizer, &R::Config) -> Result<(), PropertyError>;
-}
-
-#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-impl Application for Salak {
-    fn init_by_namespace_and_customizer<R: Resource, F>(
-        &self,
-        namespace: &str,
-        customize: F,
-    ) -> Result<R, PropertyError>
-    where
-        F: Fn(&mut R::Customizer, &R::Config) -> Result<(), PropertyError>,
-    {
-        let config = if namespace.is_empty() {
-            self.require::<R::Config>(R::Config::prefix())
-        } else {
-            self.require::<R::Config>(&format!("{}.{}", R::Config::prefix(), namespace))
-        }?;
-        let mut customizer = R::Customizer::default();
-        (customize)(&mut customizer, &config)?;
-        R::create(config, customizer)
-    }
-}
-
-pub struct ResourceCustomizer<R: Resource> {
+/// Resource builder.
+#[allow(missing_debug_implementations)]
+pub struct ResourceBuilder<R: Resource> {
     namespace: &'static str,
-    customizer: Box<dyn Fn(&mut R::Customizer, &R::Config) -> Result<(), PropertyError>>,
+    customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Result<(), PropertyError>>,
 }
 
-impl<R: Resource> Default for ResourceCustomizer<R> {
+impl<R: Resource> Default for ResourceBuilder<R> {
     fn default() -> Self {
         Self {
             namespace: "",
@@ -79,42 +38,88 @@ impl<R: Resource> Default for ResourceCustomizer<R> {
     }
 }
 
-impl<R: Resource> ResourceCustomizer<R> {
+impl<R: Resource> ResourceBuilder<R> {
+    /// Configure namespace.
     pub fn namespace(mut self, namespace: &'static str) -> Self {
         self.namespace = namespace;
         self
     }
 
+    /// Configure customize.
     pub fn customize(
         mut self,
-        cust: impl Fn(&mut R::Customizer, &R::Config) -> Result<(), PropertyError> + 'static,
+        cust: impl FnOnce(&mut R::Customizer, &R::Config) -> Result<(), PropertyError> + 'static,
     ) -> Self {
         self.customizer = Box::new(cust);
         self
     }
 }
 
-/// This macro wraps resource init function.
-#[macro_export]
-macro_rules! initialize {
-    ($env:ident . $ty:ty, $ns:expr, $cu:block) => {
-        $env.init_by_namespace_and_customizer::<$ty, Box<
-            dyn Fn(
-                &mut <$ty as Resource>::Customizer,
-                &<$ty as Resource>::Config,
-            ) -> Result<(), PropertyError>,
-        >>($ns, Box::new($cu))
-    };
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+/// Application provides standart ways for initializing [`Resource`].
+pub trait Application: Environment {
+    /// Initialize [`Resource`].
+    fn init<R: Resource>(&self) -> Result<R, PropertyError> {
+        self.init_with_builder(ResourceBuilder::default())
+    }
 
-    ($env:ident . $ty:ty, $cu:block) => {
-        initialize!($env.$ty, "", $cu)
-    };
-    ($env:ident . $ty:ty, $ns:expr) => {
-        initialize!($env.$ty, $ns, { |_, _| Ok(()) })
-    };
-    ($env:ident . $ty:ty) => {
-        initialize!($env.$ty, "")
-    };
+    /// Initialize [`Resource`] with builder.
+    fn init_with_builder<R: Resource>(
+        &self,
+        builder: ResourceBuilder<R>,
+    ) -> Result<R, PropertyError>;
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+impl Application for Salak {
+    fn init_with_builder<R: Resource>(
+        &self,
+        builder: ResourceBuilder<R>,
+    ) -> Result<R, PropertyError> {
+        let config = if builder.namespace.is_empty() {
+            self.require::<R::Config>(R::Config::prefix())
+        } else {
+            self.require::<R::Config>(&format!("{}.{}", R::Config::prefix(), builder.namespace))
+        }?;
+        let mut customizer = R::Customizer::default();
+        (builder.customizer)(&mut customizer, &config)?;
+        R::create(config, customizer)
+    }
+}
+
+impl SalakBuilder {
+    /// Configure resource description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    pub fn configure_resource_description<R: Resource>(self) -> Self
+    where
+        R::Config: DescFromEnvironment,
+    {
+        self.configure_description::<R::Config>()
+    }
+
+    /// Configure resource description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    pub fn configure_resource_description_by_namespace<R: Resource>(
+        self,
+        namespace: &'static str,
+    ) -> Self
+    where
+        R::Config: DescFromEnvironment,
+    {
+        self.configure_description_by_namespace::<R::Config>(namespace)
+    }
+
+    /// Configure resource description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    pub fn configure_resource_description_by_builder<R: Resource>(
+        self,
+        builder: &ResourceBuilder<R>,
+    ) -> Self
+    where
+        R::Config: DescFromEnvironment,
+    {
+        self.configure_description_by_namespace::<R::Config>(builder.namespace)
+    }
 }
 
 impl Resource for () {
@@ -124,110 +129,43 @@ impl Resource for () {
         Ok(())
     }
 }
-type A = ();
-type B = ();
-type C = ();
 
-macro_rules! resource_define {
-  ($x:ident {$($f:ident:$ty:ty $(,$e:tt)*)+}) => {
-    /// hello
-    #[allow(missing_debug_implementations)]
+macro_rules! impl_container {
+    ($($x:ident)+) => {$(
+        impl<T: Resource> Resource for $x<T> {
+            type Config = T::Config;
+            type Customizer = T::Customizer;
+            fn create(
+                config: Self::Config,
+                customizer: Self::Customizer,
+            ) -> Result<Self, PropertyError> {
+                Ok($x::new(T::create(config, customizer)?))
+            }
+        }
+    )+};
+}
+
+impl_container!(Cell RefCell Mutex Rc Arc RwLock);
+
+/// Define resource.
+#[macro_export]
+macro_rules! define_resource {
+  ($x:ident {$($f:ident:$ty:ty, $builder:expr)+}) => {
+    #[allow(missing_debug_implementations, missing_copy_implementations, dead_code)]
     pub struct $x {
       $($f: $ty,)+
     }
 
-    impl $x {
-      fn new(env: &impl Application) -> Result<Self, PropertyError> {
-           Ok(Self{
-$($f: initialize!(env.$ty $(,$e)*)?,)+
-           })
-      }
+    pub(crate) fn init() -> Result<(Salak, $x), PropertyError> {
+        $(let $f = $builder;)+
+        let env = Salak::builder()
+            $(.configure_resource_description_by_builder::<$ty>(&$f))+
+            .configure_args(app_info!())
+            .build()?;
+        $(let $f = env.init_with_builder($f)?;)+
+        let val = $x{$($f,)+};
+        Ok((env, val))
     }
 
   }
-}
-
-fn hello() {
-    resource_define!(
-  Env{
-  c: C, ""
-  b: B, {|_,_|Ok(())}
-  a: A, "", {|_,_|Ok(())}
-  } );
-}
-#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-/// Lazy resource.
-#[allow(missing_debug_implementations)]
-pub struct Lazy<'a, T> {
-    val: Box<dyn FnOnce() -> Result<T, PropertyError> + 'a>,
-}
-
-impl<'a, R: Resource> Resource for Lazy<'a, R>
-where
-    <R as Resource>::Customizer: 'a,
-    <R as Resource>::Config: 'a,
-{
-    type Config = R::Config;
-    type Customizer = R::Customizer;
-
-    fn create(config: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
-        Ok(Lazy {
-            val: Box::new(move || R::create(config, customizer)),
-        })
-    }
-}
-
-impl<T> Lazy<'_, T> {
-    /// Apply lazy init.
-    pub fn apply(self) -> Result<T, PropertyError> {
-        (self.val)()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[derive(Debug, FromEnvironment)]
-    #[salak(prefix = "config")]
-    struct Conf {
-        name: String,
-    }
-
-    struct A;
-
-    impl Resource for A {
-        type Config = Conf;
-
-        type Customizer = ();
-
-        fn create(c: Self::Config, _: Self::Customizer) -> Result<Self, PropertyError> {
-            println!("hello {}", c.name);
-            Ok(A)
-        }
-    }
-
-    #[test]
-    fn resource_test() {
-        let env = Salak::builder()
-            .set("config.name", "First")
-            .set("config.lazy.name", "Second")
-            .build()
-            .unwrap();
-        let a = env.init_with_namespace::<Lazy<'_, A>>("lazy").unwrap();
-        let _ = env.init::<A>().unwrap();
-        let _ = a.apply().unwrap();
-    }
-
-    #[test]
-    fn macro_test() {
-        let env = Salak::builder()
-            .set("config.name", "First")
-            .set("config.lazy.name", "Second")
-            .build()
-            .unwrap();
-        let _a = initialize!(env.A, "", { |_, _| Ok(()) });
-        let _a = initialize!(env.A, "");
-        let _a = initialize!(env.A, { |_, _| Ok(()) });
-    }
 }

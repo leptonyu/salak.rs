@@ -87,6 +87,7 @@ impl ManageConnection for RedisConnectionManager {
 
 /// XXX
 #[allow(missing_debug_implementations)]
+#[derive(Clone)]
 pub struct RedisPool(Pool<RedisConnectionManager>);
 
 impl Deref for RedisPool {

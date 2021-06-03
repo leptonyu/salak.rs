@@ -111,6 +111,7 @@ impl PoolConfig {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! impl_pool_ref {
     ($x:ident.$f:ident = $y:ty) => {
         impl Deref for $x {

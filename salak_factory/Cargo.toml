@@ -52,4 +52,4 @@ redis_default = [
 
 [[example]]
 name = "redis"
-required-features = ["default", "redis_default", "salak/args"]
+required-features = ["default", "redis_default", "salak/args", "salak/app"]

@@ -1,12 +1,13 @@
 use salak::*;
-use salak_factory::redis_default::{RedisConfig, RedisPool};
+use salak_factory::redis_default::RedisPool;
 
+define_resource!(
+    Env {
+        redis1: RedisPool, ResourceBuilder::default()
+        redis2: RedisPool, ResourceBuilder::default()
+    }
+);
 fn main() -> Result<(), PropertyError> {
-    let env = Salak::builder()
-        .configure_description::<RedisConfig>()
-        .configure_args(app_info!())
-        .build()?;
-    let _p = env.init::<RedisPool>()?;
-    // _p.get()?;
+    let (_env, _res) = init()?;
     Ok(())
 }
