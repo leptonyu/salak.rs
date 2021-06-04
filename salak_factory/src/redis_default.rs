@@ -99,10 +99,9 @@ impl Deref for RedisPool {
 }
 
 impl Resource for RedisPool {
-    type Customizer = PoolCustomizer<RedisConnectionManager>;
-    type Config = RedisConfig;
+    type Customizer = PoolCustomizer<RedisConnectionManager, RedisConfig>;
 
-    fn create(conf: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
+    fn create(conf: RedisConfig, customizer: Self::Customizer) -> Result<Self, PropertyError> {
         let config = if let Some(url) = conf.url {
             ConnectionInfo::from_str(&url)?
         } else {

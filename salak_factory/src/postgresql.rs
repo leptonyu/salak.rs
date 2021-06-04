@@ -130,19 +130,21 @@ pub struct PostgresCustomizer {
     /// Sets the notice callback.
     notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
     /// Set pool customizer.
-    pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
+    pool: PoolCustomizer<PostgresConnectionManager<NoTls>, PostgresConfig>,
 }
 
-impl Default for PostgresCustomizer {
-    fn default() -> Self {
-        PostgresCustomizer {
+impl ResourceCustomizer for PostgresCustomizer {
+    type Config = PostgresConfig;
+
+    fn new(fac: &impl ResourceFactory) -> Self {
+        Self {
             notice_callback: None,
-            pool: PoolCustomizer::default(),
+            pool: PoolCustomizer::new(fac),
         }
     }
 }
 
-impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager<NoTls>);
+impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager<NoTls>, PostgresConfig);
 
 impl PostgresCustomizer {
     /// Configure notice callback
@@ -165,9 +167,8 @@ impl Deref for PostgresPool {
 
 impl Resource for PostgresPool {
     type Customizer = PostgresCustomizer;
-    type Config = PostgresConfig;
 
-    fn create(c: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
+    fn create(c: PostgresConfig, customizer: Self::Customizer) -> Result<Self, PropertyError> {
         let mut config = match c.url {
             Some(url) => std::str::FromStr::from_str(&url)?,
             None => postgres::Config::new(),

@@ -74,9 +74,9 @@ impl ManageConnection for RedisClusterConnectionManager {
 
 /// XXX
 #[allow(missing_debug_implementations)]
-pub struct RedisPool(Pool<RedisClusterConnectionManager>);
+pub struct RedisClusterPool(Pool<RedisClusterConnectionManager>);
 
-impl Deref for RedisPool {
+impl Deref for RedisClusterPool {
     type Target = Pool<RedisClusterConnectionManager>;
 
     fn deref(&self) -> &Self::Target {
@@ -84,12 +84,13 @@ impl Deref for RedisPool {
     }
 }
 
-impl Resource for RedisPool {
-    type Customizer = PoolCustomizer<RedisClusterConnectionManager>;
+impl Resource for RedisClusterPool {
+    type Customizer = PoolCustomizer<RedisClusterConnectionManager, RedisClusterConfig>;
 
-    type Config = RedisClusterConfig;
-
-    fn create(conf: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError> {
+    fn create(
+        conf: RedisClusterConfig,
+        customizer: Self::Customizer,
+    ) -> Result<Self, PropertyError> {
         let mut config = vec![];
         for url in conf.url {
             config.push(ConnectionInfo::from_str(&url)?)
@@ -103,7 +104,7 @@ impl Resource for RedisPool {
         }
         let client = builder.open()?;
 
-        Ok(RedisPool(conf.pool.build_pool(
+        Ok(RedisClusterPool(conf.pool.build_pool(
             RedisClusterConnectionManager {
                 client,
                 read_timeout: conf.read_timeout,
@@ -124,7 +125,7 @@ mod tests {
             .set("redis_cluster.url[0]", "redis://127.0.0.1/")
             .build()
             .unwrap();
-        let pool = env.init_resource::<RedisPool>();
+        let pool = env.init_resource::<RedisClusterPool>();
         assert_eq!(true, pool.is_ok());
     }
 }
