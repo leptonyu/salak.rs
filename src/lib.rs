@@ -209,6 +209,8 @@ pub mod source {
     pub use crate::source_map::HashMapSource;
 }
 
+pub(crate) type Void = Result<(), PropertyError>;
+
 /// A property source defines how to load properties.
 /// `salak` has some predefined sources, user can
 /// provide custom source by implementing this trait.

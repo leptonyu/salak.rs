@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::{Cell, RefCell},
     rc::Rc,
     sync::{Arc, Mutex, RwLock},
@@ -6,6 +7,7 @@ use std::{
 
 use crate::{
     DescFromEnvironment, Environment, PrefixedFromEnvironment, PropertyError, Salak, SalakBuilder,
+    Void,
 };
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -19,6 +21,64 @@ pub trait Resource: Sized {
 
     /// Create resource by config and customizer.
     fn create(config: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError>;
+}
+
+pub(crate) struct ResourceHolder {
+    val: Mutex<Box<dyn Any>>,
+}
+
+impl ResourceHolder {
+    fn new<R: Resource + 'static>(builder: ResourceBuilder<R>) -> Self {
+        Self {
+            val: Mutex::new(Box::new(builder)),
+        }
+    }
+
+    fn get<R: Resource + 'static>(&self, env: &impl Environment) -> Result<Arc<R>, PropertyError> {
+        let mut guard = self.val.lock().unwrap();
+        if let Some(val) = guard.downcast_ref::<Arc<R>>() {
+            return Ok(val.clone());
+        }
+        if let Some(val) = guard.downcast_mut::<ResourceBuilder<R>>() {
+            let config = if val.namespace.is_empty() {
+                env.require::<R::Config>(R::Config::prefix())
+            } else {
+                env.require::<R::Config>(&format!("{}.{}", R::Config::prefix(), val.namespace))
+            }?;
+            let mut customizer = R::Customizer::default();
+            let customize = std::mem::replace(&mut val.customizer, Box::new(|_, _| Ok(())));
+            (customize)(&mut customizer, &config)?;
+            let v = Arc::new(R::create(config, customizer)?);
+            drop(val);
+            let _ = std::mem::replace(&mut *guard, Box::new(v.clone()));
+            return Ok(v);
+        }
+        Err(PropertyError::ResourceNotFound)
+    }
+}
+
+/// Resource Registry.
+pub trait ResourceRegistry: Environment {
+    /// Register resource builder.
+    fn register<R: Resource + Any>(&mut self, builder: ResourceBuilder<R>) -> Void;
+
+    /// Get resource copy.
+    fn get_ref<R: Resource + Any>(&self, namespace: &'static str) -> Result<Arc<R>, PropertyError>;
+}
+use std::collections::HashMap;
+use core::any::TypeId;
+
+impl ResourceRegistry for Salak {
+  fn register<R: Resource + Any>(&mut self, builder: ResourceBuilder<R>) -> Void {
+    let _= self.2.entry(TypeId::of::<R>())
+        .or_insert_with(||HashMap::new())
+        .entry(builder.namespace)
+        .or_insert_with(move || ResourceHolder::new(builder));
+    Ok(())
+  }
+  fn get_ref<R: Resource + Any>(&self, namespace: &'static str) -> Result<Arc<R>, PropertyError> {
+    self.2.get(TypeId::of::<R>())
+  }
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]

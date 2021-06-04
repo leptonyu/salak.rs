@@ -1,3 +1,4 @@
+use core::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -12,11 +13,12 @@ use crate::{
     PropertyError, PropertySource,
 };
 
-#[cfg(feature = "derive")]
-use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
-
 #[allow(unused_imports)]
 use crate::source_raw::FileConfig;
+#[cfg(feature = "app")]
+use crate::ResourceHolder;
+#[cfg(feature = "derive")]
+use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
 
 /// A builder which can configure for how to build a salak env.
 #[allow(missing_debug_implementations)]
@@ -110,7 +112,7 @@ impl SalakBuilder {
         if !self.disable_random {
             env.register_by_ref(Box::new(crate::source_rand::Random));
         }
-        let mut salak = Salak(env, self.iorefs);
+        let mut salak = Salak(env, self.iorefs, HashMap::new());
 
         #[cfg(feature = "args")]
         if let Some(app) = self.app_info {
@@ -175,6 +177,7 @@ impl SalakBuilder {
 pub struct Salak(
     PropertyRegistryInternal<'static>,
     Mutex<Vec<Box<dyn IORefT + Send>>>,
+    pub(crate)HashMap<TypeId, HashMap<&'static str, ResourceHolder>>,
 );
 
 impl Salak {

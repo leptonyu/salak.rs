@@ -16,6 +16,8 @@ pub enum PropertyError {
     RecursiveFail(String),
     /// [`Property`] not found
     NotFound(String),
+    /// Resource not found
+    ResourceNotFound,
 }
 
 #[derive(Debug)]
