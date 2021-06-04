@@ -146,10 +146,13 @@ impl Salak {
         namespace: &'static str,
     ) -> Vec<KeyDesc> {
         let mut key = Key::new();
-        key.push(SubKey::S(T::prefix()));
         let mut key_descs = vec![];
         let mut context = SalakDescContext::new(&mut key, &mut key_descs);
-        context.add_key_desc::<T>(namespace, None, None, None);
+        if namespace.is_empty() {
+            context.add_key_desc::<T>(T::prefix(), None, None, None);
+        } else {
+            context.add_key_desc::<T>(&format!("{}.{}", T::prefix(), namespace), None, None, None);
+        };
         key_descs
     }
 }
