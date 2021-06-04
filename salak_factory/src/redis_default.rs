@@ -142,7 +142,7 @@ mod tests {
     #[test]
     fn redis_tests() {
         let env = Salak::new().unwrap();
-        let pool = env.init::<RedisPool>();
+        let pool = env.init_resource::<RedisPool>();
         assert_eq!(true, pool.is_ok());
     }
 }

@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn postgres_tests() {
         let env = Salak::new().unwrap();
-        let pool = env.init::<PostgresPool>();
+        let pool = env.init_resource::<PostgresPool>();
         assert_eq!(true, pool.is_ok());
     }
 }

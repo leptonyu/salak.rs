@@ -1,14 +1,12 @@
 use std::{
-    any::Any,
+    any::{Any, TypeId},
     cell::{Cell, RefCell},
+    collections::HashMap,
     rc::Rc,
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::{
-    DescFromEnvironment, Environment, PrefixedFromEnvironment, PropertyError, Salak, SalakBuilder,
-    Void,
-};
+use crate::{Environment, PrefixedFromEnvironment, PropertyError, Res, Salak, SalakBuilder, Void};
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Resource can be built from [`PrefixedFromEnvironment`], and
@@ -20,10 +18,35 @@ pub trait Resource: Sized {
     type Customizer: Default;
 
     /// Create resource by config and customizer.
-    fn create(config: Self::Config, customizer: Self::Customizer) -> Result<Self, PropertyError>;
+    fn create(config: Self::Config, customizer: Self::Customizer) -> Res<Self>;
 }
 
-pub(crate) struct ResourceHolder {
+impl Resource for () {
+    type Config = ();
+    type Customizer = ();
+    fn create(_config: Self::Config, _customizer: Self::Customizer) -> Res<Self> {
+        Ok(())
+    }
+}
+
+macro_rules! impl_container {
+    ($($x:ident)+) => {$(
+        impl<T: Resource> Resource for $x<T> {
+            type Config = T::Config;
+            type Customizer = T::Customizer;
+            fn create(
+                config: Self::Config,
+                customizer: Self::Customizer,
+            ) -> Result<Self, PropertyError> {
+                Ok($x::new(T::create(config, customizer)?))
+            }
+        }
+    )+};
+}
+
+impl_container!(Cell RefCell Mutex Rc Arc RwLock);
+
+struct ResourceHolder {
     val: Mutex<Box<dyn Any>>,
 }
 
@@ -34,7 +57,7 @@ impl ResourceHolder {
         }
     }
 
-    fn get<R: Resource + 'static>(&self, env: &impl Environment) -> Result<Arc<R>, PropertyError> {
+    fn get<R: Resource + 'static>(&self, env: &impl Environment) -> Res<Arc<R>> {
         let mut guard = self.val.lock().unwrap();
         if let Some(val) = guard.downcast_ref::<Arc<R>>() {
             return Ok(val.clone());
@@ -57,28 +80,108 @@ impl ResourceHolder {
     }
 }
 
-/// Resource Registry.
-pub trait ResourceRegistry: Environment {
-    /// Register resource builder.
-    fn register<R: Resource + Any>(&mut self, builder: ResourceBuilder<R>) -> Void;
+pub(crate) struct ResourceRegistry(HashMap<TypeId, HashMap<&'static str, ResourceHolder>>);
 
-    /// Get resource copy.
-    fn get_ref<R: Resource + Any>(&self, namespace: &'static str) -> Result<Arc<R>, PropertyError>;
+impl ResourceRegistry {
+    pub(crate) fn new() -> Self {
+        Self(HashMap::new())
+    }
+
+    fn register<R: Resource + Any>(&mut self, builder: ResourceBuilder<R>) {
+        let _ = self
+            .0
+            .entry(TypeId::of::<R>())
+            .or_insert_with(|| HashMap::new())
+            .entry(builder.namespace)
+            .or_insert_with(move || ResourceHolder::new(builder));
+    }
+
+    fn get_ref<R: Resource + Any>(
+        &self,
+        namespace: &'static str,
+        env: &impl Environment,
+    ) -> Res<Arc<R>> {
+        if let Some(v) = self
+            .0
+            .get(&TypeId::of::<R>())
+            .and_then(|f| f.get(namespace))
+        {
+            return v.get(env);
+        }
+        Err(PropertyError::ResourceNotFound)
+    }
 }
-use std::collections::HashMap;
-use core::any::TypeId;
 
-impl ResourceRegistry for Salak {
-  fn register<R: Resource + Any>(&mut self, builder: ResourceBuilder<R>) -> Void {
-    let _= self.2.entry(TypeId::of::<R>())
-        .or_insert_with(||HashMap::new())
-        .entry(builder.namespace)
-        .or_insert_with(move || ResourceHolder::new(builder));
-    Ok(())
-  }
-  fn get_ref<R: Resource + Any>(&self, namespace: &'static str) -> Result<Arc<R>, PropertyError> {
-    self.2.get(TypeId::of::<R>())
-  }
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+impl SalakBuilder {
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    /// Register [`Resource`] by [`ResourceBuilder`].
+    pub fn register_resource<R: Resource + Any>(self, builder: ResourceBuilder<R>) -> Self {
+        let mut env = self.configure_resource_description_by_builder(&builder);
+        env.resource.register(builder);
+        env
+    }
+
+    /// Configure resource description.
+    // #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    // pub(crate) fn configure_resource_description<R: Resource>(self) -> Self {
+    //     self.configure_description::<R::Config>()
+    // }
+
+    // /// Configure resource description.
+    // #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    // pub(crate) fn configure_resource_description_by_namespace<R: Resource>(
+    //     self,
+    //     namespace: &'static str,
+    // ) -> Self {
+    //     self.configure_description_by_namespace::<R::Config>(namespace)
+    // }
+
+    /// Configure resource description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    pub(crate) fn configure_resource_description_by_builder<R: Resource>(
+        self,
+        builder: &ResourceBuilder<R>,
+    ) -> Self {
+        self.configure_description_by_namespace::<R::Config>(builder.namespace)
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+impl Salak {
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    /// Get [`Arc<R>`].
+    pub fn get_resource<R: Resource + Any>(&self) -> Res<Arc<R>> {
+        self.get_resource_by_namespace("")
+    }
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    /// Get [`Arc<R>`] by namespace.
+    pub fn get_resource_by_namespace<R: Resource + Any>(
+        &self,
+        namespace: &'static str,
+    ) -> Result<Arc<R>, PropertyError> {
+        self.res.get_ref(namespace, self)
+    }
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    /// Initialize [`Resource`].
+    pub fn init_resource<R: Resource>(&self) -> Res<R> {
+        self.init_resource_with_builder(ResourceBuilder::default())
+    }
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    /// Initialize [`Resource`] with builder.
+    pub fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R> {
+        let config = if builder.namespace.is_empty() {
+            self.require::<R::Config>(R::Config::prefix())
+        } else {
+            self.require::<R::Config>(&format!("{}.{}", R::Config::prefix(), builder.namespace))
+        }?;
+        let mut customizer = R::Customizer::default();
+        (builder.customizer)(&mut customizer, &config)?;
+        R::create(config, customizer)
+    }
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -86,7 +189,7 @@ impl ResourceRegistry for Salak {
 #[allow(missing_debug_implementations)]
 pub struct ResourceBuilder<R: Resource> {
     namespace: &'static str,
-    customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Result<(), PropertyError>>,
+    customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Void>,
 }
 
 impl<R: Resource> Default for ResourceBuilder<R> {
@@ -108,124 +211,9 @@ impl<R: Resource> ResourceBuilder<R> {
     /// Configure customize.
     pub fn customize(
         mut self,
-        cust: impl FnOnce(&mut R::Customizer, &R::Config) -> Result<(), PropertyError> + 'static,
+        cust: impl FnOnce(&mut R::Customizer, &R::Config) -> Void + 'static,
     ) -> Self {
         self.customizer = Box::new(cust);
         self
     }
-}
-
-#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-/// Application provides standart ways for initializing [`Resource`].
-pub trait Application: Environment {
-    /// Initialize [`Resource`].
-    fn init<R: Resource>(&self) -> Result<R, PropertyError> {
-        self.init_with_builder(ResourceBuilder::default())
-    }
-
-    /// Initialize [`Resource`] with builder.
-    fn init_with_builder<R: Resource>(
-        &self,
-        builder: ResourceBuilder<R>,
-    ) -> Result<R, PropertyError>;
-}
-
-#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-impl Application for Salak {
-    fn init_with_builder<R: Resource>(
-        &self,
-        builder: ResourceBuilder<R>,
-    ) -> Result<R, PropertyError> {
-        let config = if builder.namespace.is_empty() {
-            self.require::<R::Config>(R::Config::prefix())
-        } else {
-            self.require::<R::Config>(&format!("{}.{}", R::Config::prefix(), builder.namespace))
-        }?;
-        let mut customizer = R::Customizer::default();
-        (builder.customizer)(&mut customizer, &config)?;
-        R::create(config, customizer)
-    }
-}
-
-impl SalakBuilder {
-    /// Configure resource description.
-    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-    pub fn configure_resource_description<R: Resource>(self) -> Self
-    where
-        R::Config: DescFromEnvironment,
-    {
-        self.configure_description::<R::Config>()
-    }
-
-    /// Configure resource description.
-    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-    pub fn configure_resource_description_by_namespace<R: Resource>(
-        self,
-        namespace: &'static str,
-    ) -> Self
-    where
-        R::Config: DescFromEnvironment,
-    {
-        self.configure_description_by_namespace::<R::Config>(namespace)
-    }
-
-    /// Configure resource description.
-    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-    pub fn configure_resource_description_by_builder<R: Resource>(
-        self,
-        builder: &ResourceBuilder<R>,
-    ) -> Self
-    where
-        R::Config: DescFromEnvironment,
-    {
-        self.configure_description_by_namespace::<R::Config>(builder.namespace)
-    }
-}
-
-impl Resource for () {
-    type Config = ();
-    type Customizer = ();
-    fn create(_config: Self::Config, _customizer: Self::Customizer) -> Result<Self, PropertyError> {
-        Ok(())
-    }
-}
-
-macro_rules! impl_container {
-    ($($x:ident)+) => {$(
-        impl<T: Resource> Resource for $x<T> {
-            type Config = T::Config;
-            type Customizer = T::Customizer;
-            fn create(
-                config: Self::Config,
-                customizer: Self::Customizer,
-            ) -> Result<Self, PropertyError> {
-                Ok($x::new(T::create(config, customizer)?))
-            }
-        }
-    )+};
-}
-
-impl_container!(Cell RefCell Mutex Rc Arc RwLock);
-
-/// Define resource.
-#[macro_export]
-macro_rules! define_resource {
-  ($x:ident {$($f:ident:$ty:ty, $builder:expr)+}) => {
-    #[allow(missing_debug_implementations, missing_copy_implementations, dead_code)]
-    pub struct $x {
-      $($f: $ty,)+
-    }
-
-    pub(crate) fn init() -> Result<(Salak, $x), PropertyError> {
-        $(let $f = $builder;)+
-        let env = Salak::builder()
-            $(.configure_resource_description_by_builder::<$ty>(&$f))+
-            .configure_args(app_info!())
-            .build()?;
-        $(let $f = env.init_with_builder($f)?;)+
-        let val = $x{$($f,)+};
-        Ok((env, val))
-    }
-
-  }
 }

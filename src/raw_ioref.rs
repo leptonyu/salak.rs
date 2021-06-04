@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    source_raw::PropertyRegistryInternal, FromEnvironment, Property, PropertyError, SalakContext,
+    source_raw::PropertyRegistryInternal, FromEnvironment, Property, PropertyError, Res,
+    SalakContext, Void,
 };
 
 #[cfg(feature = "derive")]
@@ -16,7 +17,7 @@ pub(crate) trait IORefT: Send {
         &self,
         env: &PropertyRegistryInternal<'_>,
         ioref: &Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<(), PropertyError>;
+    ) -> Void;
 }
 
 impl<T: Send + Clone + FromEnvironment> IORefT for IORef<T> {
@@ -25,7 +26,7 @@ impl<T: Send + Clone + FromEnvironment> IORefT for IORef<T> {
         &self,
         env: &PropertyRegistryInternal<'_>,
         ioref: &Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<(), PropertyError> {
+    ) -> Void {
         self.set(env.require::<T>(&self.1, ioref)?)
     }
 }
@@ -37,7 +38,7 @@ impl<T: Clone> IORef<T> {
     }
 
     #[inline]
-    fn set(&self, val: T) -> Result<(), PropertyError> {
+    fn set(&self, val: T) -> Void {
         let mut guard = self
             .0
             .lock()
@@ -47,7 +48,7 @@ impl<T: Clone> IORef<T> {
     }
 
     /// Get value from reference.
-    pub fn get_val(&self) -> Result<T, PropertyError> {
+    pub fn get_val(&self) -> Res<T> {
         let guard = self
             .0
             .lock()
@@ -60,10 +61,7 @@ impl<T> FromEnvironment for IORef<T>
 where
     T: Clone + FromEnvironment + Send + 'static,
 {
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(val: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         let t = T::from_env(val, env)?;
         let v = IORef::new(env.current_key(), t);
         env.register_ioref(&v);

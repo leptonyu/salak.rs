@@ -8,12 +8,12 @@ use crate::*;
 /// Any enum implements this trait is automatically implementing [`IsProperty`].
 pub trait EnumProperty: Sized {
     /// Convert str to enum.
-    fn str_to_enum(val: &str) -> Result<Self, PropertyError>;
+    fn str_to_enum(val: &str) -> Res<Self>;
 }
 
 impl<T: EnumProperty> IsProperty for T {
     #[inline]
-    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+    fn from_property(p: Property<'_>) -> Res<Self> {
         match p {
             Property::S(v) => T::str_to_enum(v),
             Property::O(v) => T::str_to_enum(&v),

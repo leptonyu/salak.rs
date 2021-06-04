@@ -28,7 +28,7 @@ pub trait DescFromEnvironment: FromEnvironment {
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 /// [`FromEnvironment`] with a configuration prefix, which is required by [`Environment::get()`].
 /// Attribute `#[salak(prefix = "salak.app")]` will implement this trait.
-pub trait PrefixedFromEnvironment: FromEnvironment {
+pub trait PrefixedFromEnvironment: DescFromEnvironment {
     /// Set configuration prefix.
     fn prefix() -> &'static str;
 }
@@ -135,6 +135,41 @@ impl KeyDesc {
         if self.required.is_none() {
             self.required = Some(required);
         }
+    }
+}
+
+impl Salak {
+    /// Get key description.
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    pub(crate) fn get_desc<T: PrefixedFromEnvironment + DescFromEnvironment>(
+        &self,
+        namespace: &'static str,
+    ) -> Vec<KeyDesc> {
+        let mut key = Key::new();
+        key.push(SubKey::S(T::prefix()));
+        let mut key_descs = vec![];
+        let mut context = SalakDescContext::new(&mut key, &mut key_descs);
+        context.add_key_desc::<T>(namespace, None, None, None);
+        key_descs
+    }
+}
+
+impl SalakBuilder {
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    /// Configure description parsing.
+    pub fn configure_description<T: PrefixedFromEnvironment + DescFromEnvironment>(self) -> Self {
+        self.configure_description_by_namespace::<T>("")
+    }
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+    /// Configure description parsing.
+    pub fn configure_description_by_namespace<T: PrefixedFromEnvironment + DescFromEnvironment>(
+        mut self,
+        namespace: &'static str,
+    ) -> Self {
+        self.app_desc
+            .push(Box::new(move |env| env.get_desc::<T>(namespace)));
+        self
     }
 }
 

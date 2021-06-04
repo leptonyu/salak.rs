@@ -15,7 +15,7 @@
 //! use salak_factory::*;
 //! use salak_factory::redis_default::*;
 //! let env = Salak::new().unwrap();
-//! let redis_pool = env.init::<RedisPool>().unwrap();
+//! let redis_pool = env.init_resource::<RedisPool>().unwrap();
 //! ```
 //! 2. redis_cluster
 //! ```no_run
@@ -23,7 +23,7 @@
 //! use salak_factory::*;
 //! use salak_factory::redis_cluster::*;
 //! let env = Salak::new().unwrap();
-//! let redis_cluster_pool = env.init::<RedisPool>().unwrap();
+//! let redis_cluster_pool = env.init_resource::<RedisPool>().unwrap();
 //! ```
 //! 3. postgres
 //! ```no_run
@@ -31,7 +31,7 @@
 //! use salak_factory::*;
 //! use salak_factory::postgresql::*;
 //! let env = Salak::new().unwrap();
-//! let pg_pool = env.init::<PostgresPool>().unwrap();
+//! let pg_pool = env.init_resource::<PostgresPool>().unwrap();
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]

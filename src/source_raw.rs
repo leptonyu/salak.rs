@@ -9,6 +9,7 @@ use crate::{
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
+use crate::{Res, Void};
 
 enum PS<'a> {
     Ref(&'a Box<dyn PropertySource>),
@@ -171,10 +172,7 @@ impl<'a> PropertyRegistryInternal<'a> {
         Err(PropertyError::ResolveFail(key.as_str().to_string()))
     }
 
-    pub(crate) fn reload(
-        &self,
-        iorefs: &'a Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<bool, PropertyError> {
+    pub(crate) fn reload(&self, iorefs: &'a Mutex<Vec<Box<dyn IORefT + Send>>>) -> Res<bool> {
         let mut flag = false;
         let registry = PropertyRegistryInternal {
             name: "reload",
@@ -207,7 +205,7 @@ impl<'a> PropertyRegistryInternal<'a> {
         &self,
         sub_key: &str,
         iorefs: &'a Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<T, PropertyError> {
+    ) -> Res<T> {
         let mut key = Key::new();
         SalakContext::new(&self, iorefs, &mut key).require_def(sub_key, None)
     }
@@ -268,7 +266,7 @@ impl<'a> SalakContext<'a> {
         &mut self,
         sub_key: &'a str,
         def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError> {
+    ) -> Res<T> {
         self.require_def_internal(sub_key, def)
     }
 
@@ -277,7 +275,7 @@ impl<'a> SalakContext<'a> {
         &mut self,
         sub_key: K,
         def: Option<Property<'_>>,
-    ) -> Result<T, PropertyError> {
+    ) -> Res<T> {
         self.into_sub_key(sub_key);
         let val = match self.registry.get(self.key, def) {
             Ok(val) => Ok(T::from_env(val, self)),
@@ -331,10 +329,7 @@ impl<'a> SalakContext<'a> {
 }
 
 impl<T: FromEnvironment> FromEnvironment for Option<T> {
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(val: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         match T::from_env(val, env) {
             Ok(v) => Ok(Some(v)),
             Err(PropertyError::NotFound(_)) => Ok(None),
@@ -361,10 +356,7 @@ pub(crate) struct FileConfig {
 }
 
 impl FromEnvironment for FileConfig {
-    fn from_env(
-        _: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(_: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         Ok(FileConfig {
             dir: env.require_def("dir", None)?,
             name: env.require_def("filename", Some(Property::S("app")))?,
@@ -397,7 +389,7 @@ impl FileConfig {
     pub(crate) fn new(
         env: &PropertyRegistryInternal<'_>,
         iorefs: &Mutex<Vec<Box<dyn IORefT + Send>>>,
-    ) -> Result<Self, PropertyError> {
+    ) -> Res<Self> {
         env.require::<FileConfig>(PREFIX, iorefs)
     }
 
@@ -408,20 +400,17 @@ impl FileConfig {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn build<
-        F: Fn(FileItem) -> Result<S, PropertyError>,
-        S: PropertySource + 'static,
-    >(
+    pub(crate) fn build<F: Fn(FileItem) -> Res<S>, S: PropertySource + 'static>(
         &mut self,
         ext: &str,
         f: F,
-    ) -> Result<(), PropertyError> {
-        fn make<F: Fn(FileItem) -> Result<S, PropertyError>, S: PropertySource + 'static>(
+    ) -> Void {
+        fn make<F: Fn(FileItem) -> Res<S>, S: PropertySource + 'static>(
             f: F,
             file: String,
             dir: &Option<String>,
             env: &mut PropertyRegistryInternal<'_>,
-        ) -> Result<(), PropertyError> {
+        ) -> Void {
             let mut path = PathBuf::new();
             if let Some(d) = &dir {
                 path.push(d);
@@ -453,7 +442,7 @@ pub(crate) struct FileItem(PathBuf);
 
 #[allow(dead_code)]
 impl FileItem {
-    pub(crate) fn load(&self) -> Result<String, PropertyError> {
+    pub(crate) fn load(&self) -> Res<String> {
         Ok(std::fs::read_to_string(self.0.clone())?)
     }
 

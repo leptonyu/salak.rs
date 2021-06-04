@@ -1,24 +1,21 @@
-use core::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 #[cfg(feature = "args")]
 use crate::AppInfo;
-#[allow(unused_imports)]
-use crate::Key;
 
-use crate::raw::SubKey;
+use crate::Res;
 use crate::{
     raw_ioref::IORefT, source_raw::PropertyRegistryInternal, Environment, FromEnvironment,
-    PropertyError, PropertySource,
+    PropertySource,
 };
 
 #[allow(unused_imports)]
 use crate::source_raw::FileConfig;
-#[cfg(feature = "app")]
-use crate::ResourceHolder;
 #[cfg(feature = "derive")]
-use crate::{DescFromEnvironment, KeyDesc, PrefixedFromEnvironment, SalakDescContext};
+use crate::KeyDesc;
+#[cfg(feature = "app")]
+use crate::ResourceRegistry;
 
 /// A builder which can configure for how to build a salak env.
 #[allow(missing_debug_implementations)]
@@ -30,10 +27,12 @@ pub struct SalakBuilder {
     disable_random: bool,
     registry: PropertyRegistryInternal<'static>,
     #[cfg(any(feature = "args", feature = "derive"))]
-    app_desc: Vec<Box<dyn Fn(&mut Salak) -> Vec<KeyDesc>>>,
+    pub(crate) app_desc: Vec<Box<dyn Fn(&mut Salak) -> Vec<KeyDesc>>>,
     #[cfg(feature = "args")]
     app_info: Option<AppInfo<'static>>,
     iorefs: Mutex<Vec<Box<dyn IORefT + Send>>>,
+    #[cfg(feature = "app")]
+    pub(crate) resource: ResourceRegistry,
 }
 
 #[allow(dead_code)]
@@ -77,27 +76,9 @@ impl SalakBuilder {
         self
     }
 
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Configure description parsing.
-    pub fn configure_description<T: PrefixedFromEnvironment + DescFromEnvironment>(self) -> Self {
-        self.configure_description_by_namespace::<T>("")
-    }
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Configure description parsing.
-    pub fn configure_description_by_namespace<T: PrefixedFromEnvironment + DescFromEnvironment>(
-        mut self,
-        namespace: &'static str,
-    ) -> Self {
-        self.app_desc
-            .push(Box::new(move |env| env.get_desc::<T>(namespace)));
-        self
-    }
-
     /// Build salak.
     #[allow(unused_mut)]
-    pub fn build(mut self) -> Result<Salak, PropertyError> {
+    pub fn build(mut self) -> Res<Salak> {
         #[cfg(feature = "derive")]
         let mut _desc: Vec<KeyDesc> = vec![];
         #[cfg(feature = "derive")]
@@ -112,7 +93,12 @@ impl SalakBuilder {
         if !self.disable_random {
             env.register_by_ref(Box::new(crate::source_rand::Random));
         }
-        let mut salak = Salak(env, self.iorefs, HashMap::new());
+        let mut salak = Salak {
+            reg: env,
+            ior: self.iorefs,
+            #[cfg(feature = "app")]
+            res: self.resource,
+        };
 
         #[cfg(feature = "args")]
         if let Some(app) = self.app_info {
@@ -146,14 +132,14 @@ impl SalakBuilder {
             self.args.extend(crate::source::from_args(_desc, app)?);
         }
 
-        salak.0 = salak
-            .0
+        salak.reg = salak
+            .reg
             .register(crate::source::HashMapSource::new("Arguments").set_all(self.args))
             .register(crate::source::system_environment());
 
         #[cfg(any(feature = "toml", feature = "yaml"))]
         if !self.disable_file {
-            let mut fc = FileConfig::new(&salak.0, &salak.1)?;
+            let mut fc = FileConfig::new(&salak.reg, &salak.ior)?;
             #[cfg(feature = "toml")]
             {
                 fc.build("toml", crate::source_toml::Toml::new)?;
@@ -162,7 +148,7 @@ impl SalakBuilder {
             {
                 fc.build("yaml", crate::source_yaml::YamlValue::new)?;
             }
-            fc.register_to_env(&mut salak.0);
+            fc.register_to_env(&mut salak.reg);
         }
 
         Ok(salak)
@@ -174,11 +160,12 @@ impl SalakBuilder {
 /// * Provides custom source registration.
 ///
 #[allow(missing_debug_implementations)]
-pub struct Salak(
-    PropertyRegistryInternal<'static>,
-    Mutex<Vec<Box<dyn IORefT + Send>>>,
-    pub(crate)HashMap<TypeId, HashMap<&'static str, ResourceHolder>>,
-);
+pub struct Salak {
+    reg: PropertyRegistryInternal<'static>,
+    ior: Mutex<Vec<Box<dyn IORefT + Send>>>,
+    #[cfg(feature = "app")]
+    pub(crate) res: ResourceRegistry,
+}
 
 impl Salak {
     /// Create a builder for configure salak env.
@@ -195,44 +182,31 @@ impl Salak {
             #[cfg(feature = "args")]
             app_info: None,
             iorefs: Mutex::new(vec![]),
+            #[cfg(feature = "app")]
+            resource: ResourceRegistry::new(),
         }
     }
 
     /// Create a new salak env.
-    pub fn new() -> Result<Self, PropertyError> {
+    pub fn new() -> Res<Self> {
         Self::builder().build()
     }
 
     /// Register source to registry, source that register earlier that higher priority for
     /// configuration.
     pub fn register<P: PropertySource + 'static>(&mut self, provider: P) {
-        self.0.register_by_ref(Box::new(provider))
-    }
-
-    /// Get key description.
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    pub(crate) fn get_desc<T: PrefixedFromEnvironment + DescFromEnvironment>(
-        &self,
-        namespace: &'static str,
-    ) -> Vec<KeyDesc> {
-        let mut key = Key::new();
-        key.push(SubKey::S(T::prefix()));
-        let mut key_descs = vec![];
-        let mut context = SalakDescContext::new(&mut key, &mut key_descs);
-        context.add_key_desc::<T>(namespace, None, None, None);
-        key_descs
+        self.reg.register_by_ref(Box::new(provider))
     }
 }
 
 impl Environment for Salak {
     #[inline]
-    fn reload(&self) -> Result<bool, PropertyError> {
-        self.0.reload(&self.1)
+    fn reload(&self) -> Res<bool> {
+        self.reg.reload(&self.ior)
     }
 
     #[inline]
-    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError> {
-        self.0.require(key, &self.1)
+    fn require<T: FromEnvironment>(&self, key: &str) -> Res<T> {
+        self.reg.require(key, &self.ior)
     }
 }

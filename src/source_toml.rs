@@ -1,6 +1,8 @@
 use toml::Value;
 
-use crate::{source_raw::FileItem, Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
+use crate::{
+    source_raw::FileItem, Key, Property, PropertyError, PropertySource, Res, SubKey, SubKeys,
+};
 
 #[derive(Debug)]
 pub(crate) struct Toml {
@@ -10,7 +12,7 @@ pub(crate) struct Toml {
 }
 
 impl Toml {
-    pub(crate) fn new(item: FileItem) -> Result<Self, PropertyError> {
+    pub(crate) fn new(item: FileItem) -> Res<Self> {
         Ok(Toml {
             name: item.name(),
             value: toml::from_str(&item.load()?)?,

@@ -209,7 +209,8 @@ pub mod source {
     pub use crate::source_map::HashMapSource;
 }
 
-pub(crate) type Void = Result<(), PropertyError>;
+pub(crate) type Res<T> = Result<T, PropertyError>;
+pub(crate) type Void = Res<()>;
 
 /// A property source defines how to load properties.
 /// `salak` has some predefined sources, user can
@@ -241,7 +242,7 @@ pub trait PropertySource: Send + Sync {
 
     /// Reload source, if nothing changes, then return none.
     #[inline]
-    fn reload_source(&self) -> Result<Option<Box<dyn PropertySource>>, PropertyError> {
+    fn reload_source(&self) -> Res<Option<Box<dyn PropertySource>>> {
         Ok(None)
     }
 }
@@ -257,14 +258,14 @@ pub trait Environment {
     /// Require means is if the value `T` is not found,
     /// then error will be returned. But if you try to get
     /// `Option<T>`, then not found will return `None`.
-    fn require<T: FromEnvironment>(&self, key: &str) -> Result<T, PropertyError>;
+    fn require<T: FromEnvironment>(&self, key: &str) -> Res<T>;
 
     /// Reload configuration. If reloading is completed,
     /// all values wrapped by [`wrapper::IORef`] will be updated.
     ///
     /// Currently, this feature is unstable, the returned bool
     /// value means reloading is completed without error.
-    fn reload(&self) -> Result<bool, PropertyError>;
+    fn reload(&self) -> Res<bool>;
 
     #[cfg(feature = "derive")]
     #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
@@ -274,7 +275,7 @@ pub trait Environment {
     /// [`PrefixedFromEnvironment`] can be auto derives by
     /// [`salak_derive::FromEnvironment`] macro. It provides
     /// a standard key for getting value `T`.
-    fn get<T: PrefixedFromEnvironment>(&self) -> Result<T, PropertyError> {
+    fn get<T: PrefixedFromEnvironment>(&self) -> Res<T> {
         self.require::<T>(T::prefix())
     }
 }
@@ -310,8 +311,5 @@ pub trait FromEnvironment: Sized {
     /// }
     ///
     /// ```
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError>;
+    fn from_env(val: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self>;
 }

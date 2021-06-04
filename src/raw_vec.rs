@@ -5,7 +5,7 @@ use std::{
 
 #[cfg(feature = "derive")]
 use crate::{DescFromEnvironment, SalakDescContext};
-use crate::{FromEnvironment, Property, PropertyError, SalakContext};
+use crate::{FromEnvironment, Property, PropertyError, Res, SalakContext};
 
 /// A wrapper of [`Vec<T>`], but require having at least one value when parsing configuration.
 #[derive(Debug)]
@@ -55,10 +55,7 @@ impl<T> DerefMut for NonEmptyVec<T> {
 
 impl<T: FromEnvironment> FromEnvironment for NonEmptyVec<T> {
     #[inline]
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(val: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         let v = <Vec<T>>::from_env(val, env)?;
         if v.is_empty() {
             return Err(PropertyError::NotFound(env.current_key().to_string()));
@@ -77,10 +74,7 @@ impl<T: DescFromEnvironment> DescFromEnvironment for NonEmptyVec<T> {
 }
 
 impl<T: FromEnvironment> FromEnvironment for Vec<T> {
-    fn from_env(
-        _: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(_: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         let mut vs = vec![];
         if let Some(max) = env.get_sub_keys().max() {
             let mut i = 0;
@@ -112,10 +106,7 @@ impl<T: DescFromEnvironment> DescFromEnvironment for Vec<T> {
 }
 
 impl<T: FromEnvironment> FromEnvironment for HashMap<String, T> {
-    fn from_env(
-        _: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(_: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         let mut v = HashMap::new();
         for k in env.get_sub_keys().str_keys() {
             if let Some(val) = env.require_def_internal::<Option<T>, &str>(k, None)? {
@@ -139,10 +130,7 @@ impl<T> FromEnvironment for HashSet<T>
 where
     T: Eq + FromEnvironment + std::hash::Hash,
 {
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(val: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         Ok(<Vec<T>>::from_env(val, env)?.into_iter().collect())
     }
 }

@@ -1,6 +1,8 @@
 use yaml_rust::Yaml;
 
-use crate::{source_raw::FileItem, Key, Property, PropertyError, PropertySource, SubKey, SubKeys};
+use crate::{
+    source_raw::FileItem, Key, Property, PropertyError, PropertySource, Res, SubKey, SubKeys,
+};
 
 pub(crate) struct YamlValue {
     item: FileItem,
@@ -9,7 +11,7 @@ pub(crate) struct YamlValue {
 }
 
 impl YamlValue {
-    pub(crate) fn new(item: FileItem) -> Result<Self, PropertyError> {
+    pub(crate) fn new(item: FileItem) -> Res<Self> {
         Ok(Self {
             name: item.name(),
             value: yaml_rust::YamlLoader::load_from_str(&item.load()?)?,

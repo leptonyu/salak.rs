@@ -1,6 +1,6 @@
 #[cfg(feature = "derive")]
 use crate::{DescFromEnvironment, PrefixedFromEnvironment, SalakDescContext};
-use crate::{FromEnvironment, PropertyError, SalakContext};
+use crate::{FromEnvironment, PropertyError, Res, SalakContext};
 use std::{
     collections::HashSet,
     ffi::OsString,
@@ -41,15 +41,12 @@ pub trait IsProperty: Sized {
     }
 
     /// Parse value from property.
-    fn from_property(_: Property<'_>) -> Result<Self, PropertyError>;
+    fn from_property(_: Property<'_>) -> Res<Self>;
 }
 
 impl<T: IsProperty> FromEnvironment for T {
     #[inline]
-    fn from_env(
-        val: Option<Property<'_>>,
-        env: &mut SalakContext<'_>,
-    ) -> Result<Self, PropertyError> {
+    fn from_env(val: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
         if let Some(v) = val {
             if !Self::is_empty(&v) {
                 return Self::from_property(v);
@@ -70,7 +67,7 @@ impl<T: IsProperty> DescFromEnvironment for T {
 }
 
 impl IsProperty for () {
-    fn from_property(_: Property<'_>) -> Result<Self, PropertyError> {
+    fn from_property(_: Property<'_>) -> Res<Self> {
         Ok(())
     }
 }
@@ -98,7 +95,7 @@ impl IsProperty for String {
         false
     }
     #[inline]
-    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+    fn from_property(p: Property<'_>) -> Res<Self> {
         Ok(match p {
             Property::S(v) => v.to_string(),
             Property::O(v) => v,
@@ -110,8 +107,8 @@ impl IsProperty for String {
 }
 impl IsProperty for bool {
     #[inline]
-    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
-        fn str_to_bool(v: &str) -> Result<bool, PropertyError> {
+    fn from_property(p: Property<'_>) -> Res<Self> {
+        fn str_to_bool(v: &str) -> Res<bool> {
             match v {
                 "yes" | "true" => Ok(true),
                 "no" | "false" => Ok(false),
@@ -131,7 +128,7 @@ macro_rules! impl_property_num {
     ($($x:ident),+) => {$(
             impl IsProperty for $x {
                 #[inline]
-                fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+                fn from_property(p: Property<'_>) -> Res<Self> {
                     use std::convert::TryFrom;
                     Ok(match p {
                     Property::S(s) => s.parse::<$x>()?,
@@ -154,7 +151,7 @@ macro_rules! impl_property_float {
             #[allow(trivial_numeric_casts)]
             impl IsProperty for $x {
                 #[inline]
-                fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+                fn from_property(p: Property<'_>) -> Res<Self> {
                     Ok(match p {
                     Property::S(s) => s.parse::<$x>()?,
                     Property::O(s) => s.parse::<$x>()?,
@@ -172,7 +169,7 @@ macro_rules! impl_property_float {
 impl_property_float!(f32, f64);
 
 #[inline]
-fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
+fn parse_duration_from_str(du: &str) -> Res<Duration> {
     let mut i = 0;
     let mut multi = 1;
     let mut last = None;
@@ -210,7 +207,7 @@ fn parse_duration_from_str(du: &str) -> Result<Duration, PropertyError> {
 }
 
 impl IsProperty for Duration {
-    fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+    fn from_property(p: Property<'_>) -> Res<Self> {
         match p {
             Property::O(du) => parse_duration_from_str(&du),
             Property::S(du) => parse_duration_from_str(du),
@@ -386,7 +383,7 @@ macro_rules! impl_property_from_str {
     ($($x:ident),+) => {$(
             impl IsProperty for $x {
                 #[inline]
-                fn from_property(p: Property<'_>) -> Result<Self, PropertyError> {
+                fn from_property(p: Property<'_>) -> Res<Self> {
                     use std::str::FromStr;
                     Ok(match p {
                     Property::S(s) => <$x>::from_str(s)?,
@@ -703,10 +700,7 @@ mod tests {
     }
 
     impl FromEnvironment for Config {
-        fn from_env(
-            _: Option<Property<'_>>,
-            env: &mut SalakContext<'_>,
-        ) -> Result<Self, PropertyError> {
+        fn from_env(_: Option<Property<'_>>, env: &mut SalakContext<'_>) -> Res<Self> {
             Ok(Config {
                 i8: env.require_def("i8", None)?,
             })
