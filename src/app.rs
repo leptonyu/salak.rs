@@ -87,8 +87,11 @@ struct ResourceHolder {
     val: Mutex<Box<dyn Any>>,
 }
 
+unsafe impl Send for ResourceHolder {}
+unsafe impl Sync for ResourceHolder {}
+
 impl ResourceHolder {
-    fn new<R: Resource + 'static>(builder: ResourceBuilder<R>) -> Self {
+    fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
         Self {
             val: Mutex::new(Box::new(builder)),
         }
@@ -131,7 +134,7 @@ impl ResourceRegistry {
         Self(HashMap::new())
     }
 
-    fn register<R: Resource + Any>(&mut self, builder: ResourceBuilder<R>) {
+    fn register<R: Resource + Send + Sync + Any>(&mut self, builder: ResourceBuilder<R>) {
         let _ = self
             .0
             .entry(TypeId::of::<R>())
@@ -160,7 +163,10 @@ impl ResourceRegistry {
 impl SalakBuilder {
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
     /// Register [`Resource`] by [`ResourceBuilder`].
-    pub fn register_resource<R: Resource + Any>(self, builder: ResourceBuilder<R>) -> Self {
+    pub fn register_resource<R: Resource + Send + Sync + Any>(
+        self,
+        builder: ResourceBuilder<R>,
+    ) -> Self {
         let mut env = self.configure_resource_description_by_builder(&builder);
         env.resource.register(builder);
         env
