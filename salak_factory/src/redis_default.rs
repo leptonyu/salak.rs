@@ -99,9 +99,16 @@ impl Deref for RedisPool {
 }
 
 impl Resource for RedisPool {
-    type Customizer = PoolCustomizer<RedisConnectionManager, RedisConfig>;
+    type Config = RedisConfig;
+    type Customizer = PoolCustomizer<RedisConnectionManager>;
 
-    fn create(conf: RedisConfig, customizer: Self::Customizer) -> Result<Self, PropertyError> {
+    fn create(
+        conf: Self::Config,
+        _: &impl ResourceFactory,
+        customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
+    ) -> Result<Self, PropertyError> {
+        let mut customize = PoolCustomizer::new();
+        (customizer)(&mut customize, &conf)?;
         let config = if let Some(url) = conf.url {
             ConnectionInfo::from_str(&url)?
         } else {
@@ -130,7 +137,7 @@ impl Resource for RedisPool {
                 read_timeout: conf.read_timeout,
                 write_timeout: conf.write_timeout,
             },
-            customizer,
+            customize,
         )?))
     }
 }

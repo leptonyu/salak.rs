@@ -130,21 +130,10 @@ pub struct PostgresCustomizer {
     /// Sets the notice callback.
     notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
     /// Set pool customizer.
-    pool: PoolCustomizer<PostgresConnectionManager<NoTls>, PostgresConfig>,
+    pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
 }
 
-impl ResourceCustomizer for PostgresCustomizer {
-    type Config = PostgresConfig;
-
-    fn new(fac: &impl ResourceFactory) -> Self {
-        Self {
-            notice_callback: None,
-            pool: PoolCustomizer::new(fac),
-        }
-    }
-}
-
-impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager<NoTls>, PostgresConfig);
+impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager<NoTls>);
 
 impl PostgresCustomizer {
     /// Configure notice callback
@@ -166,32 +155,42 @@ impl Deref for PostgresPool {
 }
 
 impl Resource for PostgresPool {
+    type Config = PostgresConfig;
     type Customizer = PostgresCustomizer;
 
-    fn create(c: PostgresConfig, customizer: Self::Customizer) -> Result<Self, PropertyError> {
-        let mut config = match c.url {
+    fn create(
+        conf: Self::Config,
+        _: &impl ResourceFactory,
+        customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
+    ) -> Result<Self, PropertyError> {
+        let mut customize = PostgresCustomizer {
+            notice_callback: None,
+            pool: PoolCustomizer::new(),
+        };
+        (customizer)(&mut customize, &conf)?;
+        let mut config = match conf.url {
             Some(url) => std::str::FromStr::from_str(&url)?,
             None => postgres::Config::new(),
         };
-        set_option_field!(c, config, &, user);
-        set_option_field!(c, config, password);
-        set_option_field!(c, config, &, dbname);
-        set_option_field!(c, config, &, options);
-        set_option_field!(c, config, &, application_name);
-        set_option_field!(c, config, &, host);
-        set_option_field!(c, config, port);
-        set_option_field!(c, config, connect_timeout);
-        set_option_field!(c, config, keepalives);
-        set_option_field!(c, config, keepalives_idle);
-        set_option_field!(customizer, config, notice_callback);
+        set_option_field!(conf, config, &, user);
+        set_option_field!(conf, config, password);
+        set_option_field!(conf, config, &, dbname);
+        set_option_field!(conf, config, &, options);
+        set_option_field!(conf, config, &, application_name);
+        set_option_field!(conf, config, &, host);
+        set_option_field!(conf, config, port);
+        set_option_field!(conf, config, connect_timeout);
+        set_option_field!(conf, config, keepalives);
+        set_option_field!(conf, config, keepalives_idle);
+        set_option_field!(customize, config, notice_callback);
 
-        if c.must_allow_write {
+        if conf.must_allow_write {
             config.target_session_attrs(TargetSessionAttrs::ReadWrite);
         } else {
             config.target_session_attrs(TargetSessionAttrs::Any);
         }
 
-        if let Some(channel_binding) = c.channel_binding {
+        if let Some(channel_binding) = conf.channel_binding {
             config.channel_binding(channel_binding.0);
         }
 
@@ -199,7 +198,7 @@ impl Resource for PostgresPool {
             config,
             tls_connector: NoTls,
         };
-        Ok(PostgresPool(c.pool.build_pool(m, customizer.pool)?))
+        Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
     }
 }
 

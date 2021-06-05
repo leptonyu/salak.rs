@@ -85,12 +85,16 @@ impl Deref for RedisClusterPool {
 }
 
 impl Resource for RedisClusterPool {
-    type Customizer = PoolCustomizer<RedisClusterConnectionManager, RedisClusterConfig>;
+    type Config = RedisClusterConfig;
+    type Customizer = PoolCustomizer<RedisClusterConnectionManager>;
 
     fn create(
-        conf: RedisClusterConfig,
-        customizer: Self::Customizer,
+        conf: Self::Config,
+        _: &impl ResourceFactory,
+        customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
     ) -> Result<Self, PropertyError> {
+        let mut customize = PoolCustomizer::new();
+        (customizer)(&mut customize, &conf)?;
         let mut config = vec![];
         for url in conf.url {
             config.push(ConnectionInfo::from_str(&url)?)
@@ -111,7 +115,7 @@ impl Resource for RedisClusterPool {
                 write_timeout: conf.write_timeout,
                 auto_reconnect: conf.auto_reconnect,
             },
-            customizer,
+            customize,
         )?))
     }
 }

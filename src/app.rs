@@ -8,27 +8,20 @@ use std::{
 
 use crate::{Environment, PrefixedFromEnvironment, PropertyError, Res, Salak, SalakBuilder, Void};
 
-/// Resource customizer.
-#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-pub trait ResourceCustomizer {
-    /// Config.
-    type Config: PrefixedFromEnvironment;
-
-    /// Create resource customizer.
-    fn new(fac: &impl ResourceFactory) -> Self;
-}
-
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Resource can be built from [`PrefixedFromEnvironment`], and
 /// also be customized by customizer.
 pub trait Resource: Sized {
+    /// Config.
+    type Config: PrefixedFromEnvironment;
     /// Customize current resource, usually configure by coding.
-    type Customizer: ResourceCustomizer;
+    type Customizer;
 
     /// Create resource by config and customizer.
     fn create(
-        config: <Self::Customizer as ResourceCustomizer>::Config,
-        customizer: Self::Customizer,
+        config: Self::Config,
+        factory: &impl ResourceFactory,
+        customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self>;
 }
 
@@ -36,11 +29,14 @@ pub trait Resource: Sized {
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 pub trait ResourceFactory: Environment {
     /// Get [`Arc<R>`].
-    fn get_resource<R: Resource + Any>(&self) -> Res<Arc<R>> {
+    fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
         self.get_resource_by_namespace("")
     }
     /// Get [`Arc<R>`].
-    fn get_resource_by_namespace<R: Resource + Any>(&self, namespace: &'static str) -> Res<Arc<R>>;
+    fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
+        &self,
+        namespace: &'static str,
+    ) -> Res<Arc<R>>;
 
     /// Initialize [`Resource`].
     fn init_resource<R: Resource>(&self) -> Res<R> {
@@ -51,17 +47,14 @@ pub trait ResourceFactory: Environment {
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R>;
 }
 
-impl ResourceCustomizer for () {
-    type Config = ();
-
-    fn new(_: &impl ResourceFactory) -> Self {}
-}
-
 impl Resource for () {
+    type Config = ();
     type Customizer = ();
+
     fn create(
-        _config: <Self::Customizer as ResourceCustomizer>::Config,
-        _customizer: Self::Customizer,
+        _: Self::Config,
+        _: &impl ResourceFactory,
+        _: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self> {
         Ok(())
     }
@@ -70,12 +63,15 @@ impl Resource for () {
 macro_rules! impl_container {
     ($($x:ident)+) => {$(
         impl<T: Resource> Resource for $x<T> {
+            type Config = T::Config;
             type Customizer = T::Customizer;
+
             fn create(
-                config: <Self::Customizer as ResourceCustomizer>::Config,
-                customizer: Self::Customizer,
+                config: Self::Config,
+                factory: &impl ResourceFactory,
+                customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
             ) -> Result<Self, PropertyError> {
-                Ok($x::new(T::create(config, customizer)?))
+                Ok($x::new(T::create(config, factory, customizer)?))
             }
         }
     )+};
@@ -97,7 +93,7 @@ impl ResourceHolder {
         }
     }
 
-    fn get<R: Resource + 'static>(
+    fn get<R: Resource + Send + Sync + 'static>(
         &self,
         env: &impl ResourceFactory,
         namespace: &'static str,
@@ -143,7 +139,7 @@ impl ResourceRegistry {
             .or_insert_with(move || ResourceHolder::new(builder));
     }
 
-    fn get_ref<R: Resource + Any>(
+    fn get_ref<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
         env: &impl ResourceFactory,
@@ -193,16 +189,14 @@ impl SalakBuilder {
         self,
         builder: &ResourceBuilder<R>,
     ) -> Self {
-        self.configure_description_by_namespace::<<R::Customizer as ResourceCustomizer>::Config>(
-            builder.namespace,
-        )
+        self.configure_description_by_namespace::<R::Config>(builder.namespace)
     }
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 impl ResourceFactory for Salak {
     /// Get [`Arc<R>`] by namespace.
-    fn get_resource_by_namespace<R: Resource + Any>(
+    fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
     ) -> Result<Arc<R>, PropertyError> {
@@ -212,19 +206,11 @@ impl ResourceFactory for Salak {
     /// Initialize [`Resource`] with builder.
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R> {
         let config = if builder.namespace.is_empty() {
-            self.require::<<R::Customizer as ResourceCustomizer>::Config>(
-                <<R::Customizer as ResourceCustomizer>::Config>::prefix(),
-            )
+            self.require::<R::Config>(<R::Config>::prefix())
         } else {
-            self.require::<<R::Customizer as ResourceCustomizer>::Config>(&format!(
-                "{}.{}",
-                <<R::Customizer as ResourceCustomizer>::Config>::prefix(),
-                builder.namespace
-            ))
+            self.require::<R::Config>(&format!("{}.{}", <R::Config>::prefix(), builder.namespace))
         }?;
-        let mut customizer = R::Customizer::new(self);
-        (builder.customizer)(&mut customizer, &config)?;
-        R::create(config, customizer)
+        R::create(config, self, builder.customizer)
     }
 }
 
@@ -233,8 +219,7 @@ impl ResourceFactory for Salak {
 #[allow(missing_debug_implementations)]
 pub struct ResourceBuilder<R: Resource> {
     namespace: &'static str,
-    customizer:
-        Box<dyn FnOnce(&mut R::Customizer, &<R::Customizer as ResourceCustomizer>::Config) -> Void>,
+    customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Void>,
 }
 
 impl<R: Resource> Default for ResourceBuilder<R> {
@@ -256,8 +241,7 @@ impl<R: Resource> ResourceBuilder<R> {
     /// Configure customize.
     pub fn customize(
         mut self,
-        cust: impl FnOnce(&mut R::Customizer, &<R::Customizer as ResourceCustomizer>::Config) -> Void
-            + 'static,
+        cust: impl FnOnce(&mut R::Customizer, &R::Config) -> Void + 'static,
     ) -> Self {
         self.customizer = Box::new(cust);
         self

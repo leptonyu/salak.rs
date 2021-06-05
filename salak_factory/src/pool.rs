@@ -5,7 +5,6 @@ pub(crate) use r2d2::{ManageConnection, Pool};
 use scheduled_thread_pool::ScheduledThreadPool;
 
 use super::*;
-use std::marker::PhantomData;
 pub(crate) use std::time::Duration;
 
 /// Generic Pool Configuration.
@@ -46,31 +45,26 @@ macro_rules! set_option_field_return {
 /// PoolCustomizer
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
-pub struct PoolCustomizer<M: ManageConnection, T> {
+pub struct PoolCustomizer<M: ManageConnection> {
     /// Error handler
     pub(crate) error_handler: Option<Box<dyn HandleError<M::Error>>>,
     /// Event handler
     pub(crate) event_handler: Option<Box<dyn HandleEvent>>,
     /// Connection customizer
     pub(crate) connection_customizer: Option<Box<dyn CustomizeConnection<M::Connection, M::Error>>>,
-
-    _data: PhantomData<T>,
 }
 
-impl<M: ManageConnection, T: PrefixedFromEnvironment> ResourceCustomizer for PoolCustomizer<M, T> {
-    type Config = T;
-
-    fn new(_: &impl ResourceFactory) -> Self {
+impl<M: ManageConnection> PoolCustomizer<M> {
+    pub(crate) fn new() -> Self {
         Self {
             error_handler: None,
             event_handler: None,
             connection_customizer: None,
-            _data: PhantomData,
         }
     }
 }
 
-impl<M: ManageConnection, T: PrefixedFromEnvironment> PoolCustomizer<M, T> {
+impl<M: ManageConnection> PoolCustomizer<M> {
     /// Configure error handler.
     pub fn configure_error_handler(&mut self, handler: impl HandleError<M::Error>) {
         self.error_handler = Some(Box::new(handler));
@@ -89,10 +83,10 @@ impl<M: ManageConnection, T: PrefixedFromEnvironment> PoolCustomizer<M, T> {
 }
 
 impl PoolConfig {
-    pub(crate) fn build_pool<M: ManageConnection, T: PrefixedFromEnvironment>(
+    pub(crate) fn build_pool<M: ManageConnection>(
         self,
         m: M,
-        customize: PoolCustomizer<M, T>,
+        customize: PoolCustomizer<M>,
     ) -> Result<Pool<M>, PropertyError> {
         let thread_nums = self.thread_nums.unwrap_or(3);
         let mut build: r2d2::Builder<M> = Pool::builder()
@@ -119,9 +113,9 @@ impl PoolConfig {
 
 #[allow(unused_macros)]
 macro_rules! impl_pool_ref {
-    ($x:ident.$f:ident = $y:ty, $z:ty) => {
+    ($x:ident.$f:ident = $y:ty) => {
         impl Deref for $x {
-            type Target = PoolCustomizer<$y, $z>;
+            type Target = PoolCustomizer<$y>;
 
             fn deref(&self) -> &Self::Target {
                 &self.$f
