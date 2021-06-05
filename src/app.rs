@@ -87,16 +87,13 @@ macro_rules! impl_container {
 
 impl_container!(Cell RefCell Mutex Rc Arc RwLock);
 
-/// ResourceHolder is [`Sync`] or [`Send`] only when value in box is [`Sync`] or [`Send`].
+/// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
 struct ResourceHolder {
-    val: Mutex<Box<dyn Any>>,
+    val: Mutex<Box<dyn Any + Send>>,
 }
 
-unsafe impl Send for ResourceHolder {}
-unsafe impl Sync for ResourceHolder {}
-
 impl ResourceHolder {
-    fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
+    fn new<R: Resource + 'static>(builder: ResourceBuilder<R>) -> Self {
         Self {
             val: Mutex::new(Box::new(builder)),
         }
@@ -245,7 +242,7 @@ impl Factory for Salak {
 #[allow(missing_debug_implementations)]
 pub struct ResourceBuilder<R: Resource> {
     namespace: &'static str,
-    customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Void>,
+    customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Void + Send>,
 }
 
 impl<R: Resource> Default for ResourceBuilder<R> {
@@ -267,7 +264,7 @@ impl<R: Resource> ResourceBuilder<R> {
     /// Configure customize.
     pub fn customize(
         mut self,
-        cust: impl FnOnce(&mut R::Customizer, &R::Config) -> Void + 'static,
+        cust: impl FnOnce(&mut R::Customizer, &R::Config) -> Void + Send + Sync + 'static,
     ) -> Self {
         self.customizer = Box::new(cust);
         self
