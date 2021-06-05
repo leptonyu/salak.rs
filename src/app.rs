@@ -4,35 +4,43 @@ use std::{
     collections::HashMap,
     rc::Rc,
     sync::{Arc, Mutex, RwLock},
+    time::Duration,
 };
 
 use crate::{Environment, PrefixedFromEnvironment, PropertyError, Res, Salak, SalakBuilder, Void};
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-/// Resource can be built from [`PrefixedFromEnvironment`], and
-/// also be customized by customizer.
+/// Resource can be initialized in a standard way by [`Salak`].
+///
+/// Resource can config by
+/// * Configuration properties by [`Resource::Config`].
+/// * Customized by [`Resource::Customizer`].
+/// * Other [`Resource`]s get by [`Factory`].
+///
 pub trait Resource: Sized {
-    /// Config.
+    /// Configuration properties for current resource.
     type Config: PrefixedFromEnvironment;
     /// Customize current resource, usually configure by coding.
     type Customizer;
 
-    /// Create resource by config and customizer.
+    /// Create resource.
     fn create(
         config: Self::Config,
-        factory: &impl ResourceFactory,
+        factory: &impl Factory,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self>;
 }
 
-/// Resource factory.
+/// Factory is a resource manager for initializing resource or getting resource from cache.
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-pub trait ResourceFactory: Environment {
-    /// Get [`Arc<R>`].
+pub trait Factory: Environment {
+    /// Get resource [`Arc<R>`] from cache with default namespace. Users can customize
+    /// the resource by [`SalakBuilder::register_resource()`].
     fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
         self.get_resource_by_namespace("")
     }
-    /// Get [`Arc<R>`].
+    /// Get resource [`Arc<R>`] from cache by namespace. Users can customize
+    /// the resource by [`SalakBuilder::register_resource()`].
     fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
@@ -53,7 +61,7 @@ impl Resource for () {
 
     fn create(
         _: Self::Config,
-        _: &impl ResourceFactory,
+        _: &impl Factory,
         _: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self> {
         Ok(())
@@ -68,7 +76,7 @@ macro_rules! impl_container {
 
             fn create(
                 config: Self::Config,
-                factory: &impl ResourceFactory,
+                factory: &impl Factory,
                 customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
             ) -> Result<Self, PropertyError> {
                 Ok($x::new(T::create(config, factory, customizer)?))
@@ -79,6 +87,7 @@ macro_rules! impl_container {
 
 impl_container!(Cell RefCell Mutex Rc Arc RwLock);
 
+/// ResourceHolder is [`Sync`] or [`Send`] only when value in box is [`Sync`] or [`Send`].
 struct ResourceHolder {
     val: Mutex<Box<dyn Any>>,
 }
@@ -95,30 +104,49 @@ impl ResourceHolder {
 
     fn get<R: Resource + Send + Sync + 'static>(
         &self,
-        env: &impl ResourceFactory,
+        env: &impl Factory,
         namespace: &'static str,
     ) -> Res<Arc<R>> {
+        let mut flag = false;
         loop {
+            if flag {
+                std::thread::sleep(Duration::from_millis(1));
+            }
             let mut guard = self.val.lock().unwrap();
             if let Some(val) = guard.downcast_ref::<Arc<R>>() {
                 return Ok(val.clone());
             }
-            if let Some(()) = guard.downcast_ref::<()>() {
+            if let Some(i) = guard.downcast_ref::<u8>() {
+                if *i > 0 {
+                    return Err(PropertyError::ResourceNotFound);
+                }
+                flag = true;
                 continue;
             }
             let builder = match guard.downcast_mut::<ResourceBuilder<R>>() {
                 Some(val) => {
                     let b = std::mem::replace(val, ResourceBuilder::default().namespace(namespace));
-                    *guard = Box::new(());
+                    *guard = Box::new(0u8);
                     b
                 }
                 _ => ResourceBuilder::default().namespace(namespace),
             };
             drop(guard);
-            let v = Arc::new(env.init_resource_with_builder(builder)?);
+            let ret = env.init_resource_with_builder(builder);
             let mut guard = self.val.lock().unwrap();
-            let _ = std::mem::replace(&mut *guard, Box::new(v.clone()));
-            return Ok(v);
+            match ret {
+                Ok(builder) => {
+                    let v = Arc::new(builder);
+                    *guard = Box::new(v.clone());
+                    return Ok(v);
+                }
+                Err(p) => {
+                    if let Some(_) = guard.downcast_mut::<u8>() {
+                        *guard = Box::new(1u8);
+                    }
+                    return Err(p);
+                }
+            }
         }
     }
 }
@@ -142,7 +170,7 @@ impl ResourceRegistry {
     fn get_ref<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
-        env: &impl ResourceFactory,
+        env: &impl Factory,
     ) -> Res<Arc<R>> {
         if let Some(v) = self
             .0
@@ -194,8 +222,7 @@ impl SalakBuilder {
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-impl ResourceFactory for Salak {
-    /// Get [`Arc<R>`] by namespace.
+impl Factory for Salak {
     fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
@@ -203,7 +230,6 @@ impl ResourceFactory for Salak {
         self.res.get_ref(namespace, self)
     }
 
-    /// Initialize [`Resource`] with builder.
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R> {
         let config = if builder.namespace.is_empty() {
             self.require::<R::Config>(<R::Config>::prefix())

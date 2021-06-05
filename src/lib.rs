@@ -8,6 +8,7 @@
 //!    * [Value Placeholder Parsing](#value-placeholder-parsing)
 //!    * [Attributes For Derive](#attributes-for-derive)
 //!    * [Reload Configuration](#reload-configuration)
+//!    * [Resource Factory](#resource-factory)
 //!
 //! ## About
 //! `salak` is a multi layered configuration loader with many predefined sources. Also it
@@ -103,6 +104,11 @@
 //! `salak` supports reload configurations. Since in rust mutable
 //! and alias can't be used together, here we introduce a wrapper
 //! [`wrapper::IORef`] for updating values when reloading.
+//!
+//! #### Resource Factory
+//! [`Resource`] defines a standard way to create instance. [`Factory`] provides functions to initialize resource
+//! and cache resource. Please refer to [salak_factory](https://docs.rs/salak_factory) for resource usage.
+//! Feature 'app' should be open for this feature.
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(
