@@ -10,5 +10,5 @@ cargo test --verbose --lib --no-default-features --features=derive
 cargo test --verbose --lib --no-default-features --features=args
 cargo test --verbose --lib --no-default-features --features=app
 
-cargo bench 
+cargo bench --all-features 
 cargo run --example salak --features='default args' -- -h

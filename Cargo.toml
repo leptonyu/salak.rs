@@ -65,8 +65,11 @@ members = [
 
 [[bench]]
 harness = false
-name = "property"
-
+name = "core"
+[[bench]]
+harness = false
+name = "app"
+required-features = ["default", "app"] 
 [[example]]
 name = "salak"
 required-features = ["default", "args"]
