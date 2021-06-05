@@ -13,7 +13,7 @@ license = 'MIT'
 name = 'salak_factory'
 readme = 'README.md'
 repository = 'https://github.com/leptonyu/salak.rs'
-version = '0.6.0'
+version = '0.7.0'
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
