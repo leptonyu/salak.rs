@@ -71,9 +71,6 @@ pub mod redis_default;
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 pub mod redis_cluster;
 
-/// Default namespace
-pub const DEFAULT_NAMESPACE: &str = "primary";
-
 /// Wrap enum for implement [`EnumProperty`].
 #[derive(Debug)]
-pub struct WrapEnum<T>(pub(crate) T);
+pub(crate) struct WrapEnum<T>(pub(crate) T);

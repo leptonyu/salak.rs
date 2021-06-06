@@ -1,4 +1,4 @@
-//! Postgresql configuration.
+//! Postgresql connection pool resource.
 use postgres::{
     config::{ChannelBinding, TargetSessionAttrs},
     error::DbError,
@@ -79,7 +79,7 @@ impl_enum_property!(WrapEnum<ChannelBinding> {
     "require" => WrapEnum(ChannelBinding::Require)
 });
 
-/// Postgres connection pool configuration.
+/// Postgres manage connection smart pointer.
 #[derive(Debug)]
 #[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
 pub struct PostgresConnectionManager<T> {
@@ -123,7 +123,7 @@ macro_rules! set_option_field {
     };
 }
 
-/// Postgres Customizer
+/// Postgres Customizer.
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
 pub struct PostgresCustomizer {
@@ -142,7 +142,7 @@ impl PostgresCustomizer {
     }
 }
 
-/// xxx
+/// Postgresql connection pool.
 #[allow(missing_debug_implementations)]
 pub struct PostgresPool(Pool<PostgresConnectionManager<NoTls>>);
 

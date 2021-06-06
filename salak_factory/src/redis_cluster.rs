@@ -1,4 +1,4 @@
-//! Redis cluster configuration.
+//! Redis cluster connection pool resource.
 use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::cluster::*;
 use ::redis::*;
@@ -11,24 +11,24 @@ use std::{str::FromStr, time::Duration};
 ///
 /// |property|required|default|
 /// |-|-|-|
-/// |redis_cluster.url|true||
-/// |redis_cluster.password|false||
-/// |redis_cluster.readonly|false||
-/// |redis_cluster.read_timeout|false||
-/// |redis_cluster.write_timeout|false||
-/// |redis_cluster.auto_reconnect|false||
-/// |redis_cluster.pool.max_size|false|${pool.max_size:}|
-/// |redis_cluster.pool.min_idle|false|${pool.min_idle:}|
-/// |redis_cluster.pool.thread_name|false|${pool.thread_name:}|
-/// |redis_cluster.pool.thread_nums|false|${pool.thread_nums:}|
-/// |redis_cluster.pool.test_on_check_out|false|${pool.test_on_check_out:}|
-/// |redis_cluster.pool.max_lifetime|false|${pool.max_lifetime:}|
-/// |redis_cluster.pool.idle_timeout|false|${pool.idle_timeout:}|
-/// |redis_cluster.pool.connection_timeout|false|${pool.connection_timeout:5s}|
-/// |redis_cluster.pool.wait_for_init|false|${pool.wait_for_init:false}|
+/// |redis.cluster.url|true||
+/// |redis.cluster.password|false||
+/// |redis.cluster.readonly|false||
+/// |redis.cluster.read_timeout|false||
+/// |redis.cluster.write_timeout|false||
+/// |redis.cluster.auto_reconnect|false||
+/// |redis.cluster.pool.max_size|false|${pool.max_size:}|
+/// |redis.cluster.pool.min_idle|false|${pool.min_idle:}|
+/// |redis.cluster.pool.thread_name|false|${pool.thread_name:}|
+/// |redis.cluster.pool.thread_nums|false|${pool.thread_nums:}|
+/// |redis.cluster.pool.test_on_check_out|false|${pool.test_on_check_out:}|
+/// |redis.cluster.pool.max_lifetime|false|${pool.max_lifetime:}|
+/// |redis.cluster.pool.idle_timeout|false|${pool.idle_timeout:}|
+/// |redis.cluster.pool.connection_timeout|false|${pool.connection_timeout:5s}|
+/// |redis.cluster.pool.wait_for_init|false|${pool.wait_for_init:false}|
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 #[derive(FromEnvironment, Debug)]
-#[salak(prefix = "redis_cluster")]
+#[salak(prefix = "redis.cluster")]
 pub struct RedisClusterConfig {
     url: wrapper::NonEmptyVec<String>,
     password: Option<String>,
@@ -39,7 +39,7 @@ pub struct RedisClusterConfig {
     pool: PoolConfig,
 }
 
-/// Redis connection manager
+/// Redis manage connection.
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisClusterConnectionManager {
@@ -72,7 +72,7 @@ impl ManageConnection for RedisClusterConnectionManager {
     }
 }
 
-/// XXX
+/// Redis cluster connection pool.
 #[allow(missing_debug_implementations)]
 pub struct RedisClusterPool(Pool<RedisClusterConnectionManager>);
 

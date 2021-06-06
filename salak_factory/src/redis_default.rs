@@ -51,7 +51,7 @@ pub struct RedisConfig {
     pool: PoolConfig,
 }
 
-/// Redis connection manager
+/// Redis manage connection.
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_default")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisConnectionManager {
@@ -85,7 +85,7 @@ impl ManageConnection for RedisConnectionManager {
     }
 }
 
-/// XXX
+/// Redis connection pool.
 #[allow(missing_debug_implementations)]
 #[derive(Clone)]
 pub struct RedisPool(Pool<RedisConnectionManager>);
