@@ -34,6 +34,7 @@ pub trait Resource: Sized {
 /// Factory is a resource manager for initializing resource or getting resource from cache.
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 pub trait Factory: Environment {
+    #[inline]
     /// Get resource [`Arc<R>`] from cache with default namespace. Users can customize
     /// the resource by [`SalakBuilder::register_resource()`].
     fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
@@ -140,7 +141,7 @@ impl ResourceHolder {
                 return Err(PropertyError::ResourceNotFound);
             }
             let ret = match guard.1.take() {
-                Some(init) => (init.0)(env),
+                Some(init) => init,
                 _ => {
                     guard.0 = Box::new(2u8);
                     return Err(PropertyError::ResourceNotFound);
@@ -148,7 +149,7 @@ impl ResourceHolder {
             };
             drop(guard);
             let mut guard = self.0.lock().unwrap();
-            return ret
+            return (ret.0)(env)
                 .and_then(|op| {
                     op.downcast::<Arc<R>>()
                         .map(|v| {
@@ -190,6 +191,7 @@ impl ResourceRegistry {
             .or_insert_with(move || ResourceHolder::new(builder));
     }
 
+    #[inline]
     fn get_ref<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
@@ -208,12 +210,14 @@ impl ResourceRegistry {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 impl SalakBuilder {
+    #[inline]
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
     /// Register [`Resource`] with default builder.
     pub fn register_default_resource<R: Resource + Send + Sync + Any>(self) -> Self {
         self.register_resource::<R>(ResourceBuilder::default())
     }
 
+    #[inline]
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
     /// Register [`Resource`] by [`ResourceBuilder`].
     pub fn register_resource<R: Resource + Send + Sync + Any>(
@@ -225,6 +229,7 @@ impl SalakBuilder {
         env
     }
 
+    #[inline]
     /// Configure resource description.
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
     pub(crate) fn configure_resource_description_by_builder<R: Resource>(
@@ -237,6 +242,7 @@ impl SalakBuilder {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 impl Factory for Salak {
+    #[inline]
     fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
