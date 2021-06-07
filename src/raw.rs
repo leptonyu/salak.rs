@@ -66,10 +66,15 @@ impl<T: IsProperty> DescFromEnvironment for T {
     }
 }
 
-impl IsProperty for () {
-    fn from_property(_: Property<'_>) -> Res<Self> {
+impl FromEnvironment for () {
+    fn from_env(_: Option<Property<'_>>, _: &mut SalakContext<'_>) -> Res<Self> {
         Ok(())
     }
+}
+#[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+impl DescFromEnvironment for () {
+    fn key_desc(_: &mut SalakDescContext<'_>) {}
 }
 
 #[cfg(feature = "derive")]
@@ -227,6 +232,15 @@ pub(crate) enum SubKey<'a> {
     I(usize),
 }
 
+impl SubKey<'_> {
+    pub(crate) fn is_empty(&self) -> bool {
+        if let SubKey::S(v) = self {
+            return v.is_empty();
+        }
+        false
+    }
+}
+
 lazy_static::lazy_static! {
     static ref P: &'static [char] = &['.', '[', ']'];
 }
@@ -289,7 +303,7 @@ impl<'a> Key<'a> {
                 self.buf.push_str(&format!("[{}]", *v));
             }
         }
-        self.key.push(k)
+        self.key.push(k);
     }
 
     pub(crate) fn pop(&mut self) {

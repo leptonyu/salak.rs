@@ -47,8 +47,8 @@ use salak_factory::redis_default::RedisPool;
 
 fn main() -> Result<(), PropertyError> {
     let env = Salak::builder()
-        .register_resource::<RedisPool>(ResourceBuilder::default())
-        .register_resource::<RedisPool>(ResourceBuilder::default().namespace("secondary"))
+        .register_default_resource::<RedisPool>()
+        .register_resource::<RedisPool>(ResourceBuilder::new("secondary"))
         .configure_args(app_info!())
         .build()?;
     let _pool1 = env.get_resource::<RedisPool>()?;

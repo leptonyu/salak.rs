@@ -87,63 +87,80 @@ macro_rules! impl_container {
 
 impl_container!(Cell RefCell Mutex Rc Arc RwLock);
 
-/// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
-struct ResourceHolder {
-    val: Mutex<Box<dyn Any + Send>>,
+struct Init(Box<dyn FnOnce(&Salak) -> Res<Box<dyn Any>>>);
+
+impl<R: Resource + 'static> ResourceBuilder<R> {
+    fn into_init(self) -> Init {
+        Init(Box::new(move |env| {
+            env.init_resource_with_builder(self).map(|v| {
+                let v: Box<dyn Any> = Box::new(Arc::new(v));
+                v
+            })
+        }))
+    }
 }
 
+type ResVal = (Box<dyn Any>, Option<Init>);
+
+/// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
+struct ResourceHolder(Mutex<ResVal>, Box<dyn Fn(&Salak, &ResourceHolder) -> Void>);
+
 impl ResourceHolder {
-    fn new<R: Resource + 'static>(builder: ResourceBuilder<R>) -> Self {
-        Self {
-            val: Mutex::new(Box::new(builder)),
-        }
+    fn new<R: Resource + Send + 'static>(builder: ResourceBuilder<R>) -> Self {
+        Self(
+            Mutex::new((Box::new(0u8), Some(builder.into_init()))),
+            Box::new(|env, holder| holder.get::<R>(env).map(|_| ())),
+        )
     }
 
-    fn get<R: Resource + Send + Sync + 'static>(
-        &self,
-        env: &impl Factory,
-        namespace: &'static str,
-    ) -> Res<Arc<R>> {
+    #[inline]
+    fn init(&self, env: &Salak) -> Void {
+        (self.1)(env, self)
+    }
+
+    fn get<R: Resource + Send + 'static>(&self, env: &Salak) -> Res<Arc<R>> {
         let mut flag = false;
         loop {
             if flag {
                 std::thread::sleep(Duration::from_millis(1));
             }
-            let mut guard = self.val.lock().unwrap();
-            if let Some(val) = guard.downcast_ref::<Arc<R>>() {
+            let mut guard = self.0.lock().unwrap();
+            if let Some(val) = guard.0.downcast_ref::<Arc<R>>() {
                 return Ok(val.clone());
             }
-            if let Some(i) = guard.downcast_ref::<u8>() {
-                if *i > 0 {
+            if let Some(i) = guard.0.downcast_mut::<u8>() {
+                if *i == 1 {
+                    flag = true;
+                    continue;
+                } else if *i != 0 {
                     return Err(PropertyError::ResourceNotFound);
                 }
-                flag = true;
-                continue;
+                *i = 1;
+            } else {
+                return Err(PropertyError::ResourceNotFound);
             }
-            let builder = match guard.downcast_mut::<ResourceBuilder<R>>() {
-                Some(val) => {
-                    let b = std::mem::replace(val, ResourceBuilder::default().namespace(namespace));
-                    *guard = Box::new(0u8);
-                    b
+            let ret = match guard.1.take() {
+                Some(init) => (init.0)(env),
+                _ => {
+                    guard.0 = Box::new(2u8);
+                    return Err(PropertyError::ResourceNotFound);
                 }
-                _ => ResourceBuilder::default().namespace(namespace),
             };
             drop(guard);
-            let ret = env.init_resource_with_builder(builder);
-            let mut guard = self.val.lock().unwrap();
-            match ret {
-                Ok(builder) => {
-                    let v = Arc::new(builder);
-                    *guard = Box::new(v.clone());
-                    return Ok(v);
-                }
-                Err(p) => {
-                    if let Some(_) = guard.downcast_mut::<u8>() {
-                        *guard = Box::new(1u8);
-                    }
-                    return Err(p);
-                }
-            }
+            let mut guard = self.0.lock().unwrap();
+            return ret
+                .and_then(|op| {
+                    op.downcast::<Arc<R>>()
+                        .map(|v| {
+                            guard.0 = v.clone();
+                            *v
+                        })
+                        .map_err(|_| PropertyError::ResourceNotFound)
+                })
+                .map_err(|e| {
+                    guard.0 = Box::new(2u8);
+                    e
+                });
         }
     }
 }
@@ -153,6 +170,15 @@ pub(crate) struct ResourceRegistry(HashMap<TypeId, HashMap<&'static str, Resourc
 impl ResourceRegistry {
     pub(crate) fn new() -> Self {
         Self(HashMap::new())
+    }
+
+    pub(crate) fn initialize(&self, env: &Salak) -> Void {
+        for x in self.0.values() {
+            for r in x.values() {
+                r.init(env)?;
+            }
+        }
+        Ok(())
     }
 
     fn register<R: Resource + Send + Sync + Any>(&mut self, builder: ResourceBuilder<R>) {
@@ -167,14 +193,14 @@ impl ResourceRegistry {
     fn get_ref<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
-        env: &impl Factory,
+        env: &Salak,
     ) -> Res<Arc<R>> {
         if let Some(v) = self
             .0
             .get(&TypeId::of::<R>())
             .and_then(|f| f.get(namespace))
         {
-            return v.get(env, namespace);
+            return v.get(env);
         }
         Err(PropertyError::ResourceNotFound)
     }
@@ -182,6 +208,12 @@ impl ResourceRegistry {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 impl SalakBuilder {
+    #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+    /// Register [`Resource`] with default builder.
+    pub fn register_default_resource<R: Resource + Send + Sync + Any>(self) -> Self {
+        self.register_resource::<R>(ResourceBuilder::default())
+    }
+
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
     /// Register [`Resource`] by [`ResourceBuilder`].
     pub fn register_resource<R: Resource + Send + Sync + Any>(
@@ -192,21 +224,6 @@ impl SalakBuilder {
         env.resource.register(builder);
         env
     }
-
-    /// Configure resource description.
-    // #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-    // pub(crate) fn configure_resource_description<R: Resource>(self) -> Self {
-    //     self.configure_description::<R::Config>()
-    // }
-
-    // /// Configure resource description.
-    // #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-    // pub(crate) fn configure_resource_description_by_namespace<R: Resource>(
-    //     self,
-    //     namespace: &'static str,
-    // ) -> Self {
-    //     self.configure_description_by_namespace::<R::Config>(namespace)
-    // }
 
     /// Configure resource description.
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -255,6 +272,11 @@ impl<R: Resource> Default for ResourceBuilder<R> {
 }
 
 impl<R: Resource> ResourceBuilder<R> {
+    /// Create resource builder by namespace.
+    pub fn new(namespace: &'static str) -> Self {
+        ResourceBuilder::default().namespace(namespace)
+    }
+
     /// Configure namespace.
     pub fn namespace(mut self, namespace: &'static str) -> Self {
         self.namespace = namespace;
@@ -268,5 +290,22 @@ impl<R: Resource> ResourceBuilder<R> {
     ) -> Self {
         self.customizer = Box::new(cust);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    #[test]
+    fn app_test() {
+        let env = Salak::builder().build().unwrap();
+        let v = env.get_resource::<()>();
+        assert_eq!(true, v.is_err());
+        let env = Salak::builder()
+            .register_default_resource::<()>()
+            .build()
+            .unwrap();
+        let v = env.get_resource::<()>();
+        assert_eq!(true, v.is_ok());
     }
 }

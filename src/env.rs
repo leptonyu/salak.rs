@@ -151,6 +151,8 @@ impl SalakBuilder {
             fc.register_to_env(&mut salak.reg);
         }
 
+        #[cfg(feature = "app")]
+        salak.res.initialize(&salak)?;
         Ok(salak)
     }
 }

@@ -276,12 +276,14 @@ impl<'a> SalakContext<'a> {
         sub_key: K,
         def: Option<Property<'_>>,
     ) -> Res<T> {
-        self.into_sub_key(sub_key);
+        let flag = self.into_sub_key(sub_key);
         let val = match self.registry.get(self.key, def) {
             Ok(val) => Ok(T::from_env(val, self)),
             Err(e) => Err(e),
         };
-        self.key.pop();
+        if flag {
+            self.key.pop();
+        }
         match val? {
             Err(PropertyError::ParseFail(None, v)) if !self.key.as_str().is_empty() => Err(
                 PropertyError::ParseFail(Some(self.key.as_str().to_string()), v),
@@ -301,8 +303,13 @@ impl<'a> SalakContext<'a> {
         self.key.as_str()
     }
 
-    fn into_sub_key<K: Into<SubKey<'a>>>(&mut self, k: K) {
-        self.key.push(k.into());
+    fn into_sub_key<K: Into<SubKey<'a>>>(&mut self, k: K) -> bool {
+        let v = k.into();
+        let flag = !v.is_empty();
+        if flag {
+            self.key.push(v);
+        }
+        return flag;
     }
 
     pub(crate) fn new(
