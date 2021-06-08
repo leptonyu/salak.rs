@@ -13,7 +13,7 @@ license = 'MIT'
 name = 'salak_factory'
 readme = 'README.md'
 repository = 'https://github.com/leptonyu/salak.rs'
-version = '0.7.0'
+version = '0.8.0'
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
@@ -28,7 +28,7 @@ all-features = true
 postgres = {optional = true, version = '0.19'}
 r2d2 = {optional = true, version = '^0.8'}
 redis = {optional = true, version = '0.20'}
-salak = {path = '..', version = '^0.12', features = ['default', 'app']}
+salak = {path = '..', version = '^0.13', features = ['default', 'app']}
 scheduled-thread-pool = {optional = true, version = '^0.2'}
 
 [dev-dependencies]
