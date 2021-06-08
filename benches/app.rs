@@ -4,7 +4,7 @@ use salak::*;
 fn criterion_benchmark(c: &mut Criterion) {
     let env = Salak::builder()
         .set("hello", "world")
-        .register_resource::<()>(ResourceBuilder::default())
+        .register_default_resource::<()>()
         .build()
         .unwrap();
 

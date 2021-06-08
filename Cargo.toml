@@ -69,7 +69,7 @@ name = "core"
 [[bench]]
 harness = false
 name = "app"
-required-features = ["default", "app"] 
+required-features = ["default", "app"]
 [[example]]
 name = "salak"
-required-features = ["default", "args"]
+required-features = ["default", "args", "app"]
