@@ -138,44 +138,6 @@ impl KeyDesc {
     }
 }
 
-impl Salak {
-    /// Get key description.
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    pub(crate) fn get_desc<T: PrefixedFromEnvironment + DescFromEnvironment>(
-        &self,
-        namespace: &'static str,
-    ) -> Vec<KeyDesc> {
-        let mut key = Key::new();
-        let mut key_descs = vec![];
-        let mut context = SalakDescContext::new(&mut key, &mut key_descs);
-        if namespace.is_empty() {
-            context.add_key_desc::<T>(T::prefix(), None, None, None);
-        } else {
-            context.add_key_desc::<T>(&format!("{}.{}", T::prefix(), namespace), None, None, None);
-        };
-        key_descs
-    }
-}
-
-impl SalakBuilder {
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Configure description parsing.
-    pub fn configure_description<T: PrefixedFromEnvironment + DescFromEnvironment>(self) -> Self {
-        self.configure_description_by_namespace::<T>("")
-    }
-
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    /// Configure description parsing.
-    pub fn configure_description_by_namespace<T: PrefixedFromEnvironment + DescFromEnvironment>(
-        mut self,
-        namespace: &'static str,
-    ) -> Self {
-        self.app_desc
-            .push(Box::new(move |env| env.get_desc::<T>(namespace)));
-        self
-    }
-}
-
 #[cfg(test)]
 mod tests {
 

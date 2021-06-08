@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn redis_tests() {
         let env = Salak::builder()
-            .set("redis_cluster.url[0]", "redis://127.0.0.1/")
+            .set("redis.cluster.url[0]", "redis://127.0.0.1/")
             .build()
             .unwrap();
         let pool = env.init_resource::<RedisClusterPool>();
