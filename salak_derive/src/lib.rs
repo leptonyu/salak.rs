@@ -263,3 +263,74 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
         #body
     })
 }
+
+fn service_parse_field_attribute(attrs: Vec<Attribute>) -> Option<String> {
+    let mut namespace = None;
+    for attr in attrs {
+        if let Ok(Meta::List(list)) = attr.parse_meta() {
+            if !is_salak(&list) {
+                continue;
+            }
+            for m in list.nested {
+                if let NestedMeta::Meta(Meta::NameValue(nv)) = m {
+                    match &parse_path(nv.path)[..] {
+                        "namespace" => namespace = Some(parse_lit(nv.lit)),
+                        _ => panic!("Only support namespace"),
+                    }
+                } else {
+                    panic!("Only support NestedMeta::Meta(Meta::NameValue)");
+                }
+            }
+        }
+    }
+    namespace
+}
+
+fn service_derive_field(field: Field) -> quote::__private::TokenStream {
+    let name = field.ident.expect("Not possible");
+    if let Some(namespace) = service_parse_field_attribute(field.attrs) {
+        quote! {
+            #name: factory.get_resource_by_namespace(#namespace)?,
+        }
+    } else {
+        quote! {
+            #name: factory.get_resource()?
+        }
+    }
+}
+
+fn service_derive_fields(fields: Fields) -> Vec<quote::__private::TokenStream> {
+    if let Fields::Named(fields) = fields {
+        let mut v = vec![];
+        for field in fields.named {
+            v.push(service_derive_field(field));
+        }
+        return v;
+    }
+    panic!("Only support named body");
+}
+
+fn service_derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStream {
+    let field = service_derive_fields(data.fields);
+    quote! {
+        impl Service for #name {
+            fn create(factory: &FactoryContext<'_>) -> Result<Self, PropertyError> {
+                Ok(Self {
+                   #(#field),*
+                })
+            }
+        }
+    }
+}
+
+/// Derive [Service](https://docs.rs/salak/latest/salak/trait.Service.html).
+#[proc_macro_derive(Service, attributes(salak))]
+pub fn service_derive(input: TokenStream) -> TokenStream {
+    let input: DeriveInput = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+    let body = match input.data {
+        Data::Struct(data) => service_derive_struct(&name, data),
+        _ => panic!("Only struct is supported"),
+    };
+    TokenStream::from(quote! {#body})
+}

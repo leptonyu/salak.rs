@@ -89,9 +89,6 @@ impl FactoryBuilder<'_> {
 pub trait Service: Sized {
     /// Create service by factory.
     fn create(factory: &FactoryContext<'_>) -> Res<Self>;
-
-    /// Register dependent resources.
-    fn register_dependent_resources(_builder: &mut FactoryBuilder<'_>) {}
 }
 
 impl<T: Service> Resource for T {
@@ -105,10 +102,6 @@ impl<T: Service> Resource for T {
         _: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self> {
         T::create(factory)
-    }
-
-    fn register_dependent_resources(builder: &mut FactoryBuilder<'_>) {
-        <T as Service>::register_dependent_resources(builder)
     }
 }
 

@@ -143,6 +143,10 @@ use raw_ioref::IORefT;
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use salak_derive::FromEnvironment;
+/// Auto derive [`Service`] for struct.
+#[cfg(all(feature = "derive", feature = "app"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "derive", feature = "app"))))]
+pub use salak_derive::Service;
 use source_raw::PropertyRegistryInternal;
 
 #[cfg(feature = "args")]
