@@ -104,7 +104,7 @@ impl Resource for RedisPool {
 
     fn create(
         conf: Self::Config,
-        _: &impl Factory,
+        _: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
     ) -> Result<Self, PropertyError> {
         let mut customize = PoolCustomizer::new();

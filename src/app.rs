@@ -26,9 +26,37 @@ pub trait Resource: Sized {
     /// Create resource.
     fn create(
         config: Self::Config,
-        factory: &impl Factory,
+        factory: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self>;
+}
+
+/// Get dependent resource when creating resource.
+#[allow(missing_debug_implementations)]
+pub struct FactoryContext<'a> {
+    fac: &'a Salak,
+}
+
+impl FactoryContext<'_> {
+    /// Get resource with default namespace.
+    pub fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
+        #[cfg(feature = "log")]
+        log::info!("Request for resource({})", std::any::type_name::<R>());
+        self.fac.get_resource()
+    }
+    /// Get resource with default namespace.
+    pub fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
+        &self,
+        namespace: &'static str,
+    ) -> Res<Arc<R>> {
+        #[cfg(feature = "log")]
+        log::info!(
+            "Request for resource({}) at namespace {}",
+            std::any::type_name::<R>(),
+            namespace
+        );
+        self.fac.get_resource_by_namespace(namespace)
+    }
 }
 
 /// Factory is a resource manager for initializing resource or getting resource from cache.
@@ -62,7 +90,7 @@ impl Resource for () {
 
     fn create(
         _: Self::Config,
-        _: &impl Factory,
+        _: &FactoryContext<'_>,
         _: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self> {
         Ok(())
@@ -77,7 +105,7 @@ macro_rules! impl_container {
 
             fn create(
                 config: Self::Config,
-                factory: &impl Factory,
+                factory: &FactoryContext<'_>,
                 customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
             ) -> Result<Self, PropertyError> {
                 Ok($x::new(T::create(config, factory, customizer)?))
@@ -108,9 +136,10 @@ struct ResourceHolder(Mutex<ResVal>, Box<dyn Fn(&Salak, &ResourceHolder) -> Void
 
 impl ResourceHolder {
     fn new<R: Resource + Send + 'static>(builder: ResourceBuilder<R>) -> Self {
+        let namespace = builder.namespace.clone();
         Self(
             Mutex::new((Box::new(0u8), Some(builder.into_init()))),
-            Box::new(|env, holder| holder.get::<R>(env).map(|_| ())),
+            Box::new(move |env, holder| holder.get::<R>(env, namespace).map(|_| ())),
         )
     }
 
@@ -119,19 +148,26 @@ impl ResourceHolder {
         (self.1)(env, self)
     }
 
-    fn get<R: Resource + Send + 'static>(&self, env: &Salak) -> Res<Arc<R>> {
-        let mut flag = false;
+    fn get<R: Resource + Send + 'static>(
+        &self,
+        env: &Salak,
+        _namespace: &'static str,
+    ) -> Res<Arc<R>> {
         loop {
-            if flag {
-                std::thread::sleep(Duration::from_millis(1));
-            }
             let mut guard = self.0.lock().unwrap();
             if let Some(val) = guard.0.downcast_ref::<Arc<R>>() {
                 return Ok(val.clone());
             }
+            #[cfg(feature = "log")]
+            log::info!(
+                "Init resource ({}) at namespace {}",
+                std::any::type_name::<R>(),
+                _namespace
+            );
             if let Some(i) = guard.0.downcast_mut::<u8>() {
                 if *i == 1 {
-                    flag = true;
+                    drop(guard);
+                    std::thread::sleep(Duration::from_millis(1));
                     continue;
                 } else if *i != 0 {
                     return Err(PropertyError::ResourceNotFound);
@@ -148,8 +184,9 @@ impl ResourceHolder {
                 }
             };
             drop(guard);
+            let ret = (ret.0)(env);
             let mut guard = self.0.lock().unwrap();
-            return (ret.0)(env)
+            return ret
                 .and_then(|op| {
                     op.downcast::<Arc<R>>()
                         .map(|v| {
@@ -159,7 +196,7 @@ impl ResourceHolder {
                         .map_err(|_| PropertyError::ResourceNotFound)
                 })
                 .map_err(|e| {
-                    guard.0 = Box::new(2u8);
+                    guard.0 = Box::new(3u8);
                     e
                 });
         }
@@ -202,7 +239,7 @@ impl ResourceRegistry {
             .get(&TypeId::of::<R>())
             .and_then(|f| f.get(namespace))
         {
-            return v.get(env);
+            return v.get(env, namespace);
         }
         Err(PropertyError::ResourceNotFound)
     }
@@ -256,7 +293,7 @@ impl Factory for Salak {
         } else {
             self.require::<R::Config>(&format!("{}.{}", <R::Config>::prefix(), builder.namespace))
         }?;
-        R::create(config, self, builder.customizer)
+        R::create(config, &FactoryContext { fac: self }, builder.customizer)
     }
 }
 

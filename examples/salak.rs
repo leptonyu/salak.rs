@@ -21,12 +21,14 @@ struct Config {
 }
 
 fn main() -> Result<(), PropertyError> {
+    env_logger::init();
     let env = Salak::builder()
         .configure_description::<Config>()
         .configure_args(app_info!())
         .register_default_resource::<()>()
         .build()?;
-    for _ in 0..1000 {
+    for _i in 0..1000 {
+        log::info!("Round {}", _i);
         let _ = env.get_resource::<()>()?;
     }
     Ok(())
