@@ -1,4 +1,12 @@
 classDiagram
+    Environment <|-- Factory
+    Environment: <<trait>>
+    Factory: <<trait>>
+    Resource <|.. Service
+    Resource: <<trait>>
+    Resource: +type Config
+    Resource: +type Customizer
+    Service: <<trait>>
     FromEnvironment <|-- DescFromEnvironment
     FromEnvironment <|-- AutoDeriveFromEnvironment
     DescFromEnvironment <|-- PrefixedFromEnvironment
