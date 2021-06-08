@@ -46,6 +46,7 @@ rand = '0.8'
 trybuild = "1"
 
 [features]
+all = ['default', 'app', 'args', 'log']
 app = ['derive']
 args = ['clap', 'derive']
 default = [

@@ -45,9 +45,7 @@ pub struct FactoryContext<'a> {
 impl FactoryContext<'_> {
     /// Get resource with default namespace.
     pub fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
-        #[cfg(feature = "log")]
-        log::info!("Request for resource({})", std::any::type_name::<R>());
-        self.fac.get_resource()
+        self.get_resource_by_namespace("")
     }
     /// Get resource with default namespace.
     pub fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
@@ -56,7 +54,7 @@ impl FactoryContext<'_> {
     ) -> Res<Arc<R>> {
         #[cfg(feature = "log")]
         log::info!(
-            "Request for resource({}) at namespace {}",
+            "Request for resource ({}) at namespace [{}].",
             std::any::type_name::<R>(),
             namespace
         );
@@ -72,12 +70,15 @@ pub struct FactoryBuilder<'a> {
 
 impl FactoryBuilder<'_> {
     /// Register resource with default namespace.
-    pub fn register_default_resource<R: Resource + Send + Sync + Any>(self) {
+    pub fn register_default_resource<R: Resource + Send + Sync + Any>(&mut self) {
         self.register_resource::<R>(ResourceBuilder::default())
     }
 
     /// Register resource with namespace.
-    pub fn register_resource<R: Resource + Send + Sync + Any>(self, builder: ResourceBuilder<R>) {
+    pub fn register_resource<R: Resource + Send + Sync + Any>(
+        &mut self,
+        builder: ResourceBuilder<R>,
+    ) {
         self.builder.register(builder);
     }
 }
@@ -190,7 +191,7 @@ impl ResourceHolder {
             }
             #[cfg(feature = "log")]
             log::info!(
-                "Init resource ({}) at namespace {}",
+                "Init resource ({}) at namespace [{}].",
                 std::any::type_name::<R>(),
                 _namespace
             );
@@ -249,6 +250,7 @@ impl ResourceRegistry {
         Ok(())
     }
 
+    #[inline]
     pub(crate) fn register<R: Resource + Send + Sync + Any>(
         &mut self,
         builder: ResourceBuilder<R>,
@@ -258,7 +260,15 @@ impl ResourceRegistry {
             .entry(TypeId::of::<R>())
             .or_insert_with(|| HashMap::new())
             .entry(builder.namespace)
-            .or_insert_with(move || ResourceHolder::new(builder));
+            .or_insert_with(move || {
+                #[cfg(feature = "log")]
+                log::info!(
+                    "Register resource ({}) at namespace [{}].",
+                    std::any::type_name::<R>(),
+                    builder.namespace
+                );
+                ResourceHolder::new(builder)
+            });
         R::register_dependent_resources(&mut FactoryBuilder { builder: self });
     }
 

@@ -1029,6 +1029,8 @@ dependencies = [
 name = "salak_factory"
 version = "0.7.0"
 dependencies = [
+ "env_logger",
+ "log",
  "postgres",
  "r2d2",
  "redis",

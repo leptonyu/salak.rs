@@ -31,6 +31,10 @@ redis = {optional = true, version = '0.20'}
 salak = {path = '..', version = '^0.12', features = ['default', 'app']}
 scheduled-thread-pool = {optional = true, version = '^0.2'}
 
+[dev-dependencies]
+env_logger = "0.8"
+log = "0.4"
+
 [features]
 default = []
 pool = [
@@ -52,4 +56,4 @@ redis_default = [
 
 [[example]]
 name = "redis"
-required-features = ["default", "redis_default", "salak/args", "salak/app"]
+required-features = ["default", "redis_default", "salak/all"]
