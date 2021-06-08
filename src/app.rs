@@ -83,6 +83,33 @@ impl FactoryBuilder<'_> {
     }
 }
 
+/// A simple resource without config & customizer.
+pub trait Service: Sized {
+    /// Create service by factory.
+    fn create(factory: &FactoryContext<'_>) -> Res<Self>;
+
+    /// Register dependent resources.
+    fn register_dependent_resources(_builder: &mut FactoryBuilder<'_>) {}
+}
+
+impl<T: Service> Resource for T {
+    type Config = ();
+
+    type Customizer = ();
+
+    fn create(
+        _: Self::Config,
+        factory: &FactoryContext<'_>,
+        _: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
+    ) -> Res<Self> {
+        T::create(factory)
+    }
+
+    fn register_dependent_resources(builder: &mut FactoryBuilder<'_>) {
+        <T as Service>::register_dependent_resources(builder)
+    }
+}
+
 /// Factory is a resource manager for initializing resource or getting resource from cache.
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 pub trait Factory: Environment {
