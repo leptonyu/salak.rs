@@ -63,6 +63,7 @@ impl FactoryContext<'_> {
 }
 
 /// Register dependent resources.
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 #[allow(missing_debug_implementations)]
 pub struct FactoryBuilder<'a> {
     builder: &'a mut ResourceRegistry,
@@ -83,6 +84,7 @@ impl FactoryBuilder<'_> {
     }
 }
 
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// A simple resource without config & customizer.
 pub trait Service: Sized {
     /// Create service by factory.
