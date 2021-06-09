@@ -44,8 +44,8 @@ pub trait Resource: Sized {
     /// and it depends some database resources, then you should
     /// leave the user to register database resource. If you are
     /// developing a database resource, and you need some other
-    /// resources that used only by this database resource, you 
-    /// should treat them as a whole logical resource, and the 
+    /// resources that used only by this database resource, you
+    /// should treat them as a whole logical resource, and the
     /// database resource has responsibility for registering the
     /// dependent resources.
     fn register_dependent_resources(_: &mut FactoryBuilder<'_>) {}
@@ -61,11 +61,19 @@ pub trait Resource: Sized {
 /// wrapped by [`Arc`]. All resources can be shared, so if you want
 /// the raw value, you should create by yourself, not using the
 /// resource pattern.
+///
 pub struct FactoryContext<'a> {
     fac: &'a Salak,
+    namespace: &'static str,
 }
 
 impl FactoryContext<'_> {
+    /// Users can use this value to get resources in the same
+    /// namespace.
+    pub fn current_namespace(&self) -> &'static str {
+        self.namespace
+    }
+
     /// Get resource with default namespace. The resource will be
     /// initialized if it does not exist yet.
     pub fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
@@ -85,32 +93,47 @@ impl FactoryContext<'_> {
         );
         self.fac.res.get_ref(namespace, self.fac, false)
     }
+
+    /// Get all resouces with same type.
+    pub fn get_all_resources<R: Resource + Send + Sync + Any>(&self) -> Res<Vec<Arc<R>>> {
+        self.fac.res.get_all_refs(self.fac, false)
+    }
 }
 
-/// Register dependent resources.
+/// Register dependent resources under same namespace.
+///
+/// Only relavent resources can be registered by current 
+/// resource. With this restriction, we can easily extend
+/// resource to multiple instances.
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 #[allow(missing_debug_implementations)]
 pub struct FactoryBuilder<'a> {
     builder: &'a mut ResourceRegistry,
+    namespace: &'static str,
 }
 
 impl FactoryBuilder<'_> {
-    /// Register resource with default namespace.
-    pub fn register_default_resource<R: Resource + Send + Sync + Any>(&mut self) {
-        self.register_resource::<R>(ResourceBuilder::default())
+    /// Register dependent resource under current namespace.
+    pub fn register_resource<R: Resource + Send + Sync + Any>(&mut self) {
+        self.builder
+            .register::<R>(ResourceBuilder::new(self.namespace));
     }
 
-    /// Register resource with namespace.
-    pub fn register_resource<R: Resource + Send + Sync + Any>(
+    /// Register dependent resource under current namespace
+    /// with customizer.
+    pub fn register_resource_with_customizer<R: Resource + Send + Sync + Any>(
         &mut self,
-        builder: ResourceBuilder<R>,
+        customizer: impl FnOnce(&mut R::Customizer, &R::Config) -> Void + Send + Sync + 'static,
     ) {
-        self.builder.register(builder);
+        self.builder
+            .register::<R>(ResourceBuilder::new(self.namespace).customize(customizer));
     }
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// A simple resource without config & customizer.
+/// Service only care about how to get dependent resources,
+/// and do not register any dependent resource.
 pub trait Service: Sized {
     /// Create service by factory.
     fn create(factory: &FactoryContext<'_>) -> Res<Self>;
@@ -130,7 +153,35 @@ impl<T: Service> Resource for T {
     }
 }
 
-/// Factory is a resource manager for initializing resource or getting resource from cache.
+/// Factory is a resource manager. It provides a group of functions
+/// to manage resource and their dependencies. Users may use
+/// factory to package all components of one logic unit, such as
+/// redis client configuration resource, together.
+///
+/// In a production
+/// ready redis client configuration, we may need configuration
+/// to specify redis host, port, etc, and we also need to
+/// set some callbacks for monitoring the client. So we can make
+/// the redis client configuration as resource, it will register
+/// redis client resource, redis monitor resource, and other
+/// relative resources.
+///
+/// In redis client resource, it needs expose configuration for
+/// users to specify basic parameters for initializing redis
+/// client.
+///
+/// In redis monitor resource, it may need other common resource
+/// such as how to send metrics. So it's responsibility is
+/// collecting the redis metrics and use common metric resource
+/// to send the metrics.
+///
+/// And other resources may be added in the redis client
+/// configuration.
+///
+/// Users may register redis client configuration resource to
+/// initializing all of these resources. By using namespace,
+/// users can easily create multiple group instances of same
+/// type resource.
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 pub trait Factory: Environment {
     #[inline]
@@ -302,21 +353,25 @@ impl ResourceRegistry {
         &mut self,
         builder: ResourceBuilder<R>,
     ) {
+        let namespace = builder.namespace;
         let _ = self
             .0
             .entry(TypeId::of::<R>())
             .or_insert_with(|| HashMap::new())
-            .entry(builder.namespace)
+            .entry(namespace)
             .or_insert_with(move || {
                 #[cfg(feature = "log")]
                 log::info!(
                     "Register resource ({}) at namespace [{}].",
                     std::any::type_name::<R>(),
-                    builder.namespace
+                    namespace
                 );
                 ResourceHolder::new(builder)
             });
-        R::register_dependent_resources(&mut FactoryBuilder { builder: self });
+        R::register_dependent_resources(&mut FactoryBuilder {
+            builder: self,
+            namespace,
+        });
     }
 
     #[inline]
@@ -334,6 +389,20 @@ impl ResourceRegistry {
             return v.get_or_init(env, namespace, query_only);
         }
         Err(PropertyError::ResourceNotFound)
+    }
+
+    fn get_all_refs<R: Resource + Send + Sync + Any>(
+        &self,
+        env: &Salak,
+        query_only: bool,
+    ) -> Res<Vec<Arc<R>>> {
+        let mut r = vec![];
+        for map in self.0.get(&TypeId::of::<R>()) {
+            for (namespace, v) in map {
+                r.push(v.get_or_init(env, namespace, query_only)?);
+            }
+        }
+        Ok(r)
     }
 }
 
@@ -354,7 +423,14 @@ impl Factory for Salak {
         } else {
             self.require::<R::Config>(&format!("{}.{}", <R::Config>::prefix(), builder.namespace))
         }?;
-        R::create(config, &FactoryContext { fac: self }, builder.customizer)
+        R::create(
+            config,
+            &FactoryContext {
+                fac: self,
+                namespace: builder.namespace,
+            },
+            builder.customizer,
+        )
     }
 }
 
