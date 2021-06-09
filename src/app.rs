@@ -12,7 +12,7 @@ use crate::*;
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Resource can be initialized in a standard way by [`Salak`].
 ///
-/// Resource can config by
+/// Resource can be configured by
 /// * Configuration properties by [`Resource::Config`].
 /// * Customized by [`Resource::Customizer`].
 /// * Other [`Resource`]s get by [`Factory`].
@@ -20,34 +20,59 @@ use crate::*;
 pub trait Resource: Sized {
     /// Configuration properties for current resource.
     type Config: PrefixedFromEnvironment;
-    /// Customize current resource, usually configure by coding.
+    /// Customize current resource, usually by coding.
     type Customizer;
 
-    /// Create resource.
+    /// Create resource, all initialization is implemented at this
+    /// function. Use proper config, leave users to customizing
+    /// current resource, and also request for other resources.
     fn create(
         config: Self::Config,
         factory: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self>;
 
-    /// Register dependent resources.
+    /// Register dependent resources. Create resource will only
+    /// request for other resources, if the resource is not
+    /// registered yet by [`SalakBuilder::register_resource`],
+    /// an error will occure during the creating process.
+    /// You may either register the resource using this function
+    /// or leave the user to register.
+    ///
+    /// The guideline of where to register resource is to find out
+    /// the boundary of resources. If you developing a service,
+    /// and it depends some database resources, then you should
+    /// leave the user to register database resource. If you are
+    /// developing a database resource, and you need some other
+    /// resources that used only by this database resource, you 
+    /// should treat them as a whole logical resource, and the 
+    /// database resource has responsibility for registering the
+    /// dependent resources.
     fn register_dependent_resources(_: &mut FactoryBuilder<'_>) {}
 }
 
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
-/// Get dependent resource when creating resource. If the dependent resource is not initialized yet,
+/// Context for implementing [`Resource`], which can get dependent
+/// resources. If the dependent resource is not initialized yet,
 /// it will be initialized first.
+///
+/// Since the api for requesting resource only getting the resource
+/// wrapped by [`Arc`]. All resources can be shared, so if you want
+/// the raw value, you should create by yourself, not using the
+/// resource pattern.
 pub struct FactoryContext<'a> {
     fac: &'a Salak,
 }
 
 impl FactoryContext<'_> {
-    /// Get resource with default namespace.
+    /// Get resource with default namespace. The resource will be
+    /// initialized if it does not exist yet.
     pub fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
         self.get_resource_by_namespace("")
     }
-    /// Get resource with default namespace.
+    /// Get resource with namespace. The resource will be
+    /// initialized if it does not exist yet.
     pub fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
         &self,
         namespace: &'static str,
