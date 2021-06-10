@@ -74,4 +74,4 @@ name = "app"
 required-features = ["default", "app"]
 [[example]]
 name = "salak"
-required-features = ["default", "args", "app"]
+required-features = ["default", "args", "app", "log"]
