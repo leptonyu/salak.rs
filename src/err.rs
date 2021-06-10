@@ -20,6 +20,8 @@ pub enum PropertyError {
     ResourceNotFound(&'static str, &'static str),
     /// Resource already registered.
     ResourceRegistered(&'static str, &'static str),
+    /// Resource recursive dependent.
+    ResourceRecursive(&'static str, &'static str),
 }
 
 #[derive(Debug)]

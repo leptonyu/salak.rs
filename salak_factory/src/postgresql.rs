@@ -62,7 +62,7 @@ pub struct PostgresConfig {
     options: Option<String>,
     #[salak(default = "${salak.application.name:}")]
     application_name: Option<String>,
-    #[salak(default = "1s")]
+    #[salak(default = "500ms")]
     connect_timeout: Option<Duration>,
     keepalives: Option<bool>,
     keepalives_idle: Option<Duration>,

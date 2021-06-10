@@ -11,9 +11,9 @@ pub(crate) use std::time::Duration;
 #[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
 #[derive(FromEnvironment, Debug)]
 pub struct PoolConfig {
-    #[salak(default = "${pool.max_size:}")]
+    #[salak(default = "${pool.max_size:5}")]
     max_size: Option<u32>,
-    #[salak(default = "${pool.min_idle:}")]
+    #[salak(default = "${pool.min_idle:1}")]
     min_idle: Option<u32>,
     #[salak(default = "${pool.thread_name:}")]
     thread_name: Option<String>,
@@ -25,7 +25,7 @@ pub struct PoolConfig {
     max_lifetime: Option<Duration>,
     #[salak(default = "${pool.idle_timeout:}")]
     idle_timeout: Option<Duration>,
-    #[salak(default = "${pool.connection_timeout:5s}")]
+    #[salak(default = "${pool.connection_timeout:1s}")]
     connection_timeout: Option<Duration>,
     #[salak(
         default = "${pool.wait_for_init:false}",

@@ -272,13 +272,13 @@ impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
     #[inline]
     fn into_init(self) -> Init {
         Init(Box::new(move |env, val| {
-            *val.lock() = Box::new(Arc::new(env.init_resource_with_builder::<R>(self)?));
+            *val.lock() = Arc::new(env.init_resource_with_builder::<R>(self)?);
             Ok(())
         }))
     }
 }
 
-type ResVal = Box<dyn Any + Send + Sync>;
+type ResVal = Arc<dyn Any + Send + Sync>;
 
 /// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
 struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>);
@@ -286,7 +286,7 @@ struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>);
 impl ResourceHolder {
     fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
         Self(
-            Mutex::new(Box::new(())),
+            Mutex::new(Arc::new(())),
             Mutex::new(Some(builder.into_init())),
         )
     }
@@ -308,8 +308,9 @@ impl ResourceHolder {
         query_only: bool,
     ) -> Res<Arc<R>> {
         let guard = self.0.lock();
-        if let Some(val) = guard.downcast_ref::<Arc<R>>() {
-            return Ok(val.clone());
+        let arc = Clone::clone(&*guard);
+        if let Ok(v) = arc.downcast::<R>() {
+            return Ok(v);
         }
         drop(guard);
         if query_only {
@@ -325,7 +326,12 @@ impl ResourceHolder {
             namespace
         );
         self.init(env)?;
-        self.get_or_init(env, namespace, true)
+        match self.get_or_init(env, namespace, true) {
+            Err(PropertyError::ResourceNotFound(a, b)) => {
+                Err(PropertyError::ResourceRecursive(a, b))
+            }
+            v => v,
+        }
     }
 }
 
@@ -482,6 +488,7 @@ impl<R: Resource> ResourceBuilder<R> {
 
 #[cfg(test)]
 mod tests {
+
     use crate::*;
     #[test]
     fn app_test() {

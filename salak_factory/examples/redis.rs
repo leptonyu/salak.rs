@@ -21,6 +21,6 @@ fn main() -> Result<(), PropertyError> {
         .configure_args(app_info!())
         .build()?;
     let _service = env.get_resource::<RedisService>()?;
-    // let conn = _service._redis.get()?;
+    let _conn = _service._redis.get()?;
     Ok(())
 }

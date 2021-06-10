@@ -45,6 +45,7 @@ pub struct RedisConfig {
     db: Option<i64>,
     user: Option<String>,
     password: Option<String>,
+    #[salak(default = "500ms")]
     connect_timeout: Option<Duration>,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
