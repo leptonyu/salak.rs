@@ -272,23 +272,20 @@ impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
     #[inline]
     fn into_init(self) -> Init {
         Init(Box::new(move |env, val| {
-            *val.lock() = Arc::new(env.init_resource_with_builder::<R>(self)?);
+            *val.lock() = Some(Arc::new(env.init_resource_with_builder::<R>(self)?));
             Ok(())
         }))
     }
 }
 
-type ResVal = Arc<dyn Any + Send + Sync>;
+type ResVal = Option<Arc<dyn Any + Send + Sync>>;
 
 /// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
 struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>);
 
 impl ResourceHolder {
     fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
-        Self(
-            Mutex::new(Arc::new(())),
-            Mutex::new(Some(builder.into_init())),
-        )
+        Self(Mutex::new(None), Mutex::new(Some(builder.into_init())))
     }
 
     #[inline]
@@ -308,9 +305,10 @@ impl ResourceHolder {
         query_only: bool,
     ) -> Res<Arc<R>> {
         let guard = self.0.lock();
-        let arc = Clone::clone(&*guard);
-        if let Ok(v) = arc.downcast::<R>() {
-            return Ok(v);
+        if let Some(arc) = guard.as_ref() {
+            if let Ok(v) = arc.clone().downcast::<R>() {
+                return Ok(v);
+            }
         }
         drop(guard);
         if query_only {
