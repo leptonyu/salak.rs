@@ -161,7 +161,7 @@ impl SalakBuilder {
     #[cfg(feature = "app")]
     #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
     /// Register [`Resource`] with default builder.
-    pub fn register_default_resource<R: Resource + Send + Sync + Any>(self) -> Self {
+    pub fn register_default_resource<R: Resource + Send + Sync + Any>(self) -> Res<Self> {
         self.register_resource::<R>(ResourceBuilder::default())
     }
 
@@ -172,10 +172,10 @@ impl SalakBuilder {
     pub fn register_resource<R: Resource + Send + Sync + Any>(
         self,
         builder: ResourceBuilder<R>,
-    ) -> Self {
+    ) -> Res<Self> {
         let mut env = self.configure_resource_description_by_builder(&builder);
-        env.resource.register(builder);
-        env
+        env.resource.register(builder)?;
+        Ok(env)
     }
 
     #[inline]

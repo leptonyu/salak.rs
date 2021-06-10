@@ -17,7 +17,9 @@ pub enum PropertyError {
     /// [`Property`] not found
     NotFound(String),
     /// Resource not found
-    ResourceNotFound,
+    ResourceNotFound(&'static str, &'static str),
+    /// Resource already registered.
+    ResourceRegistered(&'static str, &'static str),
 }
 
 #[derive(Debug)]

@@ -45,7 +45,9 @@ pub trait Resource: Sized {
     /// should treat them as a whole logical resource, and the
     /// database resource has responsibility for registering the
     /// dependent resources.
-    fn register_dependent_resources(_: &mut FactoryBuilder<'_>) {}
+    fn register_dependent_resources(_: &mut FactoryBuilder<'_>) -> Void {
+        Ok(())
+    }
 }
 
 #[allow(missing_debug_implementations)]
@@ -92,7 +94,9 @@ impl FactoryContext<'_> {
     }
 
     /// Get all resouces with same type.
-    pub fn get_all_resources<R: Resource + Send + Sync + Any>(&self) -> Res<Vec<Arc<R>>> {
+    pub fn get_all_resources<R: Resource + Send + Sync + Any>(
+        &self,
+    ) -> Res<BTreeMap<&'static str, Arc<R>>> {
         self.fac.res.get_all_refs(self.fac, false)
     }
 }
@@ -111,9 +115,9 @@ pub struct FactoryBuilder<'a> {
 
 impl FactoryBuilder<'_> {
     /// Register dependent resource under current namespace.
-    pub fn register_resource<R: Resource + Send + Sync + Any>(&mut self) {
+    pub fn register_resource<R: Resource + Send + Sync + Any>(&mut self) -> Void {
         self.builder
-            .register::<R>(ResourceBuilder::new(self.namespace));
+            .register::<R>(ResourceBuilder::new(self.namespace))
     }
 
     /// Register dependent resource under current namespace
@@ -121,9 +125,9 @@ impl FactoryBuilder<'_> {
     pub fn register_resource_with_customizer<R: Resource + Send + Sync + Any>(
         &mut self,
         customizer: impl FnOnce(&mut R::Customizer, &R::Config) -> Void + Send + Sync + 'static,
-    ) {
+    ) -> Void {
         self.builder
-            .register::<R>(ResourceBuilder::new(self.namespace).customize(customizer));
+            .register::<R>(ResourceBuilder::new(self.namespace).customize(customizer))
     }
 }
 
@@ -141,6 +145,7 @@ impl<T: Service> Resource for T {
 
     type Customizer = ();
 
+    #[inline]
     fn create(
         _: Self::Config,
         factory: &FactoryContext<'_>,
@@ -163,16 +168,16 @@ impl<T: Service> Resource for T {
 /// redis client resource, redis monitor resource, and other
 /// relative resources.
 ///
-/// In redis client resource, it needs expose configuration for
+/// * In redis client resource, it needs expose configuration for
 /// users to specify basic parameters for initializing redis
 /// client.
 ///
-/// In redis monitor resource, it may need other common resource
+/// * In redis monitor resource, it may need other common resource
 /// such as how to send metrics. So it's responsibility is
 /// collecting the redis metrics and use common metric resource
 /// to send the metrics.
 ///
-/// And other resources may be added in the redis client
+/// * And other resources may be added in the redis client
 /// configuration.
 ///
 /// Users may register redis client configuration resource to
@@ -194,6 +199,7 @@ pub trait Factory: Environment {
         namespace: &'static str,
     ) -> Res<Arc<R>>;
 
+    #[inline]
     /// Initialize [`Resource`].
     fn init_resource<R: Resource>(&self) -> Res<R> {
         self.init_resource_with_builder(ResourceBuilder::default())
@@ -243,15 +249,30 @@ mod warp {
     impl_container!(Cell RefCell Mutex Rc Arc RwLock);
 }
 
+impl<T: Resource> Resource for Option<T> {
+    type Config = T::Config;
+    type Customizer = T::Customizer;
+
+    fn create(
+        config: Self::Config,
+        factory: &FactoryContext<'_>,
+        customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
+    ) -> Res<Self> {
+        match T::create(config, factory, customizer) {
+            Ok(v) => Ok(Some(v)),
+            Err(PropertyError::ResourceNotFound(_, _)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 struct Init(Box<dyn FnOnce(&Salak, &Mutex<ResVal>) -> Void + Send>);
 
 impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
     #[inline]
     fn into_init(self) -> Init {
         Init(Box::new(move |env, val| {
-            let v = Box::new(Arc::new(env.init_resource_with_builder::<R>(self)?));
-            let mut g = val.lock();
-            *g = v;
+            *val.lock() = Box::new(Arc::new(env.init_resource_with_builder::<R>(self)?));
             Ok(())
         }))
     }
@@ -283,7 +304,7 @@ impl ResourceHolder {
     fn get_or_init<R: Resource + Send + Sync + 'static>(
         &self,
         env: &Salak,
-        _namespace: &'static str,
+        namespace: &'static str,
         query_only: bool,
     ) -> Res<Arc<R>> {
         let guard = self.0.lock();
@@ -292,16 +313,19 @@ impl ResourceHolder {
         }
         drop(guard);
         if query_only {
-            return Err(PropertyError::ResourceNotFound);
+            return Err(PropertyError::ResourceNotFound(
+                namespace,
+                std::any::type_name::<R>(),
+            ));
         }
         #[cfg(feature = "log")]
         log::info!(
             "Init resource ({}) at namespace [{}].",
             std::any::type_name::<R>(),
-            _namespace
+            namespace
         );
         self.init(env)?;
-        self.get_or_init(env, _namespace, true)
+        self.get_or_init(env, namespace, true)
     }
 }
 
@@ -325,26 +349,30 @@ impl ResourceRegistry {
     pub(crate) fn register<R: Resource + Send + Sync + Any>(
         &mut self,
         builder: ResourceBuilder<R>,
-    ) {
+    ) -> Void {
         let namespace = builder.namespace;
-        let _ = self
+        let map = self
             .0
             .entry(TypeId::of::<R>())
-            .or_insert_with(|| BTreeMap::new())
-            .entry(namespace)
-            .or_insert_with(move || {
-                #[cfg(feature = "log")]
-                log::info!(
-                    "Register resource ({}) at namespace [{}].",
-                    std::any::type_name::<R>(),
-                    namespace
-                );
-                ResourceHolder::new(builder)
-            });
+            .or_insert_with(|| BTreeMap::new());
+
+        if map.contains_key(namespace) {
+            return Err(PropertyError::ResourceRegistered(
+                namespace,
+                std::any::type_name::<R>(),
+            ));
+        }
+        #[cfg(feature = "log")]
+        log::info!(
+            "Register resource ({}) at namespace [{}].",
+            std::any::type_name::<R>(),
+            namespace
+        );
+        map.insert(namespace, ResourceHolder::new(builder));
         R::register_dependent_resources(&mut FactoryBuilder {
             builder: self,
             namespace,
-        });
+        })
     }
 
     #[inline]
@@ -361,18 +389,22 @@ impl ResourceRegistry {
         {
             return v.get_or_init(env, namespace, query_only);
         }
-        Err(PropertyError::ResourceNotFound)
+        Err(PropertyError::ResourceNotFound(
+            namespace,
+            std::any::type_name::<R>(),
+        ))
     }
 
+    #[inline]
     fn get_all_refs<R: Resource + Send + Sync + Any>(
         &self,
         env: &Salak,
         query_only: bool,
-    ) -> Res<Vec<Arc<R>>> {
-        let mut r = vec![];
+    ) -> Res<BTreeMap<&'static str, Arc<R>>> {
+        let mut r = BTreeMap::new();
         for map in self.0.get(&TypeId::of::<R>()) {
             for (namespace, v) in map {
-                r.push(v.get_or_init(env, namespace, query_only)?);
+                r.insert(*namespace, v.get_or_init(env, namespace, query_only)?);
             }
         }
         Ok(r)
@@ -389,7 +421,6 @@ impl Factory for Salak {
         self.res.get_ref(namespace, self, true)
     }
 
-    #[inline]
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R> {
         let config = if builder.namespace.is_empty() {
             self.require::<R::Config>(<R::Config>::prefix())
@@ -417,25 +448,28 @@ pub struct ResourceBuilder<R: Resource> {
 
 impl<R: Resource> Default for ResourceBuilder<R> {
     fn default() -> Self {
-        Self {
-            namespace: "",
-            customizer: Box::new(|_, _| Ok(())),
-        }
+        Self::new("")
     }
 }
 
 impl<R: Resource> ResourceBuilder<R> {
+    #[inline]
     /// Create resource builder by namespace.
     pub fn new(namespace: &'static str) -> Self {
-        ResourceBuilder::default().namespace(namespace)
+        Self {
+            namespace,
+            customizer: Box::new(|_, _| Ok(())),
+        }
     }
 
+    #[inline]
     /// Configure namespace.
     pub fn namespace(mut self, namespace: &'static str) -> Self {
         self.namespace = namespace;
         self
     }
 
+    #[inline]
     /// Configure customize.
     pub fn customize(
         mut self,
@@ -456,6 +490,7 @@ mod tests {
         assert_eq!(true, v.is_err());
         let env = Salak::builder()
             .register_default_resource::<()>()
+            .unwrap()
             .build()
             .unwrap();
         let v = env.get_resource::<()>();

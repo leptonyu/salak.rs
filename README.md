@@ -59,9 +59,9 @@ fn main() -> Result<(), PropertyError> {
         .filter_level(log::LevelFilter::Info)
         .try_init()?;
     let env = Salak::builder()
-        .register_default_resource::<RedisService>()
-        .register_default_resource::<RedisPool>()
-        .register_resource::<RedisPool>(ResourceBuilder::new("secondary"))
+        .register_default_resource::<RedisService>()?
+        .register_default_resource::<RedisPool>()?
+        .register_resource::<RedisPool>(ResourceBuilder::new("secondary"))?
         .configure_args(app_info!())
         .build()?;
     let _service = env.get_resource::<RedisService>()?;

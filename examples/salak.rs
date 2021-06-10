@@ -25,7 +25,7 @@ fn main() -> Result<(), PropertyError> {
     let env = Salak::builder()
         .configure_description::<Config>()
         .configure_args(app_info!())
-        .register_default_resource::<()>()
+        .register_default_resource::<()>()?
         .build()?;
     for _i in 0..1000 {
         log::info!("Round {}", _i);
