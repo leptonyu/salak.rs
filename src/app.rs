@@ -1,10 +1,9 @@
 use std::{
     any::{Any, TypeId},
     cell::{Cell, RefCell},
-    collections::HashMap,
+    collections::BTreeMap,
     rc::Rc,
     sync::{Arc, Mutex, RwLock},
-    time::Duration,
 };
 
 use crate::*;
@@ -102,7 +101,7 @@ impl FactoryContext<'_> {
 
 /// Register dependent resources under same namespace.
 ///
-/// Only relavent resources can be registered by current 
+/// Only relavent resources can be registered by current
 /// resource. With this restriction, we can easily extend
 /// resource to multiple instances.
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -238,39 +237,41 @@ macro_rules! impl_container {
 
 impl_container!(Cell RefCell Mutex Rc Arc RwLock);
 
-struct Init(Box<dyn FnOnce(&Salak) -> Res<Box<dyn Any + Send + Sync>> + Send>);
+struct Init(Box<dyn FnOnce(&Salak, &Mutex<ResVal>) -> Void + Send>);
 
 impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
     #[inline]
     fn into_init(self) -> Init {
-        Init(Box::new(move |env| {
-            let v: Box<dyn Any + Send + Sync> =
-                Box::new(Arc::new(env.init_resource_with_builder::<R>(self)?));
-            Ok(v)
+        Init(Box::new(move |env, val| {
+            let v = Box::new(Arc::new(env.init_resource_with_builder::<R>(self)?));
+            let mut g = val.lock().unwrap();
+            *g = v;
+            Ok(())
         }))
     }
 }
 
-type ResVal = (Box<dyn Any + Send + Sync>, Option<Init>);
+type ResVal = Box<dyn Any + Send + Sync>;
 
 /// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
-struct ResourceHolder(
-    Mutex<ResVal>,
-    Box<dyn Fn(&Salak, &ResourceHolder) -> Void + Send + Sync>,
-);
+struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>);
 
 impl ResourceHolder {
     fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
-        let namespace = builder.namespace;
         Self(
-            Mutex::new((Box::new(0u8), Some(builder.into_init()))),
-            Box::new(move |env, holder| holder.get_or_init::<R>(env, namespace, false).map(|_| ())),
+            Mutex::new(Box::new(0u8)),
+            Mutex::new(Some(builder.into_init())),
         )
     }
 
     #[inline]
     fn init(&self, env: &Salak) -> Void {
-        (self.1)(env, self)
+        let mut guard = self.1.lock().unwrap();
+        if let Some(b) = guard.take() {
+            drop(guard);
+            return (b.0)(env, &self.0);
+        }
+        Ok(())
     }
 
     fn get_or_init<R: Resource + Send + Sync + 'static>(
@@ -279,64 +280,30 @@ impl ResourceHolder {
         _namespace: &'static str,
         query_only: bool,
     ) -> Res<Arc<R>> {
-        loop {
-            let mut guard = self.0.lock().unwrap();
-            if let Some(val) = guard.0.downcast_ref::<Arc<R>>() {
-                return Ok(val.clone());
-            }
-            if query_only {
-                return Err(PropertyError::ResourceNotFound);
-            }
-            #[cfg(feature = "log")]
-            log::info!(
-                "Init resource ({}) at namespace [{}].",
-                std::any::type_name::<R>(),
-                _namespace
-            );
-            if let Some(i) = guard.0.downcast_mut::<u8>() {
-                if *i == 1 {
-                    drop(guard);
-                    std::thread::sleep(Duration::from_millis(1));
-                    continue;
-                } else if *i != 0 {
-                    return Err(PropertyError::ResourceNotFound);
-                }
-                *i = 1;
-            } else {
-                return Err(PropertyError::ResourceNotFound);
-            }
-            let ret = match guard.1.take() {
-                Some(init) => init,
-                _ => {
-                    guard.0 = Box::new(2u8);
-                    return Err(PropertyError::ResourceNotFound);
-                }
-            };
-            drop(guard);
-            let ret = (ret.0)(env);
-            let mut guard = self.0.lock().unwrap();
-            return ret
-                .and_then(|op| {
-                    op.downcast::<Arc<R>>()
-                        .map(|v| {
-                            guard.0 = v.clone();
-                            *v
-                        })
-                        .map_err(|_| PropertyError::ResourceNotFound)
-                })
-                .map_err(|e| {
-                    guard.0 = Box::new(3u8);
-                    e
-                });
+        let guard = self.0.lock().unwrap();
+        if let Some(val) = guard.downcast_ref::<Arc<R>>() {
+            return Ok(val.clone());
         }
+        if query_only {
+            return Err(PropertyError::ResourceNotFound);
+        }
+        #[cfg(feature = "log")]
+        log::info!(
+            "Init resource ({}) at namespace [{}].",
+            std::any::type_name::<R>(),
+            _namespace
+        );
+        drop(guard);
+        self.init(env)?;
+        self.get_or_init(env, _namespace, true)
     }
 }
 
-pub(crate) struct ResourceRegistry(HashMap<TypeId, HashMap<&'static str, ResourceHolder>>);
+pub(crate) struct ResourceRegistry(BTreeMap<TypeId, BTreeMap<&'static str, ResourceHolder>>);
 
 impl ResourceRegistry {
     pub(crate) fn new() -> Self {
-        Self(HashMap::new())
+        Self(BTreeMap::new())
     }
 
     pub(crate) fn initialize(&self, env: &Salak) -> Void {
@@ -357,7 +324,7 @@ impl ResourceRegistry {
         let _ = self
             .0
             .entry(TypeId::of::<R>())
-            .or_insert_with(|| HashMap::new())
+            .or_insert_with(|| BTreeMap::new())
             .entry(namespace)
             .or_insert_with(move || {
                 #[cfg(feature = "log")]
