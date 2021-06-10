@@ -1,7 +1,7 @@
+use parking_lot::Mutex;
 #[cfg(feature = "app")]
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 #[cfg(feature = "args")]
 use crate::AppInfo;

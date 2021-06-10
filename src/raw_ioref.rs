@@ -1,8 +1,8 @@
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 use crate::{
-    source_raw::PropertyRegistryInternal, FromEnvironment, Property, PropertyError, Res,
-    SalakContext, Void,
+    source_raw::PropertyRegistryInternal, FromEnvironment, Property, Res, SalakContext, Void,
 };
 
 #[cfg(feature = "derive")]
@@ -39,20 +39,14 @@ impl<T: Clone> IORef<T> {
 
     #[inline]
     fn set(&self, val: T) -> Void {
-        let mut guard = self
-            .0
-            .lock()
-            .map_err(|_| PropertyError::parse_fail("IORef get fail"))?;
+        let mut guard = self.0.lock();
         *guard = val;
         Ok(())
     }
 
     /// Get value from reference.
     pub fn get_val(&self) -> Res<T> {
-        let guard = self
-            .0
-            .lock()
-            .map_err(|_| PropertyError::parse_fail("IORef get fail"))?;
+        let guard = self.0.lock();
         Ok(T::clone(&*guard))
     }
 }

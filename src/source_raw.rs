@@ -1,5 +1,5 @@
 use core::ops::Deref;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::{collections::HashSet, path::PathBuf, vec};
 
 use crate::{
@@ -193,7 +193,7 @@ impl<'a> PropertyRegistryInternal<'a> {
                 .collect::<Result<Vec<PS<'_>>, PropertyError>>()?,
         };
 
-        let guard = iorefs.lock().unwrap();
+        let guard = iorefs.lock();
         for io in guard.iter() {
             io.reload_ref(&registry, iorefs)?;
         }
@@ -329,7 +329,7 @@ impl<'a> SalakContext<'a> {
         &self,
         ioref: &IORef<T>,
     ) {
-        let mut guard = self.iorefs.lock().unwrap();
+        let mut guard = self.iorefs.lock();
         let io = ioref.clone();
         guard.push(Box::new(io));
     }

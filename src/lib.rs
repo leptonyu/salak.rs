@@ -127,7 +127,7 @@
     variant_size_differences
 )]
 
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 #[cfg(feature = "derive")]
 use crate::derive::KeyDesc;

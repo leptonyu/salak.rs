@@ -1007,6 +1007,7 @@ dependencies = [
  "lazy_static",
  "log",
  "pad",
+ "parking_lot",
  "quickcheck",
  "quickcheck_macros",
  "rand",

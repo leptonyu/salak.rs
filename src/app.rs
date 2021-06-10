@@ -1,12 +1,10 @@
+use crate::*;
+use parking_lot::Mutex;
 use std::{
     any::{Any, TypeId},
-    cell::{Cell, RefCell},
     collections::BTreeMap,
-    rc::Rc,
-    sync::{Arc, Mutex, RwLock},
+    sync::Arc,
 };
-
-use crate::*;
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Resource can be initialized in a standard way by [`Salak`].
@@ -235,7 +233,15 @@ macro_rules! impl_container {
     )+};
 }
 
-impl_container!(Cell RefCell Mutex Rc Arc RwLock);
+mod warp {
+    use crate::*;
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+        sync::{Arc, Mutex, RwLock},
+    };
+    impl_container!(Cell RefCell Mutex Rc Arc RwLock);
+}
 
 struct Init(Box<dyn FnOnce(&Salak, &Mutex<ResVal>) -> Void + Send>);
 
@@ -244,7 +250,7 @@ impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
     fn into_init(self) -> Init {
         Init(Box::new(move |env, val| {
             let v = Box::new(Arc::new(env.init_resource_with_builder::<R>(self)?));
-            let mut g = val.lock().unwrap();
+            let mut g = val.lock();
             *g = v;
             Ok(())
         }))
@@ -259,14 +265,14 @@ struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>);
 impl ResourceHolder {
     fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
         Self(
-            Mutex::new(Box::new(0u8)),
+            Mutex::new(Box::new(())),
             Mutex::new(Some(builder.into_init())),
         )
     }
 
     #[inline]
     fn init(&self, env: &Salak) -> Void {
-        let mut guard = self.1.lock().unwrap();
+        let mut guard = self.1.lock();
         if let Some(b) = guard.take() {
             drop(guard);
             return (b.0)(env, &self.0);
@@ -280,10 +286,11 @@ impl ResourceHolder {
         _namespace: &'static str,
         query_only: bool,
     ) -> Res<Arc<R>> {
-        let guard = self.0.lock().unwrap();
+        let guard = self.0.lock();
         if let Some(val) = guard.downcast_ref::<Arc<R>>() {
             return Ok(val.clone());
         }
+        drop(guard);
         if query_only {
             return Err(PropertyError::ResourceNotFound);
         }
@@ -293,7 +300,6 @@ impl ResourceHolder {
             std::any::type_name::<R>(),
             _namespace
         );
-        drop(guard);
         self.init(env)?;
         self.get_or_init(env, _namespace, true)
     }
