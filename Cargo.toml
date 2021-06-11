@@ -29,6 +29,7 @@ all-features = true
 
 [dependencies]
 clap = {optional = true, version = "^2.33"}
+ipnet = {optional = true, version = '^2.3'}
 lazy_static = '^1.4'
 log = {optional = true, version = '^0.4'}
 pad = {optional = true, version = "0.1"}

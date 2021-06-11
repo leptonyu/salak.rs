@@ -71,6 +71,10 @@ pub mod redis_default;
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 pub mod redis_cluster;
 
+#[cfg(feature = "metric")]
+#[cfg_attr(docsrs, doc(cfg(feature = "metric")))]
+pub mod metric;
+
 /// Wrap enum for implement [`EnumProperty`].
 #[derive(Debug)]
 pub(crate) struct WrapEnum<T>(pub(crate) T);

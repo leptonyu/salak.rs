@@ -6,8 +6,6 @@ use salak_factory::redis_default::RedisPool;
 #[derive(Service)]
 struct RedisService {
     _redis: Arc<RedisPool>,
-    #[salak(namespace = "secondary")]
-    _redi2: Arc<RedisPool>,
 }
 
 fn main() -> Result<(), PropertyError> {
@@ -17,7 +15,6 @@ fn main() -> Result<(), PropertyError> {
     let env = Salak::builder()
         .register_default_resource::<RedisService>()?
         .register_default_resource::<RedisPool>()?
-        .register_resource::<RedisPool>(ResourceBuilder::new("secondary"))?
         .configure_args(app_info!())
         .build()?;
     let _service = env.get_resource::<RedisService>()?;

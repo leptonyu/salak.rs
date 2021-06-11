@@ -421,6 +421,13 @@ impl_property_from_str!(
     OsString
 );
 
+#[cfg(feature = "ipnet")]
+mod ipnet {
+    use crate::*;
+    use ipnet::*;
+    impl_property_from_str!(IpNet, Ipv4Net, Ipv6Net);
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;
