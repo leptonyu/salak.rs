@@ -6,7 +6,7 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use salak::*;
 use std::{net::SocketAddr, time::UNIX_EPOCH};
 
-/// Init Metric
+/// Metric.
 #[allow(missing_debug_implementations, missing_copy_implementations)]
 pub struct Metric;
 

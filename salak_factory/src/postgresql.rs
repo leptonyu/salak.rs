@@ -180,7 +180,7 @@ impl Resource for PostgresPool {
 
     fn create(
         conf: Self::Config,
-        cxt: &FactoryContext<'_>,
+        _cxt: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
     ) -> Result<Self, PropertyError> {
         let tls_connector = Tls::new(&conf.ssl)?;
@@ -217,7 +217,7 @@ impl Resource for PostgresPool {
         #[cfg(feature = "log")]
         log::info!(
             "Postgres at [{}] hosts are {:?}",
-            cxt.current_namespace(),
+            _cxt.current_namespace(),
             config.get_hosts()
         );
 
