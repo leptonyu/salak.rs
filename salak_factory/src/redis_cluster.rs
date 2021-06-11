@@ -43,6 +43,8 @@ pub struct RedisClusterConfig {
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_cluster")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisClusterConnectionManager {
+    #[allow(dead_code)]
+    namespace: &'static str,
     client: ClusterClient,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
@@ -60,6 +62,8 @@ impl ManageConnection for RedisClusterConnectionManager {
         }
         conn.set_read_timeout(self.read_timeout)?;
         conn.set_write_timeout(self.write_timeout)?;
+        #[cfg(feature = "log")]
+        log::trace!("Redis [{}] get connection", self.namespace);
         Ok(conn)
     }
 
@@ -90,14 +94,14 @@ impl Resource for RedisClusterPool {
 
     fn create(
         conf: Self::Config,
-        _: &FactoryContext<'_>,
+        cxt: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
     ) -> Result<Self, PropertyError> {
         let mut customize = PoolCustomizer::new();
         (customizer)(&mut customize, &conf)?;
         let mut config = vec![];
-        for url in conf.url {
-            config.push(ConnectionInfo::from_str(&url)?)
+        for url in conf.url.iter() {
+            config.push(ConnectionInfo::from_str(url)?)
         }
         let mut builder = ClusterClientBuilder::new(config);
         if let Some(password) = conf.password {
@@ -108,8 +112,15 @@ impl Resource for RedisClusterPool {
         }
         let client = builder.open()?;
 
+        #[cfg(feature = "log")]
+        log::info!(
+            "Redis cluster at [{}] host list {:?}",
+            cxt.current_namespace(),
+            conf.url
+        );
         Ok(RedisClusterPool(conf.pool.build_pool(
             RedisClusterConnectionManager {
+                namespace: cxt.current_namespace(),
                 client,
                 read_timeout: conf.read_timeout,
                 write_timeout: conf.write_timeout,

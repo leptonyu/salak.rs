@@ -8,24 +8,42 @@ use super::*;
 pub(crate) use std::time::Duration;
 
 /// Generic Pool Configuration.
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "pool")))]
 #[derive(FromEnvironment, Debug)]
 pub struct PoolConfig {
-    #[salak(default = "${pool.max_size:5}")]
+    #[salak(
+        default = "${pool.max_size:5}",
+        desc = "The maximum number of connections."
+    )]
     max_size: Option<u32>,
-    #[salak(default = "${pool.min_idle:1}")]
+    #[salak(
+        default = "${pool.min_idle:1}",
+        desc = "The minimum idle connection count."
+    )]
     min_idle: Option<u32>,
-    #[salak(default = "${pool.thread_name:}")]
+    #[salak(default = "${pool.thread_name:}", desc = "Pool thread name.")]
     thread_name: Option<String>,
-    #[salak(default = "${pool.thread_nums:}")]
+    #[salak(default = "${pool.thread_nums:}", desc = "Pool thread size.")]
     thread_nums: Option<usize>,
-    #[salak(default = "${pool.test_on_check_out:}")]
+    #[salak(
+        default = "${pool.test_on_check_out:}",
+        desc = "Test connection on check out."
+    )]
     test_on_check_out: Option<bool>,
-    #[salak(default = "${pool.max_lifetime:}")]
+    #[salak(
+        default = "${pool.max_lifetime:}",
+        desc = "Maximum connection lifetime."
+    )]
     max_lifetime: Option<Duration>,
-    #[salak(default = "${pool.idle_timeout:}")]
+    #[salak(
+        default = "${pool.idle_timeout:}",
+        desc = "Idle connections keep time."
+    )]
     idle_timeout: Option<Duration>,
-    #[salak(default = "${pool.connection_timeout:1s}")]
+    #[salak(
+        default = "${pool.connection_timeout:1s}",
+        desc = "Connection timeout."
+    )]
     connection_timeout: Option<Duration>,
     #[salak(
         default = "${pool.wait_for_init:false}",
@@ -44,7 +62,7 @@ macro_rules! set_option_field_return {
 
 /// PoolCustomizer
 #[allow(missing_debug_implementations)]
-#[cfg_attr(docsrs, doc(cfg(feature = "enable_pool")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "pool")))]
 pub struct PoolCustomizer<M: ManageConnection> {
     /// Error handler
     pub(crate) error_handler: Option<Box<dyn HandleError<M::Error>>>,

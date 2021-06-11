@@ -1,14 +1,16 @@
 //! Postgresql connection pool resource.
+use native_tls::{Certificate, TlsConnector};
 use postgres::{
     config::{ChannelBinding, TargetSessionAttrs},
     error::DbError,
-    tls::{MakeTlsConnect, TlsConnect},
-    Client, Config, Error, NoTls, Socket,
+    Client, Config, Error, NoTls,
 };
+use postgres_native_tls::MakeTlsConnector;
 use r2d2::{ManageConnection, Pool};
-use salak::*;
+use salak::{wrapper::NonEmptyVec, *};
 use std::{
     ops::{Deref, DerefMut},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -47,18 +49,17 @@ use crate::{
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "postgresql")]
 pub struct PostgresConfig {
-    #[salak(
-        default = "postgresql://postgres@localhost",
-        desc = "Postgresql url, can reset by host & port."
-    )]
-    url: Option<String>,
-    #[salak(desc = "Postgresql host")]
-    host: Option<String>,
-    #[salak(desc = "Postgresql port")]
+    #[salak(desc = "Host list")]
+    host: NonEmptyVec<String>,
+    #[salak(desc = "Port")]
     port: Option<u16>,
-    user: Option<String>,
+    #[salak(default = "postgres", desc = "Username")]
+    user: String,
+    #[salak(desc = "Password")]
     password: Option<String>,
+    #[salak(desc = "Database name")]
     dbname: Option<String>,
+    #[salak(desc = "Database options")]
     options: Option<String>,
     #[salak(default = "${salak.application.name:}")]
     application_name: Option<String>,
@@ -70,7 +71,15 @@ pub struct PostgresConfig {
     must_allow_write: bool,
     #[salak(desc = "disable/prefer/require")]
     channel_binding: Option<WrapEnum<ChannelBinding>>,
+    ssl: Option<PostgresSslConfig>,
     pool: PoolConfig,
+}
+
+/// Postgresql ssl configuration.
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
+#[derive(FromEnvironment, Debug)]
+pub struct PostgresSslConfig {
+    cert_path: PathBuf,
 }
 
 impl_enum_property!(WrapEnum<ChannelBinding> {
@@ -79,26 +88,43 @@ impl_enum_property!(WrapEnum<ChannelBinding> {
     "require" => WrapEnum(ChannelBinding::Require)
 });
 
-/// Postgres manage connection smart pointer.
-#[derive(Debug)]
-#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
-pub struct PostgresConnectionManager<T> {
-    config: Config,
-    tls_connector: T,
+enum Tls {
+    Noop(NoTls),
+    Native(MakeTlsConnector),
 }
 
-impl<T> ManageConnection for PostgresConnectionManager<T>
-where
-    T: MakeTlsConnect<Socket> + Clone + 'static + Sync + Send,
-    T::TlsConnect: Send,
-    T::Stream: Send,
-    <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
-{
+impl Tls {
+    fn new(config: &Option<PostgresSslConfig>) -> Result<Self, PropertyError> {
+        Ok(match config {
+            Some(ssl) => {
+                let body = std::fs::read(&ssl.cert_path)?;
+                let cert = Certificate::from_pem(&body)?;
+                Tls::Native(MakeTlsConnector::new(
+                    TlsConnector::builder().add_root_certificate(cert).build()?,
+                ))
+            }
+            _ => Tls::Noop(NoTls),
+        })
+    }
+}
+
+/// Postgres manage connection smart pointer.
+#[allow(missing_debug_implementations)]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
+pub struct PostgresConnectionManager {
+    config: Config,
+    tls_connector: Tls,
+}
+
+impl ManageConnection for PostgresConnectionManager {
     type Connection = Client;
     type Error = Error;
 
     fn connect(&self) -> Result<Client, Error> {
-        self.config.connect(self.tls_connector.clone())
+        match &self.tls_connector {
+            Tls::Noop(_) => self.config.connect(NoTls),
+            Tls::Native(v) => self.config.connect(v.clone()),
+        }
     }
 
     fn is_valid(&self, client: &mut Client) -> Result<(), Error> {
@@ -123,36 +149,30 @@ macro_rules! set_option_field {
     };
 }
 
-/// Postgres Customizer.
+/// Postgresql connection thread pool.
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
-pub struct PostgresCustomizer {
-    /// Sets the notice callback.
-    notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
-    /// Set pool customizer.
-    pool: PoolCustomizer<PostgresConnectionManager<NoTls>>,
-}
-
-impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager<NoTls>);
-
-impl PostgresCustomizer {
-    /// Configure notice callback
-    pub fn configure_notice_callback(&mut self, handler: impl Fn(DbError) + Sync + Send + 'static) {
-        self.notice_callback = Some(Box::new(handler))
-    }
-}
-
-/// Postgresql connection pool.
-#[allow(missing_debug_implementations)]
-pub struct PostgresPool(Pool<PostgresConnectionManager<NoTls>>);
+pub struct PostgresPool(Pool<PostgresConnectionManager>);
 
 impl Deref for PostgresPool {
-    type Target = Pool<PostgresConnectionManager<NoTls>>;
+    type Target = Pool<PostgresConnectionManager>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
+
+/// Postgres Customizer.
+#[allow(missing_debug_implementations)]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
+pub struct PostgresCustomizer {
+    /// Sets the notice callback.
+    pub(crate) notice_callback: Option<Box<dyn Fn(DbError) + Sync + Send>>,
+    /// Set pool customizer.
+    pub(crate) pool: PoolCustomizer<PostgresConnectionManager>,
+}
+
+impl_pool_ref!(PostgresCustomizer.pool = PostgresConnectionManager);
 
 impl Resource for PostgresPool {
     type Config = PostgresConfig;
@@ -160,24 +180,24 @@ impl Resource for PostgresPool {
 
     fn create(
         conf: Self::Config,
-        _: &FactoryContext<'_>,
+        cxt: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
     ) -> Result<Self, PropertyError> {
+        let tls_connector = Tls::new(&conf.ssl)?;
         let mut customize = PostgresCustomizer {
             notice_callback: None,
             pool: PoolCustomizer::new(),
         };
         (customizer)(&mut customize, &conf)?;
-        let mut config = match conf.url {
-            Some(url) => std::str::FromStr::from_str(&url)?,
-            None => postgres::Config::new(),
-        };
-        set_option_field!(conf, config, &, user);
+        let mut config = postgres::Config::new();
+        config.user(&conf.user);
         set_option_field!(conf, config, password);
         set_option_field!(conf, config, &, dbname);
         set_option_field!(conf, config, &, options);
         set_option_field!(conf, config, &, application_name);
-        set_option_field!(conf, config, &, host);
+        for host in conf.host.iter() {
+            config.host(host);
+        }
         set_option_field!(conf, config, port);
         set_option_field!(conf, config, connect_timeout);
         set_option_field!(conf, config, keepalives);
@@ -194,11 +214,26 @@ impl Resource for PostgresPool {
             config.channel_binding(channel_binding.0);
         }
 
+        #[cfg(feature = "log")]
+        log::info!(
+            "Postgres at [{}] hosts are {:?}",
+            cxt.current_namespace(),
+            config.get_hosts()
+        );
+
         let m = PostgresConnectionManager {
             config,
-            tls_connector: NoTls,
+            tls_connector,
         };
+
         Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
+    }
+}
+
+impl PostgresCustomizer {
+    /// Configure notice callback
+    pub fn configure_notice_callback(&mut self, handler: impl Fn(DbError) + Sync + Send + 'static) {
+        self.notice_callback = Some(Box::new(handler))
     }
 }
 

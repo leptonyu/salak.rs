@@ -3,7 +3,7 @@ use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
-use std::{ops::Deref, str::FromStr, time::Duration};
+use std::{ops::Deref, time::Duration};
 
 /// Redis Connection Pool Configuration.
 ///
@@ -33,7 +33,6 @@ use std::{ops::Deref, str::FromStr, time::Duration};
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "redis")]
 pub struct RedisConfig {
-    url: Option<String>,
     #[salak(default = "localhost")]
     host: String,
     #[salak(default = "6379")]
@@ -56,6 +55,8 @@ pub struct RedisConfig {
 #[cfg_attr(docsrs, doc(cfg(feature = "redis_default")))]
 #[allow(missing_debug_implementations)]
 pub struct RedisConnectionManager {
+    #[allow(dead_code)]
+    namespace: &'static str,
     config: ConnectionInfo,
     connect_timeout: Option<Duration>,
     read_timeout: Option<Duration>,
@@ -74,6 +75,12 @@ impl ManageConnection for RedisConnectionManager {
         }?;
         conn.set_read_timeout(self.read_timeout)?;
         conn.set_write_timeout(self.write_timeout)?;
+        #[cfg(feature = "log")]
+        log::trace!(
+            "Redis [{}] get connection at {}",
+            self.namespace,
+            self.config.addr
+        );
         Ok(conn)
     }
 
@@ -105,34 +112,37 @@ impl Resource for RedisPool {
 
     fn create(
         conf: Self::Config,
-        _: &FactoryContext<'_>,
+        _cxt: &FactoryContext<'_>,
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Result<(), PropertyError>,
     ) -> Result<Self, PropertyError> {
         let mut customize = PoolCustomizer::new();
         (customizer)(&mut customize, &conf)?;
-        let config = if let Some(url) = conf.url {
-            ConnectionInfo::from_str(&url)?
-        } else {
-            let host = conf.host;
-            let port = conf.port;
-            let addr = if conf.ssl {
-                ConnectionAddr::TcpTls {
-                    host,
-                    port,
-                    insecure: conf.ssl_insecure,
-                }
-            } else {
-                ConnectionAddr::Tcp(host, port)
-            };
-            ConnectionInfo {
-                addr: Box::new(addr),
-                db: conf.db.unwrap_or(0),
-                username: conf.user,
-                passwd: conf.password,
+        let host = conf.host;
+        let port = conf.port;
+        let addr = if conf.ssl {
+            ConnectionAddr::TcpTls {
+                host,
+                port,
+                insecure: conf.ssl_insecure,
             }
+        } else {
+            ConnectionAddr::Tcp(host, port)
         };
+        let config = ConnectionInfo {
+            addr: Box::new(addr),
+            db: conf.db.unwrap_or(0),
+            username: conf.user,
+            passwd: conf.password,
+        };
+        #[cfg(feature = "log")]
+        log::info!(
+            "Redis at [{}] url is {:?}",
+            _cxt.current_namespace(),
+            config.addr
+        );
         Ok(RedisPool(conf.pool.build_pool(
             RedisConnectionManager {
+                namespace: _cxt.current_namespace(),
                 config,
                 connect_timeout: conf.connect_timeout,
                 read_timeout: conf.read_timeout,

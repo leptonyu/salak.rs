@@ -32,7 +32,7 @@ macro_rules! app_info {
 
 fn parse(s: String) -> Res<(String, String)> {
     if let Some(usize) = s.find("=") {
-        return Ok((s[..usize - 1].to_string(), s[usize..].to_string()));
+        return Ok((s[..usize].to_string(), s[usize + 1..].to_string()));
     }
     Err(PropertyError::parse_fail("Invalid arguments"))
 }
