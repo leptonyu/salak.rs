@@ -242,7 +242,10 @@ mod tests {
     use super::*;
     #[test]
     fn postgres_tests() {
-        let env = Salak::new().unwrap();
+        let env = Salak::builder()
+            .set("postgresql.host[0]", "localhost")
+            .build()
+            .unwrap();
         let pool = env.init_resource::<PostgresPool>();
         assert_eq!(true, pool.is_ok());
     }
