@@ -31,6 +31,14 @@ pub trait Resource: Sized {
         customizer: impl FnOnce(&mut Self::Customizer, &Self::Config) -> Void,
     ) -> Res<Self>;
 
+    /// Action after initialized and registered to registry.
+    /// [`Factory::init_resource()`] and [`Factory::init_resource_with_builder()`]
+    /// will not call this function, because they don't register
+    /// resource to registry.
+    fn post_initialized_and_registered(_res: &Arc<Self>, _factory: &FactoryContext<'_>) -> Void {
+        Ok(())
+    }
+
     /// Register dependent resources. Create resource will only
     /// request for other resources, if the resource is not
     /// registered yet by [`SalakBuilder::register_resource`],
@@ -362,7 +370,14 @@ impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
                 std::any::type_name::<R>(),
                 self.namespace
             );
-            *val.lock() = Some(Arc::new(env.init_resource_with_builder::<R>(self)?));
+            let namespace = self.namespace;
+            let context = FactoryContext {
+                fac: env,
+                namespace,
+            };
+            let res = Arc::new(env.do_init_resource_with_builder::<R>(&context, self)?);
+            R::post_initialized_and_registered(&res, &context)?;
+            *val.lock() = Some(res);
             Ok(())
         }))
     }
@@ -535,6 +550,21 @@ impl ResourceRegistry {
     }
 }
 
+impl Salak {
+    fn do_init_resource_with_builder<R: Resource>(
+        &self,
+        context: &FactoryContext<'_>,
+        builder: ResourceBuilder<R>,
+    ) -> Result<R, PropertyError> {
+        let config = if builder.namespace.is_empty() {
+            self.require::<R::Config>(<R::Config>::prefix())
+        } else {
+            self.require::<R::Config>(&format!("{}.{}", <R::Config>::prefix(), builder.namespace))
+        }?;
+        R::create(config, &context, builder.customizer)
+    }
+}
+
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 impl Factory for Salak {
     #[inline]
@@ -545,20 +575,13 @@ impl Factory for Salak {
         self.res.get_ref(namespace, self, true)
     }
 
+    #[inline]
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R> {
-        let config = if builder.namespace.is_empty() {
-            self.require::<R::Config>(<R::Config>::prefix())
-        } else {
-            self.require::<R::Config>(&format!("{}.{}", <R::Config>::prefix(), builder.namespace))
-        }?;
-        R::create(
-            config,
-            &FactoryContext {
-                fac: self,
-                namespace: builder.namespace,
-            },
-            builder.customizer,
-        )
+        let context = FactoryContext {
+            fac: self,
+            namespace: builder.namespace,
+        };
+        self.do_init_resource_with_builder(&context, builder)
     }
 
     fn run(&mut self) -> Void {

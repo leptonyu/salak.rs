@@ -259,6 +259,16 @@ impl Resource for PostgresPool {
 
         Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
     }
+
+    #[cfg(feature = "metric")]
+    fn post_initialized_and_registered(
+        pool: &Arc<Self>,
+        factory: &FactoryContext<'_>,
+    ) -> Result<(), PropertyError> {
+        PoolConfig::post_pool_initialized_and_registered::<PostgresConnectionManager, Self>(
+            pool, factory,
+        )
+    }
 }
 
 impl PostgresCustomizer {

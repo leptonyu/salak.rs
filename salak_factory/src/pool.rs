@@ -4,6 +4,8 @@ use r2d2::{CustomizeConnection, HandleError, HandleEvent};
 pub(crate) use r2d2::{ManageConnection, Pool};
 use scheduled_thread_pool::ScheduledThreadPool;
 
+use crate::metric::AnyKey;
+
 use super::*;
 pub(crate) use std::time::Duration;
 
@@ -126,6 +128,30 @@ impl PoolConfig {
         } else {
             Ok(build.build_unchecked(m))
         }
+    }
+
+    #[cfg(feature = "metric")]
+    pub(crate) fn post_pool_initialized_and_registered<M: ManageConnection, K: AnyKey>(
+        pool: &Pool<M>,
+        factory: &FactoryContext<'_>,
+    ) -> Result<(), PropertyError> {
+        use crate::metric::Metric;
+        let metric = factory.get_resource::<Metric>()?;
+        let pool = pool.clone();
+        let namespace = factory.current_namespace();
+        metric.add_listen_state(move |env| {
+            let state = pool.state();
+            env.gauge(
+                K::new_key("idle_thread_count", namespace),
+                state.idle_connections as f64,
+            );
+            env.gauge(
+                K::new_key("thread_count", namespace),
+                state.connections as f64,
+            );
+            Ok(())
+        });
+        Ok(())
     }
 }
 

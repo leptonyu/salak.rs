@@ -5,6 +5,7 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, Prometheu
 use parking_lot::Mutex;
 use salak::*;
 use std::{
+    any::Any,
     net::SocketAddr,
     ops::Deref,
     sync::Arc,
@@ -26,6 +27,22 @@ impl Deref for Metric {
         &self.0
     }
 }
+
+/// Turn any to key.
+pub trait AnyKey: Any {
+    /// Create key from name and namespace.
+    fn new_key(name: &'static str, namespace: &'static str) -> Key {
+        Key::from_parts(
+            name,
+            vec![
+                Label::new("namespace", namespace),
+                Label::new("type", std::any::type_name::<Self>()),
+            ],
+        )
+    }
+}
+
+impl<T: Any> AnyKey for T {}
 
 impl Metric {
     /// Get prometheus handle
@@ -50,6 +67,14 @@ impl Metric {
     ) {
         let mut guard = self.1.lock();
         guard.push(Box::new(listen));
+    }
+
+    fn flush(&self) -> Result<(), PropertyError> {
+        let guard = self.1.lock();
+        for i in guard.iter() {
+            (i)(self)?;
+        }
+        Ok(())
     }
 }
 
@@ -105,8 +130,9 @@ impl Resource for Metric {
         builder.submit(|req: Arc<Metric>| {
             let _h = req.handle();
             loop {
+                let _ = req.flush();
                 #[cfg(feature = "log")]
-                log::info!("PROMETHES: \n{}", _h.render());
+                log::info!("PROMETHEUS: \n{}", _h.render());
                 sleep(Duration::from_secs(5));
             }
         })

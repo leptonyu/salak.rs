@@ -5,6 +5,7 @@ use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
 use std::ops::Deref;
+use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 
 /// Redis Connection Pool Configuration.
@@ -128,6 +129,16 @@ impl Resource for RedisClusterPool {
             },
             customize,
         )?))
+    }
+
+    #[cfg(feature = "metric")]
+    fn post_initialized_and_registered(
+        pool: &Arc<Self>,
+        factory: &FactoryContext<'_>,
+    ) -> Result<(), PropertyError> {
+        PoolConfig::post_pool_initialized_and_registered::<RedisClusterConnectionManager, Self>(
+            pool, factory,
+        )
     }
 }
 

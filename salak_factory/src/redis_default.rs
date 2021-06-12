@@ -3,7 +3,7 @@ use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
-use std::{ops::Deref, time::Duration};
+use std::{ops::Deref, sync::Arc, time::Duration};
 
 /// Redis Connection Pool Configuration.
 ///
@@ -150,6 +150,16 @@ impl Resource for RedisPool {
             },
             customize,
         )?))
+    }
+
+    #[cfg(feature = "metric")]
+    fn post_initialized_and_registered(
+        pool: &Arc<Self>,
+        factory: &FactoryContext<'_>,
+    ) -> Result<(), PropertyError> {
+        PoolConfig::post_pool_initialized_and_registered::<RedisConnectionManager, Self>(
+            pool, factory,
+        )
     }
 }
 
