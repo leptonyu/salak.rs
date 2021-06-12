@@ -5,6 +5,7 @@ use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
 use std::ops::Deref;
+#[allow(unused_imports)]
 use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 

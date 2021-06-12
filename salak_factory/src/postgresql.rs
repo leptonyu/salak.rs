@@ -17,10 +17,9 @@ use std::{
 };
 
 #[cfg(feature = "metric")]
-use crate::metric::{Key, Metric};
+use crate::metric::{AnyKey, Key, Metric};
 
 use crate::{
-    metric::AnyKey,
     pool::{PoolConfig, PoolCustomizer},
     WrapEnum,
 };
@@ -285,12 +284,17 @@ impl PostgresCustomizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "metric")]
+    use crate::metric::Metric;
     #[test]
     fn postgres_tests() {
-        let env = Salak::builder()
-            .set("postgresql.host[0]", "localhost")
-            .build()
-            .unwrap();
+        #[allow(unused_mut)]
+        let mut builder = Salak::builder().set("postgresql.host[0]", "localhost");
+        #[cfg(feature = "metric")]
+        {
+            builder = builder.register_default_resource::<Metric>().unwrap();
+        }
+        let env = builder.build().unwrap();
         let pool = env.init_resource::<PostgresPool>();
         assert_eq!(true, pool.is_ok());
     }

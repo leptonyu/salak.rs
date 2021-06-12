@@ -3,6 +3,7 @@ use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
+#[allow(unused_imports)]
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 /// Redis Connection Pool Configuration.

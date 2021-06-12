@@ -224,10 +224,6 @@ impl Metric {
 #[derive(FromEnvironment, Debug)]
 #[salak(prefix = "metric")]
 pub struct MetricConfig {
-    #[salak(default = "${salak.app.name}")]
-    application: String,
-    #[salak(default = "${salak.app.version}")]
-    version: String,
     #[salak(desc = "Metric address, default is :9000")]
     address: Option<SocketAddr>,
     #[salak(desc = "Network metrics")]
@@ -278,9 +274,9 @@ impl Resource for Metric {
     }
 
     fn register_dependent_resources(builder: &mut FactoryBuilder<'_>) -> Result<(), PropertyError> {
-        builder.submit(|req: Arc<Metric>| loop {
+        builder.submit(|_req: Arc<Metric>| loop {
             #[cfg(feature = "log")]
-            log::info!("PROMETHEUS: \n{}", req.render()?);
+            log::info!("PROMETHEUS: \n{}", _req.render()?);
             sleep(Duration::from_secs(5));
         })
     }

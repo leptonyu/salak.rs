@@ -23,7 +23,7 @@
 //! use salak_factory::*;
 //! use salak_factory::redis_cluster::*;
 //! let env = Salak::new().unwrap();
-//! let redis_cluster_pool = env.init_resource::<RedisPool>().unwrap();
+//! let redis_cluster_pool = env.init_resource::<RedisClusterPool>().unwrap();
 //! ```
 //! 3. postgres
 //! ```no_run
