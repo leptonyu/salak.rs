@@ -1,14 +1,57 @@
 //! Metric with prometheus
 use core::f64;
-use ipnet::IpNet;
-use metrics::*;
-use metrics_exporter_prometheus::PrometheusBuilder;
+pub use metrics::*;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
+use parking_lot::Mutex;
 use salak::*;
-use std::{net::SocketAddr, time::UNIX_EPOCH};
+use std::{
+    net::SocketAddr,
+    ops::Deref,
+    sync::Arc,
+    thread::sleep,
+    time::{Duration, UNIX_EPOCH},
+};
 
-/// Metric.
+/// Metric recorder.
 #[allow(missing_debug_implementations, missing_copy_implementations)]
-pub struct Metric;
+pub struct Metric(
+    PrometheusRecorder,
+    Mutex<Vec<Box<dyn Fn(&Metric) -> Result<(), PropertyError> + Send + 'static>>>,
+);
+
+impl Deref for Metric {
+    type Target = dyn Recorder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Metric {
+    /// Get prometheus handle
+    pub fn handle(&self) -> PrometheusHandle {
+        self.0.handle()
+    }
+
+    /// Update gauge.
+    pub fn gauge<K: Into<Key>>(&self, k: K, val: f64) {
+        self.0.update_gauge(&k.into(), GaugeValue::Absolute(val));
+    }
+
+    /// Increment count.
+    pub fn count_inc<K: Into<Key>>(&self, k: K, val: u64) {
+        self.0.increment_counter(&k.into(), val);
+    }
+
+    /// Add listen state.
+    pub fn add_listen_state(
+        &self,
+        listen: impl Fn(&Self) -> Result<(), PropertyError> + Send + 'static,
+    ) {
+        let mut guard = self.1.lock();
+        guard.push(Box::new(listen));
+    }
+}
 
 /// Metric configuration.
 #[derive(FromEnvironment, Debug)]
@@ -18,8 +61,8 @@ pub struct MetricConfig {
     application: String,
     #[salak(default = "${salak.app.version}")]
     version: String,
+    #[salak(desc = "Metric address, default is :9000")]
     address: Option<SocketAddr>,
-    allowed: Vec<IpNet>,
 }
 
 macro_rules! set_config {
@@ -43,20 +86,29 @@ impl Resource for Metric {
         let mut builder = PrometheusBuilder::new();
         (customizer)(&mut builder, &config)?;
         set_config!(config.address => builder.listen_address);
-        for allow in config.allowed {
-            builder = builder.add_allowed(allow);
-        }
-        builder.install()?;
-        gauge!(
+
+        let x = Metric(builder.build(), Mutex::new(Vec::new()));
+        x.gauge(
             "uptime",
             std::time::SystemTime::now()
                 .duration_since(UNIX_EPOCH)?
-                .as_millis() as f64
+                .as_millis() as f64,
         );
-        Ok(Metric)
+        Ok(x)
     }
 
-    fn order() ->Ordered{
-      PRIORITY_HIGH
+    fn order() -> Ordered {
+        PRIORITY_HIGH
+    }
+
+    fn register_dependent_resources(builder: &mut FactoryBuilder<'_>) -> Result<(), PropertyError> {
+        builder.submit(|req: Arc<Metric>| {
+            let _h = req.handle();
+            loop {
+                #[cfg(feature = "log")]
+                log::info!("PROMETHES: \n{}", _h.render());
+                sleep(Duration::from_secs(5));
+            }
+        })
     }
 }

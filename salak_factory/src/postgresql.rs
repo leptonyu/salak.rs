@@ -8,11 +8,16 @@ use postgres::{
 use postgres_native_tls::MakeTlsConnector;
 use r2d2::{ManageConnection, Pool};
 use salak::{wrapper::NonEmptyVec, *};
+#[allow(unused_imports)]
 use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
+    sync::Arc,
     time::Duration,
 };
+
+#[cfg(feature = "metric")]
+use crate::metric::{Key, Metric};
 
 use crate::{
     pool::{PoolConfig, PoolCustomizer},
@@ -114,6 +119,12 @@ impl Tls {
 pub struct PostgresConnectionManager {
     config: Config,
     tls_connector: Tls,
+    #[cfg(feature = "metric")]
+    metric: Arc<Metric>,
+    #[cfg(feature = "metric")]
+    try_count: Key,
+    #[cfg(feature = "metric")]
+    fail_count: Key,
 }
 
 impl ManageConnection for PostgresConnectionManager {
@@ -121,9 +132,23 @@ impl ManageConnection for PostgresConnectionManager {
     type Error = Error;
 
     fn connect(&self) -> Result<Client, Error> {
-        match &self.tls_connector {
+        #[cfg(feature = "metric")]
+        {
+            self.metric.increment_counter(&self.try_count, 1);
+        }
+        let v = match &self.tls_connector {
             Tls::Noop(_) => self.config.connect(NoTls),
             Tls::Native(v) => self.config.connect(v.clone()),
+        };
+        match v {
+            Ok(client) => Ok(client),
+            Err(err) => {
+                #[cfg(feature = "metric")]
+                {
+                    self.metric.increment_counter(&self.fail_count, 1);
+                }
+                Err(err)
+            }
         }
     }
 
@@ -224,11 +249,16 @@ impl Resource for PostgresPool {
         let m = PostgresConnectionManager {
             config,
             tls_connector,
+            #[cfg(feature = "metric")]
+            metric: _cxt.get_resource()?,
+            #[cfg(feature = "metric")]
+            try_count: "postgres_connection_try_count".into(),
+            #[cfg(feature = "metric")]
+            fail_count: "postgres_connection_fail_count".into(),
         };
 
         Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
     }
-
 }
 
 impl PostgresCustomizer {

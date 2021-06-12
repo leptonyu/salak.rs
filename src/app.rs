@@ -5,6 +5,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
+    thread::spawn,
 };
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -140,6 +141,29 @@ impl FactoryContext<'_> {
     }
 }
 
+struct Task(
+    Option<
+        Box<
+            dyn FnOnce(&Salak) -> Res<Box<dyn FnOnce() + Send + Sync + 'static>>
+                + Send
+                + Sync
+                + 'static,
+        >,
+    >,
+);
+
+impl Task {
+    fn new<R: Resource + Send + Sync + 'static>(
+        namespace: &'static str,
+        task: impl Fn(Arc<R>) -> Void + Send + Sync + 'static,
+    ) -> Self {
+        Task(Some(Box::new(move |env: &Salak| {
+            let res = env.res.get_ref::<R>(namespace, env, true)?;
+            Ok(Box::new(move || (task)(res).unwrap()))
+        })))
+    }
+}
+
 /// Register dependent resources under same namespace.
 ///
 /// Only relavent resources can be registered by current
@@ -153,6 +177,16 @@ pub struct FactoryBuilder<'a> {
 }
 
 impl FactoryBuilder<'_> {
+    /// Submit remote task
+    pub fn submit<R: Resource + Send + Sync + Any>(
+        &mut self,
+        task: impl Fn(Arc<R>) -> Void + Send + Sync + 'static,
+    ) -> Void {
+        let task = Task::new(self.namespace, task);
+        self.builder.1.push(task);
+        Ok(())
+    }
+
     /// Register dependent resource under current namespace.
     pub fn register_resource<R: Resource + Send + Sync + Any>(&mut self) -> Void {
         self.builder
@@ -246,6 +280,9 @@ pub trait Factory: Environment {
 
     /// Initialize [`Resource`] with builder.
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R>;
+
+    /// Run the resource.
+    fn run(&mut self) -> Void;
 }
 
 impl Resource for () {
@@ -274,6 +311,10 @@ macro_rules! impl_container {
             ) -> Result<Self, PropertyError> {
                 Ok($x::new(T::create(config, factory, customizer)?))
             }
+
+            fn order() -> Ordered {
+                T::order()
+            }
         }
     )+};
 }
@@ -285,7 +326,7 @@ mod warp {
         rc::Rc,
         sync::{Arc, Mutex, RwLock},
     };
-    impl_container!(Cell RefCell Mutex Rc Arc RwLock);
+    impl_container!(Cell RefCell Mutex RwLock Rc Arc);
 }
 
 impl<T: Resource> Resource for Option<T> {
@@ -302,6 +343,10 @@ impl<T: Resource> Resource for Option<T> {
             Err(PropertyError::ResourceNotFound(_, _)) => Ok(None),
             Err(e) => Err(e),
         }
+    }
+
+    fn order() -> Ordered {
+        T::order()
     }
 }
 
@@ -401,11 +446,14 @@ impl ResourceHolder {
     }
 }
 
-pub(crate) struct ResourceRegistry(BTreeMap<TypeId, BTreeMap<&'static str, ResourceHolder>>);
+pub(crate) struct ResourceRegistry(
+    BTreeMap<TypeId, BTreeMap<&'static str, ResourceHolder>>,
+    Vec<Task>,
+);
 
 impl ResourceRegistry {
     pub(crate) fn new() -> Self {
-        Self(BTreeMap::new())
+        Self(BTreeMap::new(), vec![])
     }
 
     pub(crate) fn initialize(&self, env: &Salak) -> Void {
@@ -511,6 +559,19 @@ impl Factory for Salak {
             },
             builder.customizer,
         )
+    }
+
+    fn run(&mut self) -> Void {
+        let mut join = vec![];
+        for mut task in std::mem::replace(&mut self.res.1, vec![]) {
+            if let Some(v) = task.0.take() {
+                join.push(spawn((v)(self)?));
+            }
+        }
+        for join in join {
+            let _ = join.join();
+        }
+        Ok(())
     }
 }
 
