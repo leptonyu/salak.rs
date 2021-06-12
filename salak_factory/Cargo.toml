@@ -36,6 +36,7 @@ r2d2 = {optional = true, version = '^0.8'}
 redis = {optional = true, version = '0.20'}
 salak = {path = '..', version = '^0.13', features = ['default', 'app']}
 scheduled-thread-pool = {optional = true, version = '^0.2'}
+sysinfo = {optional = true, version = '^0.18'}
 
 [dev-dependencies]
 env_logger = "0.8"
@@ -43,7 +44,7 @@ log = "0.4"
 
 [features]
 default = []
-metric = ['salak/ipnet', 'metrics-exporter-prometheus', 'metrics']
+metric = ['salak/ipnet', 'metrics-exporter-prometheus', 'metrics', 'sysinfo']
 pool = [
   'r2d2',
   'scheduled-thread-pool',

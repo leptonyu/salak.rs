@@ -20,6 +20,7 @@ use std::{
 use crate::metric::{Key, Metric};
 
 use crate::{
+    metric::AnyKey,
     pool::{PoolConfig, PoolCustomizer},
     WrapEnum,
 };
@@ -246,15 +247,18 @@ impl Resource for PostgresPool {
             config.get_hosts()
         );
 
+        #[cfg(feature = "metric")]
+        let namespace = _cxt.current_namespace();
+
         let m = PostgresConnectionManager {
             config,
             tls_connector,
             #[cfg(feature = "metric")]
             metric: _cxt.get_resource()?,
             #[cfg(feature = "metric")]
-            try_count: "postgres_connection_try_count".into(),
+            try_count: PostgresPool::new_key("connection_try_count", namespace),
             #[cfg(feature = "metric")]
-            fail_count: "postgres_connection_fail_count".into(),
+            fail_count: PostgresPool::new_key("connection_fail_count", namespace),
         };
 
         Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
