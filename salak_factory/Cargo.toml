@@ -68,4 +68,4 @@ name = "redis"
 required-features = ["default", "redis_default", 'log', 'salak/all']
 [[example]]
 name = "postgres"
-required-features = ["default", "postgresql", 'log', 'salak/all', 'metric']
+required-features = ["default", "postgresql", 'log', 'salak/log','salak/args', 'metric']

@@ -2,7 +2,8 @@ use crate::*;
 use parking_lot::Mutex;
 use std::{
     any::{Any, TypeId},
-    collections::BTreeMap,
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -48,7 +49,45 @@ pub trait Resource: Sized {
     fn register_dependent_resources(_: &mut FactoryBuilder<'_>) -> Void {
         Ok(())
     }
+
+    /// Order of initializing priority.
+    fn order() -> Ordered {
+        PRIORITY_NORMAL
+    }
 }
+
+/// Resource priority.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct Ordered(i32);
+
+impl Ordered {
+    /// Current resouce should init after then target resouce.
+    pub fn after<R: Resource>(self) -> Self {
+        let r = R::order();
+        match r.cmp(&self) {
+            Ordering::Less => self,
+            Ordering::Equal => Ordered(self.0 + 1),
+            _ => r,
+        }
+    }
+
+    /// Current resouce should init before then target resouce.
+    pub fn before<R: Resource>(self) -> Self {
+        let r = R::order();
+        match r.cmp(&self) {
+            Ordering::Less => r,
+            Ordering::Equal => Ordered(self.0 - 1),
+            _ => self,
+        }
+    }
+}
+
+/// High prioritt.
+pub const PRIORITY_HIGH: Ordered = Ordered(i32::MIN + 1048576);
+/// Normal priority.
+pub const PRIORITY_NORMAL: Ordered = Ordered(0);
+/// Low priority.
+pub const PRIORITY_LOW: Ordered = Ordered(i32::MAX - 1048576);
 
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -272,6 +311,12 @@ impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
     #[inline]
     fn into_init(self) -> Init {
         Init(Box::new(move |env, val| {
+            #[cfg(feature = "log")]
+            log::info!(
+                "init resource ({}) at namespace [{}].",
+                std::any::type_name::<R>(),
+                self.namespace
+            );
             *val.lock() = Some(Arc::new(env.init_resource_with_builder::<R>(self)?));
             Ok(())
         }))
@@ -281,11 +326,35 @@ impl<R: Resource + Send + Sync + 'static> ResourceBuilder<R> {
 type ResVal = Option<Arc<dyn Any + Send + Sync>>;
 
 /// ResourceHolder is [`Sync`] and [`Send`] only when value in box is [`Send`].
-struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>);
+struct ResourceHolder(Mutex<ResVal>, Mutex<Option<Init>>, Ordered);
+
+impl PartialEq for ResourceHolder {
+    fn eq(&self, r: &ResourceHolder) -> bool {
+        self.2 == r.2
+    }
+}
+
+impl Eq for ResourceHolder {}
+
+impl PartialOrd for ResourceHolder {
+    fn partial_cmp(&self, r: &ResourceHolder) -> Option<Ordering> {
+        self.2.partial_cmp(&r.2)
+    }
+}
+impl Ord for ResourceHolder {
+    fn cmp(&self, r: &Self) -> Ordering {
+        self.2.cmp(&r.2)
+    }
+}
 
 impl ResourceHolder {
     fn new<R: Resource + Send + Sync + 'static>(builder: ResourceBuilder<R>) -> Self {
-        Self(Mutex::new(None), Mutex::new(Some(builder.into_init())))
+        let order = builder.order;
+        Self(
+            Mutex::new(None),
+            Mutex::new(Some(builder.into_init())),
+            order,
+        )
     }
 
     #[inline]
@@ -308,6 +377,11 @@ impl ResourceHolder {
         if let Some(arc) = guard.as_ref() {
             if let Ok(v) = arc.clone().downcast::<R>() {
                 return Ok(v);
+            } else {
+                return Err(PropertyError::ResourceNotFound(
+                    namespace,
+                    std::any::type_name::<R>(),
+                ));
             }
         }
         drop(guard);
@@ -317,12 +391,6 @@ impl ResourceHolder {
                 std::any::type_name::<R>(),
             ));
         }
-        #[cfg(feature = "log")]
-        log::info!(
-            "Init resource ({}) at namespace [{}].",
-            std::any::type_name::<R>(),
-            namespace
-        );
         self.init(env)?;
         match self.get_or_init(env, namespace, true) {
             Err(PropertyError::ResourceNotFound(a, b)) => {
@@ -341,10 +409,14 @@ impl ResourceRegistry {
     }
 
     pub(crate) fn initialize(&self, env: &Salak) -> Void {
+        let mut v = BTreeSet::new();
         for x in self.0.values() {
             for r in x.values() {
-                r.init(env)?;
+                v.insert(r);
             }
+        }
+        for r in v {
+            r.init(env)?;
         }
         Ok(())
     }
@@ -447,6 +519,7 @@ impl Factory for Salak {
 #[allow(missing_debug_implementations)]
 pub struct ResourceBuilder<R: Resource> {
     pub(crate) namespace: &'static str,
+    order: Ordered,
     customizer: Box<dyn FnOnce(&mut R::Customizer, &R::Config) -> Void + Send>,
 }
 
@@ -462,6 +535,7 @@ impl<R: Resource> ResourceBuilder<R> {
     pub fn new(namespace: &'static str) -> Self {
         Self {
             namespace,
+            order: R::order(),
             customizer: Box::new(|_, _| Ok(())),
         }
     }

@@ -228,6 +228,7 @@ impl Resource for PostgresPool {
 
         Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
     }
+
 }
 
 impl PostgresCustomizer {

@@ -55,4 +55,8 @@ impl Resource for Metric {
         );
         Ok(Metric)
     }
+
+    fn order() ->Ordered{
+      PRIORITY_HIGH
+    }
 }
