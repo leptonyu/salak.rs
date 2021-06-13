@@ -162,22 +162,23 @@ impl Metric {
             gauge_kb!(metric.sys.get_free_swap = "system.swap_free");
             // Process
             sys.refresh_process(pid);
-            let process = sys.get_processes().get(&pid).unwrap();
-            gauge_kb!(metric.process.memory = "process.memory");
-            gauge_kb!(metric.process.virtual_memory = "process.memory_virtual");
-            gauge!(metric.process.start_time = "process.uptime");
-            gauge!(metric.process.cpu_usage = "process.cpu_usage");
-            let disk = process.disk_usage();
-            metric.gauge(
-                "process.disk.total_written_bytes",
-                disk.total_written_bytes as f64,
-            );
-            metric.gauge("process.disk.written_bytes", disk.written_bytes as f64);
-            metric.gauge(
-                "process.disk.total_read_bytes",
-                disk.total_read_bytes as f64,
-            );
-            metric.gauge("process.disk.read_bytes", disk.read_bytes as f64);
+            if let Some(process) = sys.get_processes().get(&pid) {
+                gauge_kb!(metric.process.memory = "process.memory");
+                gauge_kb!(metric.process.virtual_memory = "process.memory_virtual");
+                gauge!(metric.process.start_time = "process.uptime");
+                gauge!(metric.process.cpu_usage = "process.cpu_usage");
+                let disk = process.disk_usage();
+                metric.gauge(
+                    "process.disk.total_written_bytes",
+                    disk.total_written_bytes as f64,
+                );
+                metric.gauge("process.disk.written_bytes", disk.written_bytes as f64);
+                metric.gauge(
+                    "process.disk.total_read_bytes",
+                    disk.total_read_bytes as f64,
+                );
+                metric.gauge("process.disk.read_bytes", disk.read_bytes as f64);
+            }
             // Network
             sys.refresh_networks();
             for (name, nt) in sys.get_networks() {

@@ -126,6 +126,7 @@ impl FactoryContext<'_> {
     pub fn get_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Arc<R>> {
         self.get_resource_by_namespace("")
     }
+
     /// Get resource with namespace. The resource will be
     /// initialized if it does not exist yet.
     pub fn get_resource_by_namespace<R: Resource + Send + Sync + Any>(
@@ -139,6 +140,16 @@ impl FactoryContext<'_> {
             namespace
         );
         self.fac.res.get_ref(namespace, self.fac, false)
+    }
+
+    #[inline]
+    /// Get optional resource.
+    pub fn get_optional_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Option<Arc<R>>> {
+        match self.get_resource::<R>() {
+            Ok(v) => Ok(Some(v)),
+            Err(PropertyError::ResourceNotFound(_, _)) => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 
     /// Get all resouces with same type.

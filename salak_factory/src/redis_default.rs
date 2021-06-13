@@ -1,5 +1,5 @@
 //! Single node redis configuratino.
-use crate::pool::{PoolConfig, PoolCustomizer};
+use crate::pool::{ManagedConnection, PoolConfig, PoolCustomizer};
 use ::redis::*;
 use r2d2::{ManageConnection, Pool};
 use salak::*;
@@ -97,10 +97,10 @@ impl ManageConnection for RedisConnectionManager {
 /// Redis connection pool.
 #[allow(missing_debug_implementations)]
 #[derive(Clone)]
-pub struct RedisPool(Pool<RedisConnectionManager>);
+pub struct RedisPool(Pool<ManagedConnection<RedisConnectionManager>>);
 
 impl Deref for RedisPool {
-    type Target = Pool<RedisConnectionManager>;
+    type Target = Pool<ManagedConnection<RedisConnectionManager>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -142,6 +142,7 @@ impl Resource for RedisPool {
             config.addr
         );
         Ok(RedisPool(conf.pool.build_pool(
+            _cxt,
             RedisConnectionManager {
                 namespace: _cxt.current_namespace(),
                 config,
@@ -158,9 +159,10 @@ impl Resource for RedisPool {
         pool: &Arc<Self>,
         factory: &FactoryContext<'_>,
     ) -> Result<(), PropertyError> {
-        PoolConfig::post_pool_initialized_and_registered::<RedisConnectionManager, Self>(
-            pool, factory,
-        )
+        PoolConfig::post_pool_initialized_and_registered::<
+            ManagedConnection<RedisConnectionManager>,
+            Self,
+        >(pool, factory)
     }
 }
 

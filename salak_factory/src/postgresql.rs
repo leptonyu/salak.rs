@@ -6,7 +6,8 @@ use postgres::{
     Client, Config, Error, NoTls,
 };
 use postgres_native_tls::MakeTlsConnector;
-use r2d2::{ManageConnection, Pool};
+#[allow(unused_imports)]
+use r2d2::{CustomizeConnection, ManageConnection, Pool};
 use salak::{wrapper::NonEmptyVec, *};
 #[allow(unused_imports)]
 use std::{
@@ -16,11 +17,8 @@ use std::{
     time::Duration,
 };
 
-#[cfg(feature = "metric")]
-use crate::metric::{AnyKey, Key, Metric};
-
 use crate::{
-    pool::{PoolConfig, PoolCustomizer},
+    pool::{ManagedConnection, PoolConfig, PoolCustomizer},
     WrapEnum,
 };
 
@@ -119,12 +117,6 @@ impl Tls {
 pub struct PostgresConnectionManager {
     config: Config,
     tls_connector: Tls,
-    #[cfg(feature = "metric")]
-    metric: Arc<Metric>,
-    #[cfg(feature = "metric")]
-    try_count: Key,
-    #[cfg(feature = "metric")]
-    fail_count: Key,
 }
 
 impl ManageConnection for PostgresConnectionManager {
@@ -132,23 +124,9 @@ impl ManageConnection for PostgresConnectionManager {
     type Error = Error;
 
     fn connect(&self) -> Result<Client, Error> {
-        #[cfg(feature = "metric")]
-        {
-            self.metric.increment_counter(&self.try_count, 1);
-        }
-        let v = match &self.tls_connector {
+        match &self.tls_connector {
             Tls::Noop(_) => self.config.connect(NoTls),
             Tls::Native(v) => self.config.connect(v.clone()),
-        };
-        match v {
-            Ok(client) => Ok(client),
-            Err(err) => {
-                #[cfg(feature = "metric")]
-                {
-                    self.metric.increment_counter(&self.fail_count, 1);
-                }
-                Err(err)
-            }
         }
     }
 
@@ -177,10 +155,10 @@ macro_rules! set_option_field {
 /// Postgresql connection thread pool.
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "postgresql")))]
-pub struct PostgresPool(Pool<PostgresConnectionManager>);
+pub struct PostgresPool(Pool<ManagedConnection<PostgresConnectionManager>>);
 
 impl Deref for PostgresPool {
-    type Target = Pool<PostgresConnectionManager>;
+    type Target = Pool<ManagedConnection<PostgresConnectionManager>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -246,21 +224,16 @@ impl Resource for PostgresPool {
             config.get_hosts()
         );
 
-        #[cfg(feature = "metric")]
-        let namespace = _cxt.current_namespace();
-
         let m = PostgresConnectionManager {
             config,
             tls_connector,
-            #[cfg(feature = "metric")]
-            metric: _cxt.get_resource()?,
-            #[cfg(feature = "metric")]
-            try_count: PostgresPool::new_key("connection_try_count", namespace),
-            #[cfg(feature = "metric")]
-            fail_count: PostgresPool::new_key("connection_fail_count", namespace),
         };
 
-        Ok(PostgresPool(conf.pool.build_pool(m, customize.pool)?))
+        Ok(PostgresPool(conf.pool.build_pool(
+            _cxt,
+            m,
+            customize.pool,
+        )?))
     }
 
     #[cfg(feature = "metric")]
@@ -268,9 +241,10 @@ impl Resource for PostgresPool {
         pool: &Arc<Self>,
         factory: &FactoryContext<'_>,
     ) -> Result<(), PropertyError> {
-        PoolConfig::post_pool_initialized_and_registered::<PostgresConnectionManager, Self>(
-            pool, factory,
-        )
+        PoolConfig::post_pool_initialized_and_registered::<
+            ManagedConnection<PostgresConnectionManager>,
+            Self,
+        >(pool, factory)
     }
 }
 
@@ -284,17 +258,12 @@ impl PostgresCustomizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "metric")]
-    use crate::metric::Metric;
     #[test]
     fn postgres_tests() {
-        #[allow(unused_mut)]
-        let mut builder = Salak::builder().set("postgresql.host[0]", "localhost");
-        #[cfg(feature = "metric")]
-        {
-            builder = builder.register_default_resource::<Metric>().unwrap();
-        }
-        let env = builder.build().unwrap();
+        let env = Salak::builder()
+            .set("postgresql.host[0]", "localhost")
+            .build()
+            .unwrap();
         let pool = env.init_resource::<PostgresPool>();
         assert_eq!(true, pool.is_ok());
     }

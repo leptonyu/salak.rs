@@ -5,10 +5,12 @@ pub(crate) use r2d2::{ManageConnection, Pool};
 use scheduled_thread_pool::ScheduledThreadPool;
 
 #[cfg(feature = "metric")]
-use crate::metric::AnyKey;
+use crate::metric::{AnyKey, GaugeValue, Key, Label, Metric, Unit};
 
 use super::*;
 pub(crate) use std::time::Duration;
+#[allow(unused_imports)]
+use std::{ops::Deref, sync::Arc};
 
 /// Generic Pool Configuration.
 #[cfg_attr(docsrs, doc(cfg(feature = "pool")))]
@@ -56,7 +58,7 @@ pub struct PoolConfig {
 }
 
 macro_rules! set_option_field_return {
-    ($y: expr, $config: expr, $x: tt) => {
+    ($y: ident, $config: ident, $x: tt) => {
         if let Some($x) = $y.$x {
             $config = $config.$x($x);
         }
@@ -103,14 +105,75 @@ impl<M: ManageConnection> PoolCustomizer<M> {
     }
 }
 
+/// Wrapper for connection.
+#[allow(missing_debug_implementations)]
+pub struct ManagedConnection<M> {
+    inner: M,
+    #[cfg(feature = "metric")]
+    try_count: Key,
+    #[cfg(feature = "metric")]
+    fail_count: Key,
+    #[cfg(feature = "metric")]
+    latency: Key,
+    #[cfg(feature = "metric")]
+    metric: Option<Arc<Metric>>,
+}
+
+impl<M: ManageConnection> ManageConnection for ManagedConnection<M> {
+    type Connection = M::Connection;
+
+    type Error = M::Error;
+
+    fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        #[cfg(feature = "metric")]
+        if let Some(metric) = &self.metric {
+            let now = std::time::SystemTime::now();
+            metric.increment_counter(&self.try_count, 1);
+            // metric.increment_counter(key, value);
+            let v = match self.inner.connect() {
+                Ok(v) => Ok(v),
+                Err(err) => {
+                    metric.increment_counter(&self.fail_count, 1);
+                    Err(err)
+                }
+            };
+            if let Ok(d) = std::time::SystemTime::now().duration_since(now) {
+                metric.update_gauge(&self.latency, GaugeValue::Increment(d.as_micros() as f64));
+            }
+            v
+        } else {
+            self.inner.connect()
+        }
+        #[cfg(not(feature = "metric"))]
+        self.inner.connect()
+    }
+
+    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        self.inner.is_valid(conn)
+    }
+
+    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
+        self.inner.has_broken(conn)
+    }
+}
+
+impl<M: ManageConnection> Deref for ManagedConnection<M> {
+    type Target = M;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 impl PoolConfig {
     pub(crate) fn build_pool<M: ManageConnection>(
         self,
+        _context: &FactoryContext<'_>,
         m: M,
         customize: PoolCustomizer<M>,
-    ) -> Result<Pool<M>, PropertyError> {
+    ) -> Result<Pool<ManagedConnection<M>>, PropertyError> {
         let thread_nums = self.thread_nums.unwrap_or(3);
-        let mut build: r2d2::Builder<M> = Pool::builder()
+        let mut build: r2d2::Builder<ManagedConnection<M>> = Pool::builder()
             .min_idle(self.min_idle)
             .max_lifetime(self.max_lifetime)
             .idle_timeout(self.idle_timeout)
@@ -124,6 +187,40 @@ impl PoolConfig {
         set_option_field_return!(customize, build, error_handler);
         set_option_field_return!(customize, build, event_handler);
         set_option_field_return!(customize, build, connection_customizer);
+
+        #[cfg(feature = "metric")]
+        let namespace = if _context.current_namespace().is_empty() {
+            "default"
+        } else {
+            _context.current_namespace()
+        };
+
+        let m = ManagedConnection {
+            inner: m,
+            #[cfg(feature = "metric")]
+            try_count: Key::from_parts(
+                "thread_pool.connection.try_count",
+                vec![Label::new("namespace", namespace)],
+            ),
+            #[cfg(feature = "metric")]
+            fail_count: Key::from_parts(
+                "thread_pool.connection.fail_count",
+                vec![Label::new("namespace", namespace)],
+            ),
+            #[cfg(feature = "metric")]
+            latency: Key::from_parts(
+                "thread_pool.connection.latency",
+                vec![Label::new("namespace", namespace)],
+            ),
+            #[cfg(feature = "metric")]
+            metric: _context.get_optional_resource()?,
+        };
+
+        #[cfg(feature = "metric")]
+        if let Some(metric) = &m.metric {
+            metric.register_gauge(&m.latency, Some(Unit::Microseconds), None);
+        }
+
         if self.wait_for_init {
             Ok(build.build(m)?)
         } else {
@@ -136,22 +233,32 @@ impl PoolConfig {
         pool: &Pool<M>,
         factory: &FactoryContext<'_>,
     ) -> Result<(), PropertyError> {
-        use crate::metric::Metric;
-        let metric = factory.get_resource::<Metric>()?;
-        let pool = pool.clone();
-        let namespace = factory.current_namespace();
-        metric.add_listen_state(move |env| {
-            let state = pool.state();
-            env.gauge(
-                K::new_key("idle_thread_count", namespace),
-                state.idle_connections as f64,
+        if let Some(metric) = factory.get_optional_resource::<Metric>()? {
+            let pool = pool.clone();
+            let namespace = factory.current_namespace();
+            metric.gauge(
+                K::new_key("thread_pool.max_count", namespace),
+                pool.max_size() as f64,
             );
-            env.gauge(
-                K::new_key("thread_count", namespace),
-                state.connections as f64,
-            );
-            Ok(())
-        });
+            if let Some(min) = pool.min_idle() {
+                metric.gauge(
+                    K::new_key("thread_pool.min_idle_count", namespace),
+                    min as f64,
+                );
+            }
+            metric.add_listen_state(move |env| {
+                let state = pool.state();
+                env.gauge(
+                    K::new_key("thread_pool.idle_count", namespace),
+                    state.idle_connections as f64,
+                );
+                env.gauge(
+                    K::new_key("thread_pool.active_count", namespace),
+                    state.connections as f64,
+                );
+                Ok(())
+            });
+        }
         Ok(())
     }
 }

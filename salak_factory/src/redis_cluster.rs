@@ -1,4 +1,5 @@
 //! Redis cluster connection pool resource.
+use crate::pool::ManagedConnection;
 use crate::pool::{PoolConfig, PoolCustomizer};
 use ::redis::cluster::*;
 use ::redis::*;
@@ -80,10 +81,10 @@ impl ManageConnection for RedisClusterConnectionManager {
 
 /// Redis cluster connection pool.
 #[allow(missing_debug_implementations)]
-pub struct RedisClusterPool(Pool<RedisClusterConnectionManager>);
+pub struct RedisClusterPool(Pool<ManagedConnection<RedisClusterConnectionManager>>);
 
 impl Deref for RedisClusterPool {
-    type Target = Pool<RedisClusterConnectionManager>;
+    type Target = Pool<ManagedConnection<RedisClusterConnectionManager>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -121,6 +122,7 @@ impl Resource for RedisClusterPool {
             conf.url
         );
         Ok(RedisClusterPool(conf.pool.build_pool(
+            cxt,
             RedisClusterConnectionManager {
                 namespace: cxt.current_namespace(),
                 client,
@@ -137,9 +139,10 @@ impl Resource for RedisClusterPool {
         pool: &Arc<Self>,
         factory: &FactoryContext<'_>,
     ) -> Result<(), PropertyError> {
-        PoolConfig::post_pool_initialized_and_registered::<RedisClusterConnectionManager, Self>(
-            pool, factory,
-        )
+        PoolConfig::post_pool_initialized_and_registered::<
+            ManagedConnection<RedisClusterConnectionManager>,
+            Self,
+        >(pool, factory)
     }
 }
 
