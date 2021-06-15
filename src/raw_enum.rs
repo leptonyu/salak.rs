@@ -26,11 +26,11 @@ impl<T: EnumProperty> IsProperty for T {
 #[macro_export]
 macro_rules! impl_enum_property {
     ($x:path {$($k:literal => $v:expr)+ }) => {
-        impl EnumProperty for $x {
-            fn str_to_enum(val: &str) -> Result<$x, PropertyError> {
+        impl $crate::EnumProperty for $x {
+            fn str_to_enum(val: &str) -> Result<$x, $crate::PropertyError> {
                 match &val.to_lowercase()[..] {
                     $($k => Ok($v),)+
-                    _ => Err(PropertyError::parse_fail("invalid enum value")),
+                    _ => Err($crate::PropertyError::parse_fail("invalid enum value")),
                 }
             }
         }
@@ -38,6 +38,7 @@ macro_rules! impl_enum_property {
 }
 
 #[cfg(feature = "log")]
+#[cfg_attr(docsrs, doc(cfg(feature = "log")))]
 impl_enum_property!(LevelFilter {
   "off"   => LevelFilter::Off
   "error" => LevelFilter::Error
@@ -48,6 +49,7 @@ impl_enum_property!(LevelFilter {
 });
 
 #[cfg(feature = "log")]
+#[cfg_attr(docsrs, doc(cfg(feature = "log")))]
 impl_enum_property!(Level {
   "error" => Level::Error
   "warn"  => Level::Warn

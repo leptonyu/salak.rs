@@ -5,7 +5,10 @@ use salak_factory::redis_default::RedisPool;
 
 #[derive(Service)]
 struct RedisService {
-    _redis: Arc<RedisPool>,
+    redis: Arc<RedisPool>,
+    #[allow(dead_code)]
+    #[salak(namespace = "hello", access = "pub")]
+    redis2: Option<Arc<RedisPool>>,
 }
 
 fn main() -> Result<(), PropertyError> {
@@ -18,6 +21,6 @@ fn main() -> Result<(), PropertyError> {
         .configure_args(app_info!())
         .build()?;
     let _service = env.get_resource::<RedisService>()?;
-    let _conn = _service._redis.get()?;
+    let _conn = _service.as_redis().get()?;
     Ok(())
 }

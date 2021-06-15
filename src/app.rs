@@ -91,10 +91,13 @@ impl Ordered {
     }
 }
 
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// High prioritt.
 pub const PRIORITY_HIGH: Ordered = Ordered(i32::MIN + 1048576);
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Normal priority.
 pub const PRIORITY_NORMAL: Ordered = Ordered(0);
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Low priority.
 pub const PRIORITY_LOW: Ordered = Ordered(i32::MAX - 1048576);
 
@@ -141,11 +144,19 @@ impl FactoryContext<'_> {
         );
         self.fac.res.get_ref(namespace, self.fac, false)
     }
-
     #[inline]
     /// Get optional resource.
     pub fn get_optional_resource<R: Resource + Send + Sync + Any>(&self) -> Res<Option<Arc<R>>> {
-        match self.get_resource::<R>() {
+        self.get_optional_resource_by_namespace("")
+    }
+
+    #[inline]
+    /// Get optional resource.
+    pub fn get_optional_resource_by_namespace<R: Resource + Send + Sync + Any>(
+        &self,
+        namespace: &'static str,
+    ) -> Res<Option<Arc<R>>> {
+        match self.get_resource_by_namespace::<R>(namespace) {
             Ok(v) => Ok(Some(v)),
             Err(PropertyError::ResourceNotFound(_, _)) => Ok(None),
             Err(err) => Err(err),

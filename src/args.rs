@@ -21,7 +21,7 @@ pub struct AppInfo<'a> {
 #[cfg_attr(docsrs, doc(cfg(feature = "args")))]
 macro_rules! app_info {
     () => {
-        AppInfo {
+        $crate::AppInfo {
             name: std::env!("CARGO_PKG_NAME"),
             version: std::env!("CARGO_PKG_VERSION"),
             author: std::option_env!("CARGO_PKG_AUTHORS"),

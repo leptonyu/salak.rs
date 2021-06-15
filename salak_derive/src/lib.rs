@@ -264,8 +264,16 @@ pub fn from_env_derive(input: TokenStream) -> TokenStream {
     })
 }
 
-fn service_parse_field_attribute(attrs: Vec<Attribute>) -> Option<String> {
-    let mut namespace = None;
+struct ServiceAttr {
+    namespace: Option<String>,
+    access: Option<u8>,
+}
+
+fn service_parse_field_attribute(attrs: Vec<Attribute>) -> ServiceAttr {
+    let mut sa = ServiceAttr {
+        namespace: None,
+        access: None,
+    };
     for attr in attrs {
         if let Ok(Meta::List(list)) = attr.parse_meta() {
             if !is_salak(&list) {
@@ -274,8 +282,15 @@ fn service_parse_field_attribute(attrs: Vec<Attribute>) -> Option<String> {
             for m in list.nested {
                 if let NestedMeta::Meta(Meta::NameValue(nv)) = m {
                     match &parse_path(nv.path)[..] {
-                        "namespace" => namespace = Some(parse_lit(nv.lit)),
-                        _ => panic!("Only support namespace"),
+                        "namespace" => sa.namespace = Some(parse_lit(nv.lit)),
+                        "access" => {
+                            sa.access = Some(match &parse_lit(nv.lit)[..] {
+                                "pub" => 0,
+                                "pub(crate)" => 1,
+                                _ => panic!("Only support \"pub\" or \"pub(crate)\""),
+                            })
+                        }
+                        _ => panic!("Only support namespace/access"),
                     }
                 } else {
                     panic!("Only support NestedMeta::Meta(Meta::NameValue)");
@@ -283,35 +298,94 @@ fn service_parse_field_attribute(attrs: Vec<Attribute>) -> Option<String> {
             }
         }
     }
-    namespace
+    sa
 }
 
-fn service_derive_field(field: Field) -> quote::__private::TokenStream {
-    let name = field.ident.expect("Not possible");
-    if let Some(namespace) = service_parse_field_attribute(field.attrs) {
-        quote! {
-            #name: factory.get_resource_by_namespace(#namespace)?,
+fn get_generic_type<'a>(ty: &'a Type, name: &str) -> (bool, &'a Type) {
+    match ty {
+        Type::Path(v) => {
+            let v = v.path.segments.first().unwrap();
+            if v.ident == name {
+                if let PathArguments::AngleBracketed(a) = &v.arguments {
+                    if let GenericArgument::Type(t) = a.args.first().unwrap() {
+                        return (true, t);
+                    }
+                }
+                panic!("Not possible")
+            } else {
+                (false, ty)
+            }
         }
-    } else {
-        quote! {
-            #name: factory.get_resource()?
-        }
+        _ => panic!("Invalid type"),
     }
 }
 
-fn service_derive_fields(fields: Fields) -> Vec<quote::__private::TokenStream> {
+fn service_derive_field(
+    field: Field,
+) -> (quote::__private::TokenStream, quote::__private::TokenStream) {
+    let name = field.ident.expect("Not possible");
+    let ServiceAttr { namespace, access } = service_parse_field_attribute(field.attrs);
+    let namespace = namespace.unwrap_or("".to_owned());
+    let (is_option, ty) = get_generic_type(&field.ty, "Option");
+    let (is_arc, ty) = get_generic_type(ty, "Arc");
+    if !is_arc {
+        panic!("Please use Arc wrapped value.");
+    }
+    let fnm = quote::format_ident!("as_{}", name);
+    let access = match access {
+        Some(0) => quote! { pub },
+        Some(1) => quote! {pub(crate)},
+        _ => quote! {},
+    };
+    if is_option {
+        (
+            quote! {
+                #name: factory.get_optional_resource_by_namespace::<#ty>(#namespace)?
+            },
+            quote! {
+               #access fn #fnm(&self) -> Option<&#ty> {
+                    if let Some(v) = &self.#name {
+                        return Some(v.as_ref());
+                    }
+                    None
+                }
+            },
+        )
+    } else {
+        (
+            quote! {
+                #name: factory.get_resource_by_namespace::<#ty>(#namespace)?
+            },
+            quote! {
+              #access  fn #fnm(&self) -> &#ty {
+                    self.#name.as_ref()
+                }
+            },
+        )
+    }
+}
+
+fn service_derive_fields(
+    fields: Fields,
+) -> (
+    Vec<quote::__private::TokenStream>,
+    Vec<quote::__private::TokenStream>,
+) {
     if let Fields::Named(fields) = fields {
         let mut v = vec![];
+        let mut f = vec![];
         for field in fields.named {
-            v.push(service_derive_field(field));
+            let (x, y) = service_derive_field(field);
+            v.push(x);
+            f.push(y);
         }
-        return v;
+        return (v, f);
     }
     panic!("Only support named body");
 }
 
 fn service_derive_struct(name: &Ident, data: DataStruct) -> quote::__private::TokenStream {
-    let field = service_derive_fields(data.fields);
+    let (field, fun) = service_derive_fields(data.fields);
     quote! {
         impl Service for #name {
             fn create(factory: &FactoryContext<'_>) -> Result<Self, PropertyError> {
@@ -319,6 +393,10 @@ fn service_derive_struct(name: &Ident, data: DataStruct) -> quote::__private::To
                    #(#field),*
                 })
             }
+        }
+
+        impl #name {
+            #(#fun)*
         }
     }
 }

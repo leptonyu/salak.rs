@@ -56,6 +56,8 @@ impl PropertySource for PropertyRegistryInternal<'_> {
 impl<'a> PropertyRegistryInternal<'a> {
     pub(crate) fn register_by_ref(&mut self, provider: Box<dyn PropertySource>) {
         if !provider.is_empty() {
+            #[cfg(feature = "log")]
+            log::info!("Register source {}.", provider.name());
             self.providers.push(PS::Own(provider));
         }
     }

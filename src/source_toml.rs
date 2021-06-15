@@ -79,6 +79,6 @@ impl PropertySource for Toml {
 #[macro_export]
 macro_rules! inline_toml {
     ($x:expr) => {
-        Toml::new(format!("inline_toml:{}", $x), include_str!($x)).unwrap()
+        $crate::Toml::new(format!("inline_toml:{}", $x), include_str!($x)).unwrap()
     };
 }
