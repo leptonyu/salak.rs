@@ -664,6 +664,36 @@ impl<R: Resource> ResourceBuilder<R> {
     }
 }
 
+macro_rules! mk_svc{
+
+    (@ $name:ident {} -> ($($res:tt)*)) => {
+      #[derive(Service)]
+      #[allow(dead_code)]
+      struct $name {
+        $($res)*
+      }
+    };
+    (@ $name:ident {$field:ident: Option<$t:ty>, $($tt:tt)*} -> ($($res:tt)*)) => {
+        mk_svc!(@ $name {$($tt)*} -> ($($res)*$field:Option<Arc<$t>>,));
+    };
+    (@ $name:ident {$field:ident: $t:ty, $($tt:tt)*} -> ($($res:tt)*)) => {
+        mk_svc!(@ $name {$($tt)*} -> ($($res)* $field:Arc<$t>,));
+    };
+    (@ $name:ident {$field:ident: Option<$t:ty>} -> ($($res:tt)*)) => {
+        mk_svc!(@ $name {} -> ($($res)* $field:Option<Arc<$t>>,));
+    };
+    (@ $name:ident {$field:ident: $t:ty} -> ($($res:tt)*)) => {
+        mk_svc!(@ $name {} -> ($($res)*$field:Arc<$t>,));
+    };
+    ($name: ident {$($tt:tt)*}) => {
+        mk_svc!(@ $name {$($tt)*} -> ());
+    };
+}
+
+mk_svc!(X { a: Option<()>, b: ()});
+mk_svc!(Y { a: Option<()>});
+mk_svc!(Z { b:(), a: Option<()>});
+
 #[cfg(test)]
 mod tests {
 
