@@ -395,6 +395,7 @@ fn service_derive_struct(name: &Ident, data: DataStruct) -> quote::__private::To
             }
         }
 
+        #[allow(dead_code, missing_docs)]
         impl #name {
             #(#fun)*
         }
