@@ -54,6 +54,10 @@
 #[allow(unused_imports)]
 use salak::*;
 
+#[cfg(feature = "logger")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logger")))]
+pub mod env_log;
+
 #[macro_use]
 #[cfg(feature = "pool")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pool")))]

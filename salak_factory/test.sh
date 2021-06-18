@@ -8,5 +8,6 @@ cargo test --verbose --lib --no-default-features --features=redis_default
 cargo test --verbose --lib --no-default-features --features=redis_cluster
 cargo test --verbose --lib --no-default-features --features=postgresql
 cargo test --verbose --lib --no-default-features --features=metric
+cargo test --verbose --lib --no-default-features --features=logger
 
-cargo run --example redis --features='default redis_default salak/all log' -- -h
+cargo run --example redis --features='default redis_default salak/all logger' -- -h

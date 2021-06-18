@@ -92,14 +92,20 @@ impl Ordered {
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+/// Highest prioritt.
+pub const PRIORITY_HIGHEST: Ordered = Ordered(i32::MIN + 1048576);
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// High prioritt.
-pub const PRIORITY_HIGH: Ordered = Ordered(i32::MIN + 1048576);
+pub const PRIORITY_HIGH: Ordered = Ordered(i32::MIN + 1073741824);
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Normal priority.
 pub const PRIORITY_NORMAL: Ordered = Ordered(0);
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
 /// Low priority.
-pub const PRIORITY_LOW: Ordered = Ordered(i32::MAX - 1048576);
+pub const PRIORITY_LOW: Ordered = Ordered(i32::MAX - 1073741824);
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+/// Lowest priority.
+pub const PRIORITY_LOWEST: Ordered = Ordered(i32::MAX - 1048576);
 
 #[allow(missing_debug_implementations)]
 #[cfg_attr(docsrs, doc(cfg(feature = "app")))]
@@ -310,6 +316,11 @@ pub trait Factory: Environment {
 
     /// Initialize [`Resource`] with builder.
     fn init_resource_with_builder<R: Resource>(&self, builder: ResourceBuilder<R>) -> Res<R>;
+
+    /// Get service.
+    fn get_service<S: Service>(&self) -> Res<S> {
+       self.init_resource::<S>()
+    }
 
     /// Run the resource.
     fn run(&mut self) -> Void;
@@ -664,38 +675,37 @@ impl<R: Resource> ResourceBuilder<R> {
     }
 }
 
-macro_rules! mk_svc{
+/// Generate a struct which implement as a Service and
+/// provides methods to get reference from this struct.
+///
+///
+#[macro_export]
+macro_rules! generate_service{
     (@ $name:ident {} -> ($($res:tt)*)) => {
-      #[derive(salak_derive::Service)]
-      #[allow(dead_code,missing_debug_implementations, missing_docs)]
+      #[derive($crate::Service)]
+      #[allow(dead_code,unreachable_pub,missing_debug_implementations, missing_docs)]
       pub struct $name {
         $($res)*
       }
     };
     (@ $name:ident {$(#[$m:meta])* $field:ident: Option<$t:ty>, $($tt:tt)*} -> ($($res:tt)*)) => {
-        mk_svc!(@ $name {$($tt)*} -> ($($res)* $(#[$m])* $field:Option<Arc<$t>>,));
+        generate_service!(@ $name {$($tt)*} -> ($($res)* $(#[$m])* $field:Option<Arc<$t>>,));
     };
     (@ $name:ident {$(#[$m:meta])* $field:ident: $t:ty, $($tt:tt)*} -> ($($res:tt)*)) => {
-        mk_svc!(@ $name {$($tt)*} -> ($($res)* $(#[$m])* $field:Arc<$t>,));
+        generate_service!(@ $name {$($tt)*} -> ($($res)* $(#[$m])* $field:Arc<$t>,));
     };
     (@ $name:ident {$(#[$m:meta])* $field:ident: Option<$t:ty>} -> ($($res:tt)*)) => {
-        mk_svc!(@ $name {} -> ($($res)* $(#[$m])* $field:Option<Arc<$t>>,));
+        generate_service!(@ $name {} -> ($($res)* $(#[$m])* $field:Option<Arc<$t>>,));
     };
     (@ $name:ident { $(#[$m:meta])* $field:ident: $t:ty} -> ($($res:tt)*)) => {
-        mk_svc!(@ $name {} -> ($($res)* $(#[$m])* $field:Arc<$t>,));
+        generate_service!(@ $name {} -> ($($res)* $(#[$m])* $field:Arc<$t>,));
     };
     ($name: ident {$($tt:tt)*}) => {
-        mk_svc!(@ $name {$($tt)*} -> ());
+        generate_service!(@ $name {$($tt)*} -> ());
     };
 }
 
-mk_svc!(X { a: Option<()>, b: ()});
-mk_svc!(Y { a: Option<()>});
-mk_svc!(Z {
-    #[salak(namespace="hello", access="pub")]
-    b:(),
-    a: Option<()>
-});
+
 
 #[cfg(test)]
 mod tests {
@@ -714,4 +724,13 @@ mod tests {
         let v = env.get_resource::<()>();
         assert_eq!(true, v.is_ok());
     }
+
+    use std::sync::Arc;
+    generate_service!(X { a: Option<()>, b: ()});
+    generate_service!(Y { a: Option<()>});
+    generate_service!(Z {
+        #[salak(namespace="hello", access="pub")]
+        b:(),
+        a: Option<()>
+    });
 }
