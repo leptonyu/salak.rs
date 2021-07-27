@@ -130,10 +130,12 @@ impl Resource for RedisPool {
             ConnectionAddr::Tcp(host, port)
         };
         let config = ConnectionInfo {
-            addr: Box::new(addr),
-            db: conf.db.unwrap_or(0),
-            username: conf.user,
-            passwd: conf.password,
+            addr,
+            redis: RedisConnectionInfo {
+                db: conf.db.unwrap_or(0),
+                username: conf.user,
+                password: conf.password,
+            },
         };
         #[cfg(feature = "log")]
         log::info!(

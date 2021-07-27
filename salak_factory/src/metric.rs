@@ -136,10 +136,11 @@ impl Metric {
     fn register_sysinfo(&self) {
         let sys = self.sys.lock();
         let mut labels = vec![];
-        set_val!(labels:sys.get_name => "name");
-        set_val!(labels:sys.get_host_name => "hostname");
-        set_val!(labels:sys.get_kernel_version => "kernel_version");
-        set_val!(labels:sys.get_os_version => "os_version");
+
+        set_val!(labels:sys.name => "name");
+        set_val!(labels:sys.host_name => "hostname");
+        set_val!(labels:sys.kernel_version => "kernel_version");
+        set_val!(labels:sys.os_version => "os_version");
         let key = Key::from_parts("uptime", labels);
         self.gauge(
             key,
@@ -148,21 +149,21 @@ impl Metric {
                 .expect("Not possible")
                 .as_millis() as f64,
         );
-        gauge_kb!(self.sys.get_total_memory = "system.memory_total");
-        gauge_kb!(self.sys.get_total_swap = "system.swap_total");
+        gauge_kb!(self.sys.total_memory = "system.memory_total");
+        gauge_kb!(self.sys.total_swap = "system.swap_total");
         let pid = get_current_pid().unwrap();
         self.add_listen_state(move |metric| {
             let mut sys = metric.sys.lock();
             sys.refresh_memory();
             // Memory
-            gauge_kb!(metric.sys.get_used_memory = "system.memory_used");
-            gauge_kb!(metric.sys.get_free_memory = "system.memory_free");
-            gauge_kb!(metric.sys.get_available_memory = "system.memory_available");
-            gauge_kb!(metric.sys.get_used_swap = "system.swap_used");
-            gauge_kb!(metric.sys.get_free_swap = "system.swap_free");
+            gauge_kb!(metric.sys.used_memory = "system.memory_used");
+            gauge_kb!(metric.sys.free_memory = "system.memory_free");
+            gauge_kb!(metric.sys.available_memory = "system.memory_available");
+            gauge_kb!(metric.sys.used_swap = "system.swap_used");
+            gauge_kb!(metric.sys.free_swap = "system.swap_free");
             // Process
             sys.refresh_process(pid);
-            if let Some(process) = sys.get_processes().get(&pid) {
+            if let Some(process) = sys.process(pid) {
                 gauge_kb!(metric.process.memory = "process.memory");
                 gauge_kb!(metric.process.virtual_memory = "process.memory_virtual");
                 gauge!(metric.process.start_time = "process.uptime");
@@ -181,38 +182,35 @@ impl Metric {
             }
             // Network
             sys.refresh_networks();
-            for (name, nt) in sys.get_networks() {
+            for (name, nt) in sys.networks() {
                 if !metric.networks.is_empty() && !metric.networks.contains(name) {
                     continue;
                 }
                 gauge_network!(
-                    metric.nt.get_total_packets_received = "network.received.packets",
+                    metric.nt.total_packets_received = "network.received.packets",
                     name
                 );
                 gauge_network!(
-                    metric.nt.get_total_errors_on_received = "network.received.errors",
+                    metric.nt.total_errors_on_received = "network.received.errors",
                     name
                 );
-                gauge_network!(
-                    metric.nt.get_total_received = "network.received.total",
-                    name
-                );
+                gauge_network!(metric.nt.total_received = "network.received.total", name);
 
                 gauge_network!(
-                    metric.nt.get_total_packets_transmitted = "network.transmitted.packets",
+                    metric.nt.total_packets_transmitted = "network.transmitted.packets",
                     name
                 );
                 gauge_network!(
-                    metric.nt.get_total_transmitted = "network.transmitted.total",
+                    metric.nt.total_transmitted = "network.transmitted.total",
                     name
                 );
                 gauge_network!(
-                    metric.nt.get_total_errors_on_transmitted = "network.transmitted.errors",
+                    metric.nt.total_errors_on_transmitted = "network.transmitted.errors",
                     name
                 );
             }
             sys.refresh_system();
-            let load = sys.get_load_average();
+            let load = sys.load_average();
             metric.gauge("system.load1", load.one);
             metric.gauge("system.load5", load.five);
             metric.gauge("system.load15", load.fifteen);
