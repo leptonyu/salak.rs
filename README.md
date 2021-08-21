@@ -1,4 +1,7 @@
 # salak
+
+*Please use [cfg-rs](https://crates.io/crates/cfg-rs) instead, salak involve too many stuffs not only config.
+
 Salak is a multi layered configuration loader and zero-boilerplate configuration parser, with many predefined sources.
 
 [![Crates.io](https://img.shields.io/crates/v/salak?style=flat-square)](https://crates.io/crates/salak)
