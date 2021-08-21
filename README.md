@@ -1,6 +1,4 @@
-# salak
-
-*Please use [cfg-rs](https://crates.io/crates/cfg-rs) instead, salak involve too many stuffs not only config.
+# salak involve too many stuffs not only config, please use [cfg-rs](https://crates.io/crates/cfg-rs) instead.
 
 Salak is a multi layered configuration loader and zero-boilerplate configuration parser, with many predefined sources.
 
